@@ -201,8 +201,6 @@ var timerevent = {
       sysutils.system.getWifiStats(saveWiFiHistory);
       sysutils.system.getIfaceStats(saveNWHistory);
       sysutils.system.getBrowserMemoryUsage(saveBrowserMemoryUsage);
-    } else {
-      dump("sysutils not found - no performance measurements done!");
     }
     sysutils = null;
   }
@@ -213,8 +211,6 @@ var endhostinfo = {
 	var sysutils = handleObj.getHandleToFathom();
 	if(sysutils) {
 		sysutils.system.getEndHostInfo(saveEndHostHistory);
-	} else {
-	  dump("sysutils not found - no endhost measurements done!");
 	}
 	sysutils = null;
 	// force garbage collection

@@ -136,9 +136,32 @@ var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 			}
 		}
 	}
+
+	var openprefs = {
+		listener: function(evt) {
+			val = evt.target.getAttribute("path");
+			gBrowser.selectedTab = gBrowser.addTab(val);
+		}
+	}
+
+	var setprefs = {
+		listener: function(evt) {
+			var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+			val = evt.target.getAttribute("path");
+			pref.setIntPref("extensions.fathom.shareActivedata", val);
+		}
+	}
 	
+	document.addEventListener("SetPreferenceEvent", function(e) {
+		setprefs.listener(e);
+	}, false, true);
+
 	document.addEventListener("UploadFileEvent", function(e) {
 		uploadFiles.listener(e);
+	}, false, true);
+
+	document.addEventListener("OpenPrefsEvent", function(e) {
+		openprefs.listener(e);
 	}, false, true);
 
 })();
@@ -331,24 +354,48 @@ var showOptions = {
 			uploadDiv.id = 'upload';
 			uploadDiv.align = 'center';
 			//uploadDiv.innerHTML = '<h4>Click <a href="#" onclick="UploadFile(\'baseline_netError.sqlite\'); return false;">here</a> to upload this debug session.</h4>';
-			uploadDiv.innerHTML = '<table><tbody><tr><td style="padding-right:10px;vertical-align:top;"><a href="http://www.measurementlab.net" target="_top"><img src="chrome://fathom/content/icons/mlab-logo.jpg" alt="M-Lab" border="0"></img></a></td><td><i> Fathom uses the <a href="http://www.measurementlab.net" target="_top">Measurement Lab</a> (<a href="http://www.measurementlab.net" target="_top">M-Lab</a>) research platform.<br></br> To learn what information our tool collects, please go <a href="http://www.measurementlab.net/measurement-lab-tools#fathom">here</a>.</i></td></tr></tbody></table>';
+			//<!--table><tbody><tr><td style="padding-right:10px;vertical-align:top;"><a href="http://www.measurementlab.net" target="_top"><img src="chrome://fathom/content/icons/mlab-logo.jpg" alt="M-Lab" border="0"></img></a></td><td><i> Fathom uses the <a href="http://www.measurementlab.net" target="_top">Measurement Lab</a> (<a href="http://www.measurementlab.net" target="_top">M-Lab</a>) research platform.<br></br> To learn what information our tool collects, please go <a href="http://www.measurementlab.net/measurement-lab-tools#fathom">here</a>.</i></td></tr></tbody></table-->
+			uploadDiv.innerHTML = '<table><tbody><tr><td style="padding-right:10px;vertical-align:top;"><a href="http://www.icsi.berkeley.edu/icsi/" target="_blank"><img src="chrome://fathom/content/icons/icsi-logo.png" style="width:160px;" alt="ICSI" border="0"></img></a></td><td><i> Fathom uses the research infrastructure at International Computer Science <br></br>Institute (<a href="http://www.icsi.berkeley.edu/icsi/" target="_blank">ICSI</a>). To learn what information our tool collects, please go <a target="_blank" href="chrome://fathom/content/uploadPreferences.html" onclick="OpenPrefs(\'chrome://fathom/content/uploadPreferences.html\')">here</a>.</i></td></tr></tbody></table><table><tbody><tr id="sendMetrics"><td style="padding-right:10px;vertical-align:top;"><b>Would you like to share this data ?</b></td><td><input name="radAnswer" id="radio0" onclick="SetPreference(\'0\')" type="radio"></input>Not now.</td><td><input name="radAnswer" id="radio1" onclick="SetPreference(\'1\')" type="radio"></input> Just this time.</td><td><input name="radAnswer" id="radio2" onclick="SetPreference(\'2\')" type="radio"></input> Always.</td></tr></tbody></table>';
 			parent.appendChild(uploadDiv);
 			
+			loadUtils.customEvent("SetPreference", contentDoc);
+
+			loadUtils.customEvent("OpenPrefs", contentDoc);
+			
+			function sendData() {
+				var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+				return pref.getIntPref("extensions.fathom.shareActivedata");
+			}
+			function resetData() {
+				var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+				pref.setIntPref("extensions.fathom.shareActivedata", 0);
+			}
+
+			(function() {
+				var i = sendData();
+				var node = contentDoc.getElementById("radio" + i);
+				node.checked = true;
+			})();
+
 			var done = false;
 			var timerID = setInterval(function() {
-				if(done) {
-					clearInterval(timerID);
-					loadUtils.loadScript(contentDoc, parent, "UploadFile('baseline_netError.sqlite');");
-				} else {
-					// check if all tests are done
-					var divs = contentDoc.getElementsByTagName("div");
-					var total = 0;
-					for(var i = 0; i < divs.length; i++) {
-						if(divs[i].getAttribute('id') == "floatingBarsG")
-							total++;
+				if(sendData() > 0) {
+					if(done) {
+						clearInterval(timerID);
+						loadUtils.loadScript(contentDoc, parent, "UploadFile('baseline_netError.sqlite');");
+						if(sendData() == 1)
+							resetData();
+					} else {
+						// check if all tests are done
+						var divs = contentDoc.getElementsByTagName("div");
+						var total = 0;
+						for(var i = 0; i < divs.length; i++) {
+							if(divs[i].getAttribute('id') == "floatingBarsG")
+								total++;
+						}
+						if(total == 0)
+							done = true;
 					}
-					if(total == 0)
-						done = true;
 				}
 			}, 500);
 		}

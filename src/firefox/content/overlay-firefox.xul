@@ -83,12 +83,12 @@
 				<menuitem id="toolbar-fathom-debug" label="Debug my connection" onclick="fathom_debug();"/>
 				<!--menuseparator id="toolbar-fathom-data-settings" /-->
 				
-				<menu id="toolbar-fathom-data-collection" label="Data Collection" sizetopopup="none" onpopupshowing="fathom_helpers.onPopUpShowing(event, 'toolbar-');">				
-				<menupopup>
+				<!--menu id="toolbar-fathom-data-collection" label="Data Collection" sizetopopup="none" onpopupshowing="fathom_helpers.onPopUpShowing(event, 'toolbar-');">				
+				<menupopup-->
 					<menuitem id="toolbar-fathom-settings" label="Settings" onclick="fathom_settings();"/>
-					<menuitem id="toolbar-fathom-upload" label="Upload Passive Data" onclick="fathom_upload();"/>
+					<!--menuitem id="toolbar-fathom-upload" label="Upload Passive Data" onclick="fathom_upload();"/>
 				</menupopup>
-				</menu>
+				</menu-->
 				<!--menuseparator id="toolbar-fathom-enable_disable" /-->
 
 				<menuitem id="toolbar-fathom-bug" label="Send bug report" onmouseup="fathom_helpers.onMenuItemCommand(event, 'bugreport', 'toolbar-');"/>
@@ -110,12 +110,12 @@
 				<menuitem id="tools-fathom-debug" label="Debug my connection" oncommand="fathom_debug();"/>
 				<!--menuseparator id="tools-fathom-data-dettings" /-->
 				
-				<menu id="tools-fathom-data-collection" label="Data Collection" sizetopopup="none" onpopupshowing="fathom_helpers.onPopUpShowing(event, 'tools-');">
-				<menupopup>
+				<!--menu id="tools-fathom-data-collection" label="Data Collection" sizetopopup="none" onpopupshowing="fathom_helpers.onPopUpShowing(event, 'tools-');">
+				<menupopup-->
 					<menuitem id="tools-fathom-settings" label="Settings" oncommand="fathom_settings();"/>
-					<menuitem id="tools-fathom-upload" label="Upload Passive Data" oncommand="fathom_upload();"/>
+					<!--menuitem id="tools-fathom-upload" label="Upload Passive Data" oncommand="fathom_upload();"/>
 				</menupopup>
-				</menu>
+				</menu-->
 				<!--menuseparator id="tools-fathom-enable_disable" /-->
 
 				<menuitem id="tools-fathom-bug" label="Send bug report" oncommand="fathom_helpers.onMenuItemCommand(event, 'bugreport', 'tools-');"/>
@@ -136,12 +136,12 @@
 			<menuitem id="fathom-debug" label="Debug my connection" onclick="fathom_debug();"/>
 			<!--menuseparator id="fathom-data-settings" /-->
 
-			<menu id="fathom-data-collection" label="Data Collection" sizetopopup="none" onpopupshowing="fathom_helpers.onPopUpShowing(event, '');">
-			<menupopup>
+			<!--menu id="fathom-data-collection" label="Data Collection" sizetopopup="none" onpopupshowing="fathom_helpers.onPopUpShowing(event, '');">
+			<menupopup-->
 				<menuitem id="fathom-settings" label="Settings" onclick="fathom_settings();"/>
-				<menuitem id="fathom-upload" label="Upload Passive Data" onclick="fathom_upload();"/>
+				<!--menuitem id="fathom-upload" label="Upload Passive Data" onclick="fathom_upload();"/>
 			</menupopup>
-			</menu>
+			</menu-->
 			<!--menuseparator id="fathom-enable_disable" /-->
 
 			<menuitem id="fathom-bug" label="Send bug report" onmouseup="fathom_helpers.onMenuItemCommand(event, 'bugreport', '');"/>

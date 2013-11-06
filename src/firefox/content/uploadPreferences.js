@@ -81,7 +81,7 @@ var uploadOptions = {
 		if(value)
 			uploadOptions.table = JSON.parse(value);
 		// checkmark the check box and show the list
-		var time = pref.getIntPref("extensions.fathom.dataUploadFrequency");
+		/*var time = pref.getIntPref("extensions.fathom.dataUploadFrequency");
 		if(time) {
 			var list = {"1":0, "4":1, "8":2, "16":3, "24":4};
 			var node = document.getElementById("autoUpload");
@@ -90,6 +90,26 @@ var uploadOptions = {
 			if(temp) temp.style.display = "block";
 			var sel = document.getElementById("time");
 			sel.selectedIndex = list["" + (time/3600)];
+		}*/
+	},
+	
+	postinit: function() {
+		var node = document.getElementById("addCategories");
+		for (var i = 0; i < node.childNodes.length; i++) {
+			// find which top-level categories have something selected
+			// if yes, then put a check mark
+			var id = node.childNodes[i].id.split("-")[0].trim();
+			var subcat = (id == "subcat") ? true : false;			
+			if(subcat)
+				continue;
+			if(id) {
+				var temp = document.getElementById("cat-" + id);
+				var num = uploadOptions.getSelected(id);
+				if(num > 0)
+					temp.checked = true;
+				else
+					temp.checked = false;
+			}
 		}
 	},
 
@@ -109,6 +129,7 @@ var uploadOptions = {
 					var temp = document.getElementById("total-" + item);
 					temp.innerHTML = uploadOptions.getSelected(item) + ' selected';
 				
+					this.postinit();
 					return;
 				}
 		} else {
@@ -127,16 +148,19 @@ var uploadOptions = {
 					node.checked = false;
 				}
 			}
-					
+			
 			var temp = document.getElementById("total-" + id);
 			temp.innerHTML = uploadOptions.getSelected(id) + ' selected';
 		
+			this.postinit();
 			return;
 		}
 	},
 	
 	showCat: function (id) {
 		var node = document.getElementById("subcat-" + id);
+		if(!node)
+			return;
 		node.style.display = "block";
 		var temp = document.getElementById("selector-" + id);
 		temp.innerHTML = '<img src="icons/down.gif" height="18" width="18" onclick="uploadOptions.hideCat(\'' + id + '\');">';
@@ -150,6 +174,8 @@ var uploadOptions = {
 	
 	hideCat: function (id) {
 		var node = document.getElementById("subcat-" + id);
+		if(!node)
+			return;
 		node.style.display = "none";
 		var temp = document.getElementById("selector-" + id);
 		temp.innerHTML = '<img src="icons/right.gif" height="18" width="18" onclick="uploadOptions.showCat(\'' + id + '\');">';
@@ -180,7 +206,7 @@ var uploadOptions = {
 		var total = uploadOptions.getTotal(id);
 		var selected = uploadOptions.getSelected(id);
 	
-		tr.innerHTML = '<td><span id="selector-' + id + '"><img src="icons/right.gif" height="18" width="18" onclick="uploadOptions.showCat(\'' + id + '\');"></span></td><td><input class="checkbox" id="cat-' + id +'"  onclick="uploadOptions.selectCat(\'' + id + '\');" type="checkbox"></td><td style="width:100%" onclick="uploadOptions.showCat(\'' + id + '\');"><span class="category-name hotspot" onmouseover="uploadOptions.tooltip.show(\'' + desc + '\', false);" onmouseout="uploadOptions.tooltip.hide();">' + name + '</span><span style="font-size:x-small;">' + total + ' metrics</span><span style="font-size:x-small;"> (<span id="total-' + id + '">' + selected+ ' selected</span>)</span></td>';
+		tr.innerHTML = '<td><span id="selector-' + id + '"><img src="icons/right.gif" height="18" width="18" onclick="uploadOptions.showCat(\'' + id + '\');"></span></td><td><input class="checkbox" id="cat-' + id +'" onclick="uploadOptions.selectCat(\'' + id + '\');" type="checkbox"></td><td style="width:100%" onclick="uploadOptions.showCat(\'' + id + '\');"><span class="category-name hotspot" onmouseover="uploadOptions.tooltip.show(\'' + desc + '\', false);" onmouseout="uploadOptions.tooltip.hide();">' + name + '</span><span style="font-size:x-small;">' + total + ' metrics</span><span style="font-size:x-small;"> (<span id="total-' + id + '">' + selected+ ' selected</span>)</span></td>';
 
 		parent.appendChild(tr);
 		
@@ -202,7 +228,7 @@ var uploadOptions = {
 		else
 			temp.style.display = "none";
 	
-		tr.innerHTML = '<td><span id="selector-' + id + '"><img width="18" height="18" style="visibility:hidden" src="icons/right.gif"></img></span></td><td><input class="checkbox" id="cat-' + id +'"  onclick="uploadOptions.selectCat(\'' + id + '\');" type="checkbox"></td><td style="width:100%" onclick="uploadOptions.showCat(\'' + id + '\');"><span class="category-name hotspot" onmouseover="uploadOptions.tooltip.show(\'' + desc + '\', false);" onmouseout="uploadOptions.tooltip.hide();">' + name + '</span></td>';
+		tr.innerHTML = '<td><span id="selector-' + id + '"><img width="18" height="18" style="visibility:hidden" src="icons/right.gif"></img></span></td><td><input class="checkbox" id="cat-' + id +'"  onclick="uploadOptions.selectCat(\'' + id + '\');" type="checkbox"></td><td style="width:100%" onclick="uploadOptions.showCat(\'' + id + '\');"><span class="category-name hotspot subcat" onmouseover="uploadOptions.tooltip.show(\'' + desc + '\', false);" onmouseout="uploadOptions.tooltip.hide();">' + name + '</span></td>';
 
 		temp.appendChild(tr);
 
