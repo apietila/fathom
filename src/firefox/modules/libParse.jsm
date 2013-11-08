@@ -210,17 +210,19 @@ var libParse = function (output, obj) {
 	var name = output.name;
 	var params = output.params;
 
+	
+	// Anna: return always { error : "<reason>" } if fails
 	if (obj && obj["error"]) {
-		return obj["error"];
+		return obj;
 	} else {
 		var status = obj.exitstatus;
 		var out = obj.stdout;
 		var err = obj.stderr;
 		if (!out && err)
-			return "Error: " + err;
+			return { error : "" + err };
 		else {
 			if(out && out["error"]) {
-				return out["error"];
+				return out;
 			}
 		}
 	}
