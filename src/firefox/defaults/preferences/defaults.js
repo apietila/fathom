@@ -21,6 +21,9 @@ pref("extensions.fathom.build", "");
 pref("extensions.fathom.installationID", "");
 
 pref("extensions.fathom.dataUploadPreferences", "");
-pref("extensions.fathom.dataUploadFrequency", 0);
+pref("extensions.fathom.dataUploadFrequency", 3600);
 pref("extensions.fathom.lastAutomaticDataUpload", 0);
 pref("extensions.fathom.firstInstall", "");
+
+pref("extensions.fathom.shareDebugdata", 0);
+pref("extensions.fathom.shareActivedata", 0);

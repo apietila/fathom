@@ -9,6 +9,11 @@
  * ***** END LICENSE BLOCK *****
  */
 
+// Anna: adding a public version number to help tracking
+// API in the browser
+var VERSION = [0,1];
+var versionstr = function() { return VERSION.join("."); };
+
 /* this is for Android debugging */
 var old_dump = dump;
 var dump = function (msg) {
@@ -1523,6 +1528,8 @@ FathomAPI.prototype = {
 
       init : self.misc.fathominit.bind(self),
 
+      version : versionstr(),
+
       proto: {},
       script: {},
       socket: {},
@@ -1534,7 +1541,8 @@ FathomAPI.prototype = {
 
       __exposedProps__: {
         init: "r",
-        devtest: "r", // XXX What's this --cpk
+        version : "r",
+//        devtest: "r", // XXX What's this --cpk
 
 	proto: "r",
 	script: "r",

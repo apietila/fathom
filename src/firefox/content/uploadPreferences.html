@@ -25,6 +25,11 @@ body {
 	margin-right: auto;
 }
 
+span.subcat {
+	color:#808080;
+	font-size: 0.8em;
+}
+
 em {
 	color: red;
 	font-style: normal;
@@ -315,11 +320,9 @@ $( "#tabs" ).tabs();
 <!--li><a href="#tabs-3">About Us</a></li-->
 </ul>
 <div id="tabs-1">
-<p>Fathom is research project with the goal to improve the troubleshooting experience of Internet users. We are working on tools to assist users diagnose problems in their Web browsing sessions and suggest mechanisms to improve performance issues. To achieve this goal the first step is to collect more information about how client systems and Web browsers are configured and used.</p>
-<p></p>
-<p>To understand how various browser and system configurations affect Web browsing, we collect the following set of measurements that are recorded on the end host system. These measurements can be uploaded automatically or manually to our servers. However, you can chose to skip any of them when running Fathom. The uploaded data is not shared with any third party.
-<p></p>
-Thank you for your cooperation.
+<p>Fathom is a research project. You can learn more about the project and who we are at the <a href="http://fathom.icsi.berkeley.edu/">Fathom</a> home page. One of the goals of our research is to develop easy-to-use tools to assist users diagnose Internet connectivity problems and poor Web performance. The first step to achieve this goal is to better understand the nature of problems that users face in the wild. Hence, Fathom now comes with a data collection mechanism. Fathom collects the results of network configuration and connectivity tests. We do not collect any information about who you are or your browsing habits. We will store all data on a secure server at <a href="http://www.icsi.berkeley.edu/icsi/">ICSI</a> and we won't share it with any third party. Below you can select whether you want to help us with this effort and which type of data you would like to contribute. If you choose to help us with this data collection effort, you can upload the data to our servers automatically.
+</p><p>
+Your help is really appreciated!
 </p>
 	<fieldset>
 	<br style="clear:both">
@@ -328,7 +331,7 @@ Thank you for your cooperation.
 			<tr>
 				<th>
 					<span id="total-count-2">
-					Select the measurements whose results you would like to share with us.
+					Please select which data you would like to contribute to our research effort.
 					</span>
 					<!--span class="trans" id="settings.count.total">
 					Test 4
@@ -370,8 +373,8 @@ Thank you for your cooperation.
 	
 	<p style="margin-bottom:25px">
 		<span id="settings.tab.blocking.note2" class="trans">
-			<div id="automatic"> Automatically upload passive data <input class="checkbox" id="autoUpload" onclick="uploadOptions.unGrey();" type="checkbox"> <div id="frequency" style="display:none"> Upload frequency <select id="time" onchange="uploadOptions.unGrey();"> <option>1 hr</option> <option>4 hr</option> <option>8 hr</option> <option>16 hr</option> <option>24 hr</option> </select> </div>
-			</div>
+			<!--div id="automatic"> Automatically upload passive data <input class="checkbox" id="autoUpload" onclick="uploadOptions.unGrey();" type="checkbox"> <div id="frequency" style="display:none"> Upload frequency <select id="time" onchange="uploadOptions.unGrey();"> <option>1 hr</option> <option>4 hr</option> <option>8 hr</option> <option>16 hr</option> <option>24 hr</option> </select> </div>
+			</div-->
 		</span>
 	</p>
 	</fieldset>
@@ -380,54 +383,58 @@ Thank you for your cooperation.
 uploadOptions.init();
 var parent = document.getElementById("addCategories");
 
-var cat1 = uploadOptions.addCategory(parent, "End-host passive measurement metrics", "passive", "End-host characteristics observed passively during execution.", true);
-var cat2 = uploadOptions.addCategory(parent, "Debug my connection metrics", "debugConnection", "Metrics observed during Debug My Conection measurements.", true);
-var cat3 = uploadOptions.addCategory(parent, "Active measurement metrics", "netError", "Metrics observed during active measurements.", true);
+var cat1 = uploadOptions.addCategory(parent, "Periodic measurements of the host configuration and performance", "passive", "End-host characteristics observed passively during execution.", true);
+var cat2 = uploadOptions.addCategory(parent, "Host configuration and connectivity when you click on \"Debug my connection\"", "debugConnection", "Metrics observed during Debug My Conection measurements.", true);
+var cat3 = uploadOptions.addCategory(parent, "Host configuration and connectivity when Web page load fails", "netError", "Metrics observed during active measurements.", true);
+
 // sub-category passive
-var subcat1 = uploadOptions.addSubCategory(cat1, "User and System CPU usage", "cpu", "Measures the CPU usage on the host.", false);
-var subcat2 = uploadOptions.addSubCategory(cat1, "System tasks", "tasks", "Measures the total number of tasks and processes on the host.", false);
-var subcat3 = uploadOptions.addSubCategory(cat1, "Free and used memory", "memory", "Measures the system\\'s memory consumption.", false);
-var subcat4 = uploadOptions.addSubCategory(cat1, "Network bytes sent", "tx", "Records the total bytes sent over the active network interface.", false);
-var subcat5 = uploadOptions.addSubCategory(cat1, "Network bytes received", "rx", "Records the total bytes received over the active network interface.", false);
-var subcat6 = uploadOptions.addSubCategory(cat1, "HTTP bytes sent", "httpsend", "Records the total HTTP bytes sent during the Web session.", false);
-var subcat7 = uploadOptions.addSubCategory(cat1, "HTTP bytes received", "httprecv", "Records the total HTTP bytes received during the Web session.", false);
-var subcat8 = uploadOptions.addSubCategory(cat1, "WiFi link quality", "link", "Measures the WiFi link quality on the host.", false);
-var subcat9 = uploadOptions.addSubCategory(cat1, "WiFi signal strength", "signal", "Measures the WiFi signal strength on the host.", false);
-var subcat10 = uploadOptions.addSubCategory(cat1, "WiFi noise", "noise", "Measures the WiFi noise on the host.", false);
+var subcat15 = uploadOptions.addSubCategory(cat1, "Active interface", "interface", "List of available interfaces which are configured. Details include name, MTU, MAC, TX and RX bytes.", false);
 var subcat11 = uploadOptions.addSubCategory(cat1, "Browser information", "browser", "Records browser information, like vendor, name, version, etc.", false);
 var subcat12 = uploadOptions.addSubCategory(cat1, "Browser memory consumption", "memoryUsage", "Records the Web browser\\'s memory consumption on the host.", false);
-var subcat13 = uploadOptions.addSubCategory(cat1, "Operating system", "os", "Lists the OS name on the host.", false);
+var subcat1 = uploadOptions.addSubCategory(cat1, "CPU load", "cpu", "Measures the CPU usage on the host.", false);
 var subcat14 = uploadOptions.addSubCategory(cat1, "DNS", "dns", "List of the configured resolvers on the host.", false);
-var subcat15 = uploadOptions.addSubCategory(cat1, "Active interface", "interface", "List of available interfaces which are configured. Details include name, MTU, MAC, TX and RX bytes.", false);
+var subcat3 = uploadOptions.addSubCategory(cat1, "Free and used memory", "memory", "Measures the system\\'s memory consumption.", false);
+var subcat6 = uploadOptions.addSubCategory(cat1, "HTTP bytes sent", "httpsend", "Records the total HTTP bytes sent during the Web session.", false);
+var subcat7 = uploadOptions.addSubCategory(cat1, "HTTP bytes received", "httprecv", "Records the total HTTP bytes received during the Web session.", false);
+var subcat4 = uploadOptions.addSubCategory(cat1, "Network bytes sent", "tx", "Records the total bytes sent over the active network interface.", false);
+var subcat5 = uploadOptions.addSubCategory(cat1, "Network bytes received", "rx", "Records the total bytes received over the active network interface.", false);
+var subcat2 = uploadOptions.addSubCategory(cat1, "Number of tasks", "tasks", "Measures the total number of tasks and processes on the host.", false);
+var subcat13 = uploadOptions.addSubCategory(cat1, "Operating system", "os", "Lists the OS name on the host.", false);
+var subcat8 = uploadOptions.addSubCategory(cat1, "WiFi link quality", "link", "Measures the WiFi link quality on the host.", false);
+var subcat10 = uploadOptions.addSubCategory(cat1, "WiFi noise", "noise", "Measures the WiFi noise on the host.", false);
+var subcat9 = uploadOptions.addSubCategory(cat1, "WiFi signal strength", "signal", "Measures the WiFi signal strength on the host.", false);
+
 // sub-category debugConnection
-var subcat16 = uploadOptions.addSubCategory(cat2, "Available interfaces", "interfaces0", "List of available interfaces which are configured. Details include name, MTU, MAC, TX and RX bytes.", false);
 var subcat17 = uploadOptions.addSubCategory(cat2, "Active interface configuration", "configuration0", "This lists the interface name and IP for the configured interfaces.", false);
 var subcat18 = uploadOptions.addSubCategory(cat2, "Auto-configured interface", "auto0", "This field indicates if the active interfaces are auto-configured.", false);
+var subcat21 = uploadOptions.addSubCategory(cat2, "Available DNS resolvers", "nameservers0", "List of the configured resolvers on the host.", false);
+var subcat16 = uploadOptions.addSubCategory(cat2, "Available interfaces", "interfaces0", "List of available interfaces which are configured. Details include name, MTU, MAC, TX and RX bytes.", false);
+var subcat23 = uploadOptions.addSubCategory(cat2, "HTTP entity for a standard host", "http0", "Indicates the HTTP response code for the test to download the HTTP entity body for a standard URL (currently http://www.google.com).", false);
+var subcat22 = uploadOptions.addSubCategory(cat2, "Lookup a standard domain name", "lookup_standard0", "This records the A record for a standard domain (currently www.google.com) via the configured resolver.", false);
 var subcat19 = uploadOptions.addSubCategory(cat2, "Routing information", "routing0", "This indicates the routing configuration.", false);
 var subcat20 = uploadOptions.addSubCategory(cat2, "Traceroute", "traceroute0", "Lists the details of a traceroute to an echo server.", false);
-var subcat21 = uploadOptions.addSubCategory(cat2, "Available DNS resolvers", "nameservers0", "List of the configured resolvers on the host.", false);
-var subcat22 = uploadOptions.addSubCategory(cat2, "Lookup a standard domain name", "lookup_standard0", "This records the A record for a standard domain (currently www.google.com) via the configured resolver.", false);
-var subcat23 = uploadOptions.addSubCategory(cat2, "HTTP entity for a standard host", "http0", "Indicates the HTTP response code for the test to download the HTTP entity body for a standard URL (currently http://www.google.com).", false);
+
 // sub-category netError
-var subcat24 = uploadOptions.addSubCategory(cat3, "Error-inducing URI", "uri", "This is the URI for which Firefox generated the network error page.", false);
-var subcat25 = uploadOptions.addSubCategory(cat3, "Firefox error", "cause", "Cause of the error", false);
-var subcat26 = uploadOptions.addSubCategory(cat3, "Available interfaces", "interfaces", "List of available interfaces which are configured. Details include name, MTU, MAC, TX and RX bytes.", false);
 var subcat27 = uploadOptions.addSubCategory(cat3, "Active interface configuration", "configuration", "This lists the interface name and IP for the configured interfaces.", false);
 var subcat28 = uploadOptions.addSubCategory(cat3, "Auto-configured interface", "auto", "This field indicates if the active interfaces are auto-configured.", false);
-var subcat29 = uploadOptions.addSubCategory(cat3, "Routing information", "routing", "This indicates the routing configuration.", false);
-var subcat30 = uploadOptions.addSubCategory(cat3, "Traceroute", "traceroute", "Lists the details of a traceroute to an echo server.", false);
 var subcat31 = uploadOptions.addSubCategory(cat3, "Available DNS resolvers", "nameservers", "List of the configured resolvers on the host.", false);
+var subcat26 = uploadOptions.addSubCategory(cat3, "Available interfaces", "interfaces", "List of available interfaces which are configured. Details include name, MTU, MAC, TX and RX bytes.", false);
+var subcat36 = uploadOptions.addSubCategory(cat3, "Check TCP connectivity", "tcp", "This indicates errors in TCP connectivity to the domain.", false);
+var subcat24 = uploadOptions.addSubCategory(cat3, "Error-inducing URI", "uri", "This is the URI for which Firefox generated the network error page.", false);
+var subcat25 = uploadOptions.addSubCategory(cat3, "Firefox error", "cause", "Cause of the error", false);
+var subcat37 = uploadOptions.addSubCategory(cat3, "HTTP response code for the host", "http", "Indicates the HTTP response code for the test to download the HTTP entity body for the domain.", false);
+var subcat41 = uploadOptions.addSubCategory(cat3, "HTTP response code for standard host", "http_common", "Indicates the HTTP response code when retrieving the HTTP entity for a standard URL (currently http://www.google.com) in the presence of a locally configured proxy server.", false);
+var subcat39 = uploadOptions.addSubCategory(cat3, "HTTP-level user proxies", "user_proxy", "Lists any locally configured proxy servers on the host which might affect connections to the domain.", false);
+var subcat38 = uploadOptions.addSubCategory(cat3, "HTTPS connectivity with the host", "https", "This test tries to retrieve the certificate chain associated with an HTTPS connection to the domain, if possible.", false);
+var subcat35 = uploadOptions.addSubCategory(cat3, "Lookup a standard domain name", "lookup_standard", "This records the A record for a standard domain (currently www.google.com) via the configured resolver.", false);
 var subcat32 = uploadOptions.addSubCategory(cat3, "Lookup the current domain name", "lookup", "This records the A record for the domain via the configured resolver.", false);
 var subcat33 = uploadOptions.addSubCategory(cat3, "Lookup the current domain name with CD bit set", "lookup_cd", "This records the A record for the domain via the configured resolver by setting the CD option.", false);
 var subcat34 = uploadOptions.addSubCategory(cat3, "Lookup the current domain name using a public resolver", "lookup_public", "This records the ‘A’ record for the domain via a public resolver.", false);
-var subcat35 = uploadOptions.addSubCategory(cat3, "Lookup a standard domain name", "lookup_standard", "This records the A record for a standard domain (currently www.google.com) via the configured resolver.", false);
-var subcat36 = uploadOptions.addSubCategory(cat3, "Check TCP connectivity", "tcp", "This indicates errors in TCP connectivity to the domain.", false);
-var subcat37 = uploadOptions.addSubCategory(cat3, "HTTP response code for the host", "http", "Indicates the HTTP response code for the test to download the HTTP entity body for the domain.", false);
-var subcat38 = uploadOptions.addSubCategory(cat3, "HTTPS connectivity with the host", "https", "This test tries to retrieve the certificate chain associated with an HTTPS connection to the domain, if possible.", false);
-var subcat39 = uploadOptions.addSubCategory(cat3, "HTTP-level user proxies", "user_proxy", "Lists any locally configured proxy servers on the host which might affect connections to the domain.", false);
+var subcat29 = uploadOptions.addSubCategory(cat3, "Routing information", "routing", "This indicates the routing configuration.", false);
 var subcat40 = uploadOptions.addSubCategory(cat3, "Test connection to the user proxy", "proxy_available", "Indicates if a TCP connection can be established to the locally configured proxy server.", false);
-var subcat41 = uploadOptions.addSubCategory(cat3, "HTTP response code for standard host", "http_common", "Indicates the HTTP response code when retrieving the HTTP entity for a standard URL (currently http://www.google.com) in the presence of a locally configured proxy server.", false);
+var subcat30 = uploadOptions.addSubCategory(cat3, "Traceroute", "traceroute", "Lists the details of a traceroute to an echo server.", false);
 
+uploadOptions.postinit();
 </script>
 
 <p class="options-div">

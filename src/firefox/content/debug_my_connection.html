@@ -6,7 +6,21 @@
 		<link rel="icon" type="image/png" id="favicon" href="chrome://fathom/content/icons/logo-16.png"/>
 	</head>
 	<body>
-		
+		<script>
+			function setPreference(val) {
+				var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+				pref.setIntPref("extensions.fathom.shareDebugdata", val);
+			}
+			function sendData() {
+				var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+				return pref.getIntPref("extensions.fathom.shareDebugdata");
+			}
+			function resetData() {
+				var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+				pref.setIntPref("extensions.fathom.shareDebugdata", 0);
+			}
+		</script>
+
 		<!-- Page container, from Firefox's main error page -- here too for styling purposes only -->
 		<div id="errorPageContainer">
 			<div id="errorTitle">
@@ -16,7 +30,7 @@
 			<div id="result"></div>
 			<div id="upload" align="center">
 				<!--h4>Click <a href="#" onclick="upload.file('baseline_debugConnection.sqlite'); return false;">here</a> to upload this debug session.</h4-->
-				<table>
+				<!--table>
 					<tbody>
 						<tr>
 							<td style="padding-right:10px;vertical-align:top;">
@@ -26,11 +40,47 @@
 							</td>
 						</tr>
 					</tbody>
+				</table-->
+
+				<table>
+					<tbody>
+						<tr>
+							<td style="padding-right:10px;vertical-align:top;">
+								<a href="http://www.icsi.berkeley.edu/icsi/" target="_blank"><img src="chrome://fathom/content/icons/icsi-logo.png" style="width:160px;" alt="ICSI" border="0"></a>
+							</td>
+							<td><i> Fathom uses the research infrastructure at International Computer Science <br>Institute (<a href="http://www.icsi.berkeley.edu/icsi/" target="_blank">ICSI</a>). To learn what information our tool collects, please go <a target="_blank" href="chrome://fathom/content/uploadPreferences.html">here</a>.</i>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			
+				<table>
+					<tbody>
+						<tr id="sendMetrics">
+							<td style="padding-right:10px;vertical-align:top;"> <b>Would you like to share this data ?</b>
+							</td>
+							<td>
+								<input name="radAnswer" id="radio0" onclick="setPreference('0')" type="radio"></input> Not now.
+							</td>
+							<td>
+								<input name="radAnswer" id="radio1" onclick="setPreference('1')" type="radio"></input> Just this time.
+							</td>
+							<td>
+								<input name="radAnswer" id="radio2" onclick="setPreference('2')" type="radio"></input> Always.
+							</td>
+						</tr>
+					</tbody>
 				</table>
 			</div>
 		</div>
 		<script type='application/x-javascript'	src='upload.js'></script>
 		<script>
+			(function() {
+				var i = sendData();
+				var node = document.getElementById("radio" + i);
+				node.checked = true;
+			})();
+			
 			(function() {
 				var os = Components.classes["@mozilla.org/xre/app-info;1"].getService(Components.interfaces.nsIXULRuntime).OS;
 				var loadUtils = {
@@ -156,21 +206,25 @@
 							
 							var done = false;
 							var timerID = setInterval(function() {
-								if(done) {
-									clearInterval(timerID);
-									upload.file('baseline_debugConnection.sqlite');
-								} else {
-									// check if all tests are done
-									var divs = contentDoc.getElementsByTagName("div");
-									var total = 0;
-									for(var i = 0; i < divs.length; i++) {
-										if(divs[i].getAttribute('id') == "floatingBarsG")
-											total++;
+								if(sendData() > 0) {
+									if(done) {
+										clearInterval(timerID);
+										upload.file('baseline_debugConnection.sqlite');
+										if(sendData() == 1)
+											resetData();
+									} else {
+										// check if all tests are done
+										var divs = contentDoc.getElementsByTagName("div");
+										var total = 0;
+										for(var i = 0; i < divs.length; i++) {
+											if(divs[i].getAttribute('id') == "floatingBarsG")
+												total++;
+										}
+										if(total == 0)
+											done = true;
 									}
-									if(total == 0)
-										done = true;
 								}
-							}, 500);						
+							}, 500);	
 						}
 					},
 	
