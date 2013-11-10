@@ -416,13 +416,13 @@ var libParse = function (output, obj) {
 				var lines = info.trim().split("\n");
 				for (var i = 0; i < lines.length; i++) {
 					var line = lines[i].trim().replace(/\s{2,}/g, ' ');
-					if (i > 0 && i < lines.length - 2) continue;
+//					if (i > 0 && i < lines.length - 2) continue;
 					if (i == 0) {
 						var s = line.split(' ');
 						ping.domain = s[1];
 						ping.ip = s[2].replace(/\(|\)|:/gi, '');
 
-					} else if (line.indexOf("bytes from")>0) {
+					} else if (line.indexOf("bytes from")>=0) {
 					    var s = line.split(' ');
 
 					    var p = {
@@ -451,8 +451,8 @@ var libParse = function (output, obj) {
 					    ping.stats.packets.sent = parseInt(sent);
 					    ping.stats.packets.received = parseInt(received);
 					    ping.stats.packets.lost = parseInt(lost);
-					    ping.stats.packets.lossrate = 0.0;
-					    ping.stats.packets.succrate = 100.0;
+					    ping.stats.packets.lossrate = 100.0;
+					    ping.stats.packets.succrate = 0.0;
 					    if (sent>0) {
 						ping.stats.packets.lossrate = ping.stats.packets.lost*100.0/ping.stats.packets.sent;
 						ping.stats.packets.succrate = ping.stats.packets.received*100.0/ping.stats.packets.sent;

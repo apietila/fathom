@@ -1089,7 +1089,7 @@ FathomAPI.prototype = {
 
     process.runAsync(wrapperargs, wrapperargs.length, observer);
 
-	/* incremental output for traceroute */
+	/* incremental output for traceroute & ping */
 	if(incrementalCallback == true) {
 		var file = FileUtils.getFile("TmpD", [outfile.leafName]);
 	
@@ -3297,7 +3297,7 @@ FathomAPI.prototype = {
       	var data = libParse(output, info);
       	callback(data);
       }
-      dump("\n in traceroute.... " + cmd + " --- " + args + " inc="  + inc + "\n");
+      //dump("\n in traceroute.... " + cmd + " --- " + args + " inc="  + inc + "\n");
       
       //this._executeCommandAsync(callback, cmd, args, true);
       this._executeCommandAsync(cbk, cmd, args, inc);
@@ -3320,8 +3320,9 @@ FathomAPI.prototype = {
      *
      * @param {integer} count The number of pings to attempt.
      */
-    doPing : function(callback, host, count, iface) {
+    doPing : function(callback, host, count, iface, incrementaloutput) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var inc = (incrementaloutput == undefined || incrementaloutput); // do incremental output?
       if (os == "WINNT") {
         cmd = "ping";
         args = [host];//[(count == -1) ? ("-n 4") : ("-n " + count), host];
@@ -3355,7 +3356,7 @@ FathomAPI.prototype = {
       }
       
       //this._executeCommandAsync(callback, cmd, args);
-      this._executeCommandAsync(cbk, cmd, args);
+      this._executeCommandAsync(cbk, cmd, args, inc);
     },
 
     /** 
