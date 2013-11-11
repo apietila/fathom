@@ -3579,8 +3579,8 @@ FathomAPI.prototype = {
       	};
       	var data = libParse(output, info);
 
-	if (os == 'Darwin') {
-	  // get the name (and mac) of the wifi interface
+	if (os == 'Darwin' && !data.error) {
+	  // get the name (and mac) of the wifi interface on OS X
 	  cmd = "networksetup";
           args = ["-listallhardwareports"];
 	  that._executeCommandAsync(function(info2) {

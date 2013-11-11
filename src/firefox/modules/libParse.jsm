@@ -1530,7 +1530,8 @@ var libParse = function (output, obj) {
 		    txpower : null,
 		    signal : null,
 		    noise : null,
-		    bitrate : null,		    
+		    bitrate : null,
+		    error : null,
 		    __exposedProps__: {
 			mac: "r",
 			proto: "r",
@@ -1544,6 +1545,7 @@ var libParse = function (output, obj) {
 			signal : "r",
 			noise : "r",
 			bitrate : "r",		    			
+			error : "r",
 		    }
 		};
 
@@ -1605,6 +1607,10 @@ var libParse = function (output, obj) {
 			    continue;
 
 			switch(tmp[0]) {
+			case "AirPort":
+			    if (tmp[1].trim().toLowerCase() === 'off')
+				iwconfig.error = "wifi is off";
+			    break;
 			case "agrCtlRSSI":
 			    iwconfig.signal = tmp[1].trim();
 			    break;
