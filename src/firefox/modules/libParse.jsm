@@ -417,6 +417,9 @@ var libParse = function (output, obj) {
 			case "Darwin":
 				var lines = info.trim().split("\n");
 				for (var i = 0; i < lines.length; i++) {
+				    if (lines[i].length < 2)
+					continue
+
 					var line = lines[i].trim().replace(/\s{2,}/g, ' ');
 //					if (i > 0 && i < lines.length - 2) continue;
 					if (i == 0) {
@@ -424,7 +427,7 @@ var libParse = function (output, obj) {
 						ping.domain = s[1];
 						ping.ip = s[2].replace(/\(|\)|:/gi, '');
 
-					} else if (line.indexOf("bytes from")>=0) {
+					} else if (line.indexOf("bytes from")>0) {
 					    var s = line.split(' ');
 
 					    var p = {
@@ -433,14 +436,14 @@ var libParse = function (output, obj) {
 						    bytes : "r",
 						}
 					    };
-					    [4,5,6].map(function(i) {
-						if (s[i].indexOf('=')>0) {
-						    var tmp = s[i].trim().split('=');
+					    [4,5,6].map(function(j) {
+						if (s[j].indexOf('=')>0) {
+						    var tmp = s[j].trim().split('=');
 						    p[tmp[0]] = parseFloat(tmp[1]);
 						    p.__exposedProps__[tmp[0]] = "r";
 						}
 					    });
-					    res.pings.push(p);
+					    ping.pings.push(p);
 
 					// Anna: this line count logic breaks 
 					// with pings that fail

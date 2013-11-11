@@ -3354,7 +3354,7 @@ FathomAPI.prototype = {
 	}
 	args.push(host);
       }
-      //dump("\n in ping.... " + host + " --- " + args + "\n")
+//      dump("\n in ping.... " + host + " --- " + args + "\n")
       
       function cbk(info) {
       	var output = {
