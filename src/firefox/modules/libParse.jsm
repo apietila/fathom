@@ -1515,7 +1515,7 @@ var libParse = function (output, obj) {
 		return parseProcNetWireless(obj);
 		break;
 
-	case "activeWifiInterfaces":
+	case "activeWifiInterface":
 	    // parses output of iwconfig, airport etc
 	    function parse(info) {
 		var iwconfig = {

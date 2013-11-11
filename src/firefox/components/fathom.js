@@ -1430,7 +1430,7 @@ FathomAPI.prototype = {
         getNameservers : self.system.getNameservers.bind(self),
         getHostname : self.system.getHostname.bind(self),
         getActiveInterfaces : self.system.getActiveInterfaces.bind(self),
-        getActiveWifiInterfaces : self.system.getActiveWifiInterfaces.bind(self),
+        getActiveWifiInterface : self.system.getActiveWifiInterface.bind(self),
         getArpCache : self.system.getArpCache.bind(self),
         getProxyInfo : self.system.getProxyInfo.bind(self),
         getBrowserMemoryUsage : self.system.getBrowserMemoryUsage.bind(self),
@@ -1459,7 +1459,7 @@ FathomAPI.prototype = {
 			getNameservers: "r",
 			getHostname: "r",
 			getActiveInterfaces: "r",
-			getActiveWifiInterfaces: "r",
+			getActiveWifiInterface: "r",
 			getArpCache: "r",
 			getProxyInfo: "r",
 			getRoutingTable: "r",
@@ -3540,11 +3540,11 @@ FathomAPI.prototype = {
     },
 
     /**
-     * @method getActiveWifiInterfaces
+     * @method getActiveWifiInterface
      * @static
      *
      * @description This function retrieves the current status of the
-     * clients' wireless network interfaces (iwconfig and friends).
+     * clients' wireless network interface (iwconfig and friends).
      *
      * @param {function} callback The callback Fathom invokes once the
      * call completes. If successful, the result is a dictionary with
@@ -3552,7 +3552,7 @@ FathomAPI.prototype = {
      * invocation), "stdout" (data rendered to standard output), and
      * "stderr" (data rendered to standard error).
      */       
-    getActiveWifiInterfaces : function(callback) {
+    getActiveWifiInterface : function(callback) {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       if (os == "WINNT") {
@@ -3574,7 +3574,7 @@ FathomAPI.prototype = {
 	  
       function cbk(info) {
       	var output = {
-      	  name: "activeWifiInterfaces",
+      	  name: "activeWifiInterface",
       	  os: os
       	};
       	var data = libParse(output, info);
