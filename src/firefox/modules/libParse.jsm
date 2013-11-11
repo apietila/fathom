@@ -211,23 +211,32 @@ var libParse = function (output, obj) {
 	var params = output.params;
 
 	
-	// Anna: return always { error : "<reason>" } if fails
-	if (obj && obj["error"]) {
-		return obj;
+    // Anna: return always { error : "<reason>" } if fails
+    var errobj = {
+	error : null,
+	__exposedProps__: {
+	    error: "r"
+	}	
+    }
+    if (obj && obj["error"]) {
+	errobj.error = obj["error"];
+	return errobj;
+    } else {
+	var status = obj.exitstatus;
+	var out = obj.stdout;
+	var err = obj.stderr;
+	if (!out && err) {
+	    errobj.error = err + "";
+	    return errobj;
 	} else {
-		var status = obj.exitstatus;
-		var out = obj.stdout;
-		var err = obj.stderr;
-		if (!out && err)
-			return { error : "" + err };
-		else {
-			if(out && out["error"]) {
-				return out;
-			}
-		}
+	    if(out && out["error"]) {
+		errobj.error = obj["error"];
+		return errobj;
+	    }
 	}
+    }
 
-	obj = out;	
+    obj = out;	
 
 	//var tmpos = window.fathom.util.os();
 
