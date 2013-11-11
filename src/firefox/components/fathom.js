@@ -1630,7 +1630,9 @@ FathomAPI.prototype = {
 	  if (data && data.length > 0) {
 	    try{
 	      // get the top most entry in the db
-	      return JSON.parse(data).interface.ip;
+	      var dataobj = JSON.parse(data);
+	      if (dataobj.interface)
+		return dataobj.interface.ip;
 	    } catch(e) {
 	    }
 	  }
@@ -3973,9 +3975,9 @@ FathomAPI.prototype = {
 			while(statement.executeStep()) {
 				data = statement.getString(1);
 			  if (data && data.length>0) {
-				var retval = JSON.parse(data).interface;
-				if(retval.current && retval.ip)
-					return retval.current + ", IP = " + retval.ip;
+			    var dataobj = JSON.parse(data);
+				if (dataobj.interface && dataobj.interface.current && dataobj.interface.ip)
+					return dataobj.interface.current + ", IP = " + dataobj.interface.ip;
 			  }
 			}
 		} catch(e) {
@@ -4036,7 +4038,9 @@ FathomAPI.prototype = {
       
 	if (data && data.length>0) {
       	  // get the top most entry in the db
-      	  var dIface = JSON.parse(data).interface.current;
+	  var dataobj = JSON.parse(data);
+	  if (dataobj.interface) {
+      	  var dIface = dataobj.interface.current;
 			  	  
 	  	  var output = {
 			name: "interfaceStats",
@@ -4046,6 +4050,7 @@ FathomAPI.prototype = {
 
 		  var data = libParse(output, info);
 		  callback(data);
+	}
 	}
 
 	  }

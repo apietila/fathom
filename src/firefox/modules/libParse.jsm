@@ -759,36 +759,6 @@ var libParse = function (output, obj) {
 	case "activeInterfaces":
 		network.interface = [];
 
-		function setInterfaceInfo(text, rex) {
-			var intf = new interfaces();
-			intf.address = {
-				ipv4: null,
-				ipv6: null,
-				broadcast: null,
-				mask: null,
-				__exposedProps__: {
-					ipv4: "r",
-					ipv6: "r",
-					broadcast: "r",
-					mask: "r"
-				}
-			};
-			var w = rex.exec(text);
-			if (w) {
-				intf.name = w[1];
-				intf.address.ipv4 = w[5];
-				intf.address.broadcast = w[7];
-				intf.address.mask = w[6];
-				intf.address.ipv6 = w[4];
-				intf.mtu = w[2];
-				intf.mac = w[3];
-				// TODO : tx, rx
-				intf.tx = "N/A";
-				intf.rx = "N/A";
-				network.interface.push(intf);
-			}
-		}
-
 		function cidrToNetmask(bits) {
 			var netmask = "";
 			for (var i = 0; i < 4; i++) {
@@ -906,19 +876,66 @@ var libParse = function (output, obj) {
 				}
 				break;
 			case "Darwin":
-				var lines = info.trim().split("\n");
-				var inter = "";
-				var x = new RegExp(".+flags.+mtu.+");
-				//var reg = new RegExp("(.+):.+mtu\\s(.+).+ether\\s(.+)\\sinet6\\s(.+)\\sprefixlen.+inet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s(.+)\\smedia.+");
-				var reg = new RegExp("(.+):.+mtu\\s(.+).+ether\\s(.+).+inet6\\s(.+)\\sprefixlen.+inet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s(.+).+media.+");
+			    // Anna: Mavericks breaks this, need two regexs
+			    var lines = info.trim().split("\n");
+			    var inter = "";
+			    var x = new RegExp(".+flags.+mtu.+");
+
+  			    var addIface = function(text) {
+				var reg1 = new RegExp("(.+):.+mtu\\s([0-9]+)\\s.+ether\\s(.+).+inet6\\s(.+)\\sprefixlen.+inet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
+				var reg2 = new RegExp("(.+):.+mtu\\s(.+)\\s.+ether\\s(.+).+inet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
+
+				var intf = new interfaces();
+				intf.address = {
+				    ipv4: null,
+				    ipv6: null,
+				    broadcast: null,
+				    mask: null,
+				    __exposedProps__: {
+					ipv4: "r",
+					ipv6: "r",
+					broadcast: "r",
+					mask: "r"
+				    }
+				};
+				var w = reg1.exec(text);
+				if (w) {
+				    intf.name = w[1];
+				    intf.address.ipv4 = w[5];
+				    intf.address.broadcast = w[7];
+				    intf.address.mask = w[6];
+				    intf.address.ipv6 = w[4];
+				    intf.mtu = w[2];
+				    intf.mac = w[3];
+				    // not available on OS X ifconfig ...
+				    intf.tx = "N/A";
+				    intf.rx = "N/A";
+				    network.interface.push(intf);
+				} else {
+				    w = reg2.exec(text);
+				    if (w) {
+					intf.name = w[1];
+					intf.address.ipv4 = w[4];
+					intf.address.broadcast = w[6];
+					intf.address.mask = w[5];
+					intf.mtu = w[2];
+					intf.mac = w[3];
+					// not available on OS X ifconfig ...
+					intf.tx = "N/A";
+					intf.rx = "N/A";
+					network.interface.push(intf);
+				    }
+				}
+
+			    }
 				for (var i = 0; i < lines.length; i++) {
 					if (x.test(lines[i].trim())) {
-						if (inter != "") setInterfaceInfo(inter.replace(/\s{2,}/g, ' '), reg);
+						if (inter != "") addIface(inter.replace(/\s{2,}/g, ' ')); // next iface starts, add prev
 						inter = lines[i];
 					} else {
 						inter += lines[i];
-						if (i == lines.length - 1) setInterfaceInfo(inter.replace(/\s{2,}/g, ' '), reg);
-					}
+						if (i == lines.length - 1) addIface(inter.replace(/\s{2,}/g, ' ')); // last on the list
+ 					}
 				}
 				break;
 			case "WINNT":
