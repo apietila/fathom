@@ -791,11 +791,11 @@ var libParse = function (output, obj) {
 			case "Android":
 				var inter = info.trim().replace(/\s{2,}/g, ' ').split("\n");
 				for (var i = 0; i < inter.length; i++) {
+				        // output format: wlan0 UP 192.168.1.139/24 0x00001043 08:60:6e:9f:db:0d
 					var w = inter[i].split(" ");
 					if (w[1].trim() == "UP") {
 						var intf = new interfaces();
 						intf.name = w[0].trim();
-						var temp_ip = w[2].trim().split("/");
 						intf.address = {
 							ipv4: null,
 							ipv6: null,
@@ -808,10 +808,14 @@ var libParse = function (output, obj) {
 								mask: "r"
 							}
 						};
-						intf.address.ipv4 = temp_ip[0].trim();
-//						intf.address.mask = cidrToNetmask(parseInt(temp_ip[1].trim()));
-//						intf.address.ipv4 = w[2].trim();
-						intf.address.mask = w[3].trim();
+						if (w[2].indexOf('/')>=0) {
+  						  var temp_ip = w[2].trim().split("/");
+						  intf.address.ipv4 = temp_ip[0].trim();
+						  intf.address.mask = cidrToNetmask(parseInt(temp_ip[1].trim()));
+						} else {
+  					          intf.address.ipv4 = w[2].trim();
+  						  intf.address.mask = w[3].trim();
+                                                }
 						intf.address.ipv6 = "N/A";
 						intf.address.broadcast = "N/A";
 						network.interface.push(intf);
