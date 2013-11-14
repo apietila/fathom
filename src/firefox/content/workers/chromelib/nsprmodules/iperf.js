@@ -1,7 +1,7 @@
 /*
  * Implementation of iperf using NSRP directly.
  *
- * The code is based on iperf 2.0.5:
+ * The code is roughly based on iperf 2.0.5:
  *
  * http://sourceforge.net/projects/iperf/
  *

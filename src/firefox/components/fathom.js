@@ -11,7 +11,7 @@
 
 // Anna: adding a public version number to help tracking
 // API in the browser
-var VERSION = [0,1];
+var VERSION = [0,2];
 var versionstr = function() { return VERSION.join("."); };
 
 /* this is for Android debugging */
@@ -1503,14 +1503,16 @@ FathomAPI.prototype = {
         }	
       },
 
-      // Anna: ported network measurement tools
-      // adding a separate module to keep things clean
+      // Anna: added network measurement tools
+      // (inside the extension for more accurate results)
       tools: {
+	ping : self.tools.ping.bind(self),
+	pingStop : self.tools.pingStop.bind(self),
 	iperf : self.tools.iperf.bind(self),
 	iperfStop : self.tools.iperfStop.bind(self),
-//	ping : self.tools.ping.bind(self),
-//	traceroute : self.tools.traceroute.bind(self),
 	__exposedProps__: {
+          ping: "r",
+          pingStop: "r",
           iperf: "r",
           iperfStop: "r",
 	}
@@ -3272,7 +3274,12 @@ FathomAPI.prototype = {
       // TODO: the output should probably be parsed and put into a common
       // format (some array of objects, maybe) that is independent of the
       // individual traceroute implementation.
-      var inc = (incrementaloutput == undefined || incrementaloutput); // do incremental output?
+
+      // do incremental output? default false
+      var inc = false;
+      if (incrementaloutput !== undefined)
+	inc = incrementaloutput; 
+
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       if (os == "WINNT") {
         cmd = "tracert";
@@ -3332,7 +3339,11 @@ FathomAPI.prototype = {
      */
     doPing : function(callback, host, count, iface, incrementaloutput) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
-      var inc = (incrementaloutput == undefined || incrementaloutput); // do incremental output?
+      // do incremental output? default false
+      var inc = false;
+      if (incrementaloutput !== undefined)
+	inc = incrementaloutput; 
+
       if (os == "WINNT") {
         cmd = "ping";
         args = [host];//[(count == -1) ? ("-n 4") : ("-n " + count), host];
@@ -4464,13 +4475,39 @@ FathomAPI.prototype = {
     },    
   },
 
+  // Anna: tools module
   tools : {
-
+    /**
+     * @method ping
+     * @static
+     *
+     * @description ping (udp/tcp/http) implementation in nspr directly
+     *
+     * @param {function} func The callback function to invoke when
+     * results are available.
+     *
+     * @param {object} args command line arguments, these match more or less
+     * the arguments (naming and values) that you can give to commandline
+     * ping.
+     */
+    ping : function(callback, args) {
+      // create new multiresponse worker and return the id for stop calls
+      return this.doSyncSocketOpenRequest(callback, 'ping', [args], true);
+    },
+    /**
+     * @method iperfStop
+     * @static
+     *
+     * @description stop running iperf server
+     */
+    pingStop : function(callback, id) {
+      this.doSocketUsageRequest(callback, 'pingStop', [id]);
+    },
     /**
      * @method iperf
      * @static
      *
-     * @description iperf implementation in nspr directly
+     * @description iperf (client/server) implementation in nspr directly.
      *
      * @param {function} func The callback function to invoke when
      * results are available.
@@ -4480,9 +4517,15 @@ FathomAPI.prototype = {
      * iperf.
      */
     iperf : function(callback, args) {
-      // create new worker and return the id for stop calls
+      // create new multiresponse worker and return the id for stop calls
       return this.doSyncSocketOpenRequest(callback, 'iperf', [args], true);
     },
+    /**
+     * @method iperfStop
+     * @static
+     *
+     * @description stop running iperf server
+     */
     iperfStop : function(callback, id) {
       this.doSocketUsageRequest(callback, 'iperfStop', [id]);
     },
