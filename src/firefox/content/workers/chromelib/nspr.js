@@ -240,6 +240,7 @@ try {
 					 {'size' : ctypes.uint32_t},
 					 {'creationTime' : ctypes.uint64_t},
 					 {'modifyTime' : ctypes.uint64_t}])
+
   };
 
   // We don't know the true size of PRNetAddr but only the IP address field of
@@ -247,6 +248,13 @@ try {
   NSPR.types.PRMcastRequest = ctypes.StructType("PRMcastRequest",
                      [{'mcaddr': NSPR.types.PRNetAddr},
                       {'ifaddr_blob': ctypes.unsigned_char.array(1024)}]);
+
+  // I/O poll struct
+  NSPR.types.PRPollDesc = ctypes.StructType("PRPollDesc",
+					    [{'fd': NSPR.types.PRFileDesc.ptr},
+					     {'in_flags': ctypes.int16_t},
+					     {'out_flags': ctypes.int16_t}]);
+
 
   /*
    * As IpAddrAny is all zeros and only the ip field of ifaddr is read we can
@@ -493,7 +501,22 @@ try {
                 ctypes.int32_t,
                 NSPR.types.PRNetAddr.ptr,
                 ctypes.voidptr_t,
-                ctypes.uint32_t)
+   	        ctypes.uint32_t),
+
+    // Anna: adding polling support
+    PR_Poll : lib.declare("PR_Poll",
+                ctypes.default_abi,
+                ctypes.int32_t,
+                NSPR.types.PRPollDesc.ptr,
+                ctypes.int32_t,
+		ctypes.uint32_t),
+
+    PR_POLL_READ   : 0x01,
+    PR_POLL_WRITE  : 0x02,
+    PR_POLL_EXCEPT : 0x04,
+    PR_POLL_ERR    : 0x08,       /* only in out_flags */
+    PR_POLL_NVAL   : 0x10,       /* only in out_flags when fd is bad */
+    PR_POLL_HUP    : 0x20        /* only in out_flags */
   };
   
   NSPR.process = {

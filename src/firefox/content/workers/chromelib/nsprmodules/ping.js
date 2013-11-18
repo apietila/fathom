@@ -187,54 +187,104 @@ var reporter = function() {
 };
 
 var cli = function() {
+    var payload = undefined;
+    if (settings.size && settings.size>0) {
+	var stats = {
+	    seq:0,
+	    s:gettimets(),
+	    payload:""
+	};
+		
+	var i = 0;
+	for (i = 0; i < settings.size; i++) {
+	    if (JSON.stringify(stats).length * 2 >= settings.size)
+		break;
+	    stats.payload += ['1','2','3','4'][i%4];
+	}
+	payload = stats.payload;
+    };
+
     // reporting
     var rep = reporter(true);
-    var report = rep.addreport;
-    var sent = -1; // send an extra ping ignored from stats
+    var sent = 0;
 
     var done = function() {
 	shutdown(rep.getreport());
     };
 
+    // Practical limit for IPv4 TCP/UDP packet data length is 65,507 bytes.
+    // (65,535 - 8 byte TCP header - 20 byte IP header)
+    var bufsize = 8096;
+    var buf = new ArrayBuffer(bufsize);
+
     // request sender
     var reqs = {}; 
+    var pd = new NSPR.types.PRPollDesc();
     var f = function() {		    
 	var time = gettime(); 
 	var stats = { 
 	    seq:sent,
 	    s:gettimets(),
 	};
-	var str = JSON.stringify(stats) + "\n\n";
+	if (payload)
+	    stats.payload = payload;
+
+	var str = JSON.stringify(stats);
+	if (settings.proto === "tcp")
+	    str += "\n\n";
 	
-	// TODO: this is probably inefficient - but maybe not a prob
-	// if not pinging that frequently ... 
-	var sendBuf = newBufferFromString(str);
-	NSPR.sockets.PR_Send(settings.socket, sendBuf, str.length, 0, NSPR.sockets.PR_INTERVAL_NO_WAIT);
+	debug("req " + str);
+
+	var bufView = new Uint16Array(buf);
+	for (var i=0; i<str.length; i++) {
+	    bufView[i] = str.charCodeAt(i);
+	}
+	bufView[i] = 0;
+	NSPR.sockets.PR_Send(settings.socket, buf, str.length*2, 0, NSPR.sockets.PR_INTERVAL_NO_TIMEOUT);
+	sent += 1;
 
 	var time2 = gettime();		
 	stats.time = time;
 	reqs[stats.seq] = stats;
 
+	var sleep = settings.interval*1000 - (time2 - time);
+	if (sleep < 0)
+	    sleep = 0;
+
+	// now block in Poll for the interval (or until we get an answer back from the receiver)
+	pd.fd = settings.socket;
+	pd.in_flags = NSPR.sockets.PR_POLL_READ;
+
+	var prv = NSPR.sockets.PR_Poll(pd.address(), 1, Math.floor(sleep));
+
+	time2 = gettime();	
+	if (prv < 0) {
+	    // Failure in polling
+	    done();
+	    return;
+	} else if (prv > 0) {
+	    d(true);
+	} // else timeout
+
+	sleep = settings.interval*1000 - (time2 - time);
+	if (sleep < 0)
+	    sleep = 0;	
+
 	// schedule next round ?
-	sent += 1;
 	if (sent < settings.count) {
 	    // how long should we sleep (ms)?
-	    var sleep = settings.interval*1000 - (time2 - time);
-	    if (sleep < 0)
-		sleep = 0;
 	    setTimeout(f, sleep);
+	} else {
+	    d(false); // make sure we have all answers
 	}
     };
 
-    // Practical limit for IPv4 TCP packet data length is 65,507 bytes.
-    // (65,535 - 8 byte TCP header - 20 byte IP header)
-    var bufsize = 65507;
-    var recvbuf = newBuffer(bufsize);
-    var buf = '';
+//    var recvbuf = newBuffer(bufsize);
+    var strbuf = '';
 
     // incoming data handler
-    var d = function() {
-	var rv = NSPR.sockets.PR_Recv(settings.socket, recvbuf, bufsize, 0, settings.timeout*1000);
+    var d = function(noloop) {
+	var rv = NSPR.sockets.PR_Recv(settings.socket, buf, bufsize, 0, NSPR.sockets.PR_INTERVAL_NO_WAIT);
 	var hts = gettime();
 	var ts = gettimets();
 
@@ -248,34 +298,57 @@ var cli = function() {
 	}
 
 	// make sure the string terminates at correct place as buffer reused
-	recvbuf[rv] = 0; 
-	var data = recvbuf.readString();
-	var delim = data.indexOf('\n\n');
-	while (delim>=0) {
-	    buf += data.substring(0,delim);
+	buf[rv] = 0; 
+//	var data = recvbuf.readString();
+	var data = String.fromCharCode.apply(null, new Uint16Array(buf));
+	debug("resp " + data);
+
+	if (settings.proto === "udp") {
 	    try {
-		var obj = JSON.parse(buf);
+		var obj = JSON.parse(data);
+		debug(obj);
 		if (obj && obj.seq!==undefined && obj.seq>=0) {
 		    stats = reqs[obj.seq];
 		    var ms = hts - stats.time;
-				    
+			
 		    stats.time = ms;
 		    stats.rr = ts;
 		    stats.s = obj.s;
 		    stats.r = obj.r;
-		    report(stats, true);
+		    rep.addreport(stats, true);
 		}
 	    } catch (e) {
+		debug('malformed ping response: '+e);
 	    }
-	    data = data.substring(delim+2);
-	    delim = data.indexOf('\n\n');
-	    buf = '';
-	} // end while
+	} else {
+	    var delim = data.indexOf('\n\n');
+	    while (delim>=0) {
+		strbuf += data.substring(0,delim);
+		try {
+		    var obj = JSON.parse(strbuf);
+		    if (obj && obj.seq!==undefined && obj.seq>=0) {
+			stats = reqs[obj.seq];
+			var ms = hts - stats.time;
+			
+			stats.time = ms;
+			stats.rr = ts;
+			stats.s = obj.s;
+			stats.r = obj.r;
+			rep.addreport(stats, true);
+		    }
+		} catch (e) {
+		}
+		data = data.substring(delim+2);
+		delim = data.indexOf('\n\n');
+		strbuf = '';
+	    } // end while
 
-	buf += data;
+	    strbuf += data;
+	}
+
 	if (rep.getlen() === settings.count) {
 	    done();
-	} else {
+	} else if (!noloop) {
 	    setTimeout(d,0); // keep reading
 	}
     }; // end d
@@ -300,7 +373,7 @@ var cli = function() {
     }
 
     setTimeout(f,0); // start sending pings
-    setTimeout(d,0); // and read responses
+
     return {ignore : true}; // async results
 };
 
