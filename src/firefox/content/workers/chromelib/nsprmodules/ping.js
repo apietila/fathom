@@ -20,7 +20,8 @@ var settings = {
     srciface : undefined, // src IP
     size : 56,            // number of payload bytes to send (except HTTP HEAD)
 
-    socket : undefined,
+    reports : false,      // periodic reports
+    socket : undefined,   // active socket
 };
 
 // default implementation - overriden with NSPR.PR_Now below.
@@ -239,8 +240,8 @@ var setobj = function(obj,buf) {
 
 /* UDP & TCP ping client. */
 var cli = function() {
-    if (settings.proto !== 'udp' || settings.proto !== 'tcp') {
-	return {error : "unsupported client protocol " + settings.proto};
+    if (settings.proto !== 'udp' && settings.proto !== 'tcp') {
+	return {error : "unsupported client protocol: " + settings.proto};
     }    
     if (!settings.dst) {
 	return {error : "no destination!"};
@@ -401,7 +402,7 @@ var cli = function() {
 /* UDP ping server. */
 var serv = function() {
     if (settings.proto !== 'udp') {
-	return {error : "unsupported server protocol " + settings.proto};
+	return {error : "unsupported server protocol: " + settings.proto};
     }
 
     // Practical limit for IPv4 TCP&UDP packet data length is 65,507 bytes.
