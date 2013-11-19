@@ -20,7 +20,6 @@ var settings = {
     srciface : undefined, // src IP
     size : 56,            // number of payload bytes to send (except HTTP HEAD)
 
-    pendingStop : false,
     socket : undefined,
 };
 
@@ -31,10 +30,10 @@ var gettimets = function() {return (new Date()).getTime();};
 // cleanup and terminate this worker
 var shutdown = function(r) {
     if (settings.socket) {
-	util.unregisterSocket();
 	NSPR.sockets.PR_Close(settings.socket);
+	settings.socket = undefined;
+	util.unregisterSocket();
     }
-    settings.socket = undefined;
 
     // post final results and indicate to fathom we're done
     var r = r || {};
@@ -63,7 +62,10 @@ var reporter = function() {
     var prevreport = undefined;
     
     var add = function(r,s) {
+	if (r.payload)
+	    delete r.payload;
 	reports.push(r);
+
 	if (s) {
 	    succ += 1;
 	    r.upd = r.r - r.s; // uplink delay
@@ -186,35 +188,93 @@ var reporter = function() {
     };
 };
 
+// get JSON object from ctype buffer
+var getobj = function(buf,strbuf) {
+    var data = buf.readString();
+
+    if (settings.proto === "udp") {
+	// object per UDP datagram
+	try {
+	    var obj = JSON.parse(data);
+	    return obj;
+	} catch (e) {
+	    debug('malformed ping response: '+e);
+	    debug(data);
+	}
+    } else {
+	// in TCP stream objects are separated by double newline
+	var delim = data.indexOf('\n\n');
+	while (delim>=0) {
+	    strbuf += data.substring(0,delim);
+	    try {
+		var obj = JSON.parse(strbuf);
+		return obj;
+	    } catch (e) {
+		debug('malformed ping response: '+e);
+		debug(strbuf);
+	    }
+	    data = data.substring(delim+2);
+	    delim = data.indexOf('\n\n');
+	    strbuf = '';
+	} // end while
+	
+	strbuf += data;
+    }
+    return undefined;
+};
+
+// put obj to ArrayBuffer
+var setobj = function(obj,buf) {
+    var str = JSON.stringify(obj);
+    if (settings.proto === "tcp")
+	str += "\n\n";
+
+    var bufView = new Uint8Array(buf);
+    for (var i=0; i<str.length; i++) {
+	bufView[i] = str.charCodeAt(i);
+    }
+    bufView[i] = 0;
+    return str.length;
+};
+
+/* UDP & TCP ping client. */
 var cli = function() {
-    var payload = undefined;
+    if (settings.proto !== 'udp' || settings.proto !== 'tcp') {
+	return {error : "unsupported client protocol " + settings.proto};
+    }    
+    if (!settings.dst) {
+	return {error : "no destination!"};
+    }
+
+    // fill the request with dummy payload upto requested num bytes
+    var stats = {
+	seq:0,
+	s:gettimets(),
+    };
     if (settings.size && settings.size>0) {
-	var stats = {
-	    seq:0,
-	    s:gettimets(),
-	    payload:""
-	};
-		
 	var i = 0;
 	for (i = 0; i < settings.size; i++) {
-	    if (JSON.stringify(stats).length * 2 >= settings.size)
+	    if (JSON.stringify(stats).length >= settings.size)
 		break;
+
+	    if (!stats.payload)
+		stats.payload = "";
 	    stats.payload += ['1','2','3','4'][i%4];
 	}
-	payload = stats.payload;
     };
 
     // reporting
     var rep = reporter(true);
     var sent = 0;
-
     var done = function() {
 	shutdown(rep.getreport());
     };
 
     // Practical limit for IPv4 TCP/UDP packet data length is 65,507 bytes.
     // (65,535 - 8 byte TCP header - 20 byte IP header)
-    var bufsize = 8096;
+    var bufsize = settings.size*2;
+    if (bufsize > 65507)
+	bufsize = 65507;
     var buf = new ArrayBuffer(bufsize);
 
     // request sender
@@ -222,30 +282,20 @@ var cli = function() {
     var pd = new NSPR.types.PRPollDesc();
     var f = function() {		    
 	var time = gettime(); 
-	var stats = { 
+	var pstats = { 
 	    seq:sent,
 	    s:gettimets(),
 	};
-	if (payload)
-	    stats.payload = payload;
+	if (stats.payload)
+	    pstats.payload = stats.payload;
 
-	var str = JSON.stringify(stats);
-	if (settings.proto === "tcp")
-	    str += "\n\n";
-	
-	debug("req " + str);
-
-	var bufView = new Uint16Array(buf);
-	for (var i=0; i<str.length; i++) {
-	    bufView[i] = str.charCodeAt(i);
-	}
-	bufView[i] = 0;
-	NSPR.sockets.PR_Send(settings.socket, buf, str.length*2, 0, NSPR.sockets.PR_INTERVAL_NO_TIMEOUT);
+	var len = setobj(pstats,buf);
+	NSPR.sockets.PR_Send(settings.socket, buf, len, 0, NSPR.sockets.PR_INTERVAL_NO_TIMEOUT);
 	sent += 1;
 
 	var time2 = gettime();		
-	stats.time = time;
-	reqs[stats.seq] = stats;
+	pstats.time = time;
+	reqs[pstats.seq] = pstats;
 
 	var sleep = settings.interval*1000 - (time2 - time);
 	if (sleep < 0)
@@ -279,12 +329,15 @@ var cli = function() {
 	}
     };
 
-//    var recvbuf = newBuffer(bufsize);
+    // incoming data handler
+    var recvbuf = newBuffer(bufsize);
     var strbuf = '';
 
-    // incoming data handler
     var d = function(noloop) {
-	var rv = NSPR.sockets.PR_Recv(settings.socket, buf, bufsize, 0, NSPR.sockets.PR_INTERVAL_NO_WAIT);
+	if (!settings.socket)
+	    return;
+
+	var rv = NSPR.sockets.PR_Recv(settings.socket, recvbuf, bufsize, 0, settings.timeout*1000);
 	var hts = gettime();
 	var ts = gettimets();
 
@@ -298,52 +351,21 @@ var cli = function() {
 	}
 
 	// make sure the string terminates at correct place as buffer reused
-	buf[rv] = 0; 
-//	var data = recvbuf.readString();
-	var data = String.fromCharCode.apply(null, new Uint16Array(buf));
-	debug("resp " + data);
+	recvbuf[rv] = 0; 
 
-	if (settings.proto === "udp") {
-	    try {
-		var obj = JSON.parse(data);
-		debug(obj);
-		if (obj && obj.seq!==undefined && obj.seq>=0) {
-		    stats = reqs[obj.seq];
-		    var ms = hts - stats.time;
+	var obj = getobj(recvbuf,strbuf);
+	if (obj && obj.seq!==undefined && obj.seq>=0) {
+	    var pstats = reqs[obj.seq];
+	    var ms = hts - pstats.time;
 			
-		    stats.time = ms;
-		    stats.rr = ts;
-		    stats.s = obj.s;
-		    stats.r = obj.r;
-		    rep.addreport(stats, true);
-		}
-	    } catch (e) {
-		debug('malformed ping response: '+e);
+	    pstats.time = ms;
+	    pstats.rr = ts;
+	    pstats.s = obj.s;
+	    pstats.r = obj.r;
+	    rep.addreport(pstats, true);
+	    if (settings.reports) {
+		util.postResult(pstats);
 	    }
-	} else {
-	    var delim = data.indexOf('\n\n');
-	    while (delim>=0) {
-		strbuf += data.substring(0,delim);
-		try {
-		    var obj = JSON.parse(strbuf);
-		    if (obj && obj.seq!==undefined && obj.seq>=0) {
-			stats = reqs[obj.seq];
-			var ms = hts - stats.time;
-			
-			stats.time = ms;
-			stats.rr = ts;
-			stats.s = obj.s;
-			stats.r = obj.r;
-			rep.addreport(stats, true);
-		    }
-		} catch (e) {
-		}
-		data = data.substring(delim+2);
-		delim = data.indexOf('\n\n');
-		strbuf = '';
-	    } // end while
-
-	    strbuf += data;
 	}
 
 	if (rep.getlen() === settings.count) {
@@ -369,21 +391,94 @@ var cli = function() {
 
     if (NSPR.sockets.PR_Connect(settings.socket, addr.address(), settings.timeout*1000) < 0) {
 	shutdown({error : "Error connecting : code = " + NSPR.errors.PR_GetError()});
-	return {ignore : true}; // async results
+    } else {
+	setTimeout(f,0); // start sending pings
     }
-
-    setTimeout(f,0); // start sending pings
 
     return {ignore : true}; // async results
 };
 
-var serv = function(args) {
+/* UDP ping server. */
+var serv = function() {
+    if (settings.proto !== 'udp') {
+	return {error : "unsupported server protocol " + settings.proto};
+    }
+
+    // Practical limit for IPv4 TCP&UDP packet data length is 65,507 bytes.
+    // (65,535 - 8 byte UDP header - 20 byte IP header)
+    var bufsize = 65507;
+    var recvbuf = util.getBuffer(bufsize);
+
+    var pd = new NSPR.types.PRPollDesc();
+
+    // main handler loop
+    var f = function() {
+	if (util.data.multiresponse_stop) {
+	    util.data.multiresponse_running = false;
+	    shutdown({interrupted : true});
+	    return;
+	}
+
+	// now block in Poll for the interval (or until we get an answer back from the receiver)
+	pd.fd = settings.socket;
+	pd.in_flags = NSPR.sockets.PR_POLL_READ;
+
+	var prv = NSPR.sockets.PR_Poll(pd.address(), 1, 250);
+
+	if (prv > 0) {
+	    // something to read
+	    var peeraddr = new NSPR.types.PRNetAddr();
+	    var rv = NSPR.sockets.PR_RecvFrom(settings.socket, recvbuf, bufsize, 0, 
+					      peeraddr.address(), NSPR.sockets.PR_INTERVAL_NO_WAIT);
+	    var ts = gettimets();
+	    if (rv > 0) {
+		// make sure the string terminates at correct place as buffer reused
+		recvbuf[rv] = 0; 
+		var obj = getobj(recvbuf);
+		if (obj && obj.seq!==undefined) {
+		    obj.r = ts;
+		    obj.ra = NSPR.util.NetAddrToString(peeraddr);
+		    obj.rp = NSPR.util.PR_ntohs(peeraddr.port);
+		    debug("req from " + obj.ra + ":" + obj.rp);
+
+		    var len = setobj(obj,buf);
+		    NSPR.sockets.PR_SendTo(settings.socket, buf, len, 0, 
+					   peeraddr.address(), NSPR.sockets.PR_INTERVAL_NO_TIMEOUT);
+		}
+	    } // else failure to read ?!
+	} // else nothing to read
+
+	if (util.data.multiresponse_stop) {
+	    util.data.multiresponse_running = false;
+	    shutdown({interrupted : true});
+	} else {
+	    setTimeout(f,0);
+	}
+    };
+
+    // create and connect the socket
+    settings.socket = NSPR.sockets.PR_OpenUDPSocket(NSPR.sockets.PR_AF_INET);
+    util.registerSocket(settings.socket);
+
+    var addr = new NSPR.types.PRNetAddr();
+    NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, 
+			       NSPR.sockets.PR_AF_INET, 
+			       settings.port, addr.address());
+
+    if (NSPR.sockets.PR_Bind(settings.socket, addr.address()) < 0) {
+	shutdown({error : "Error binding : code = " + NSPR.errors.PR_GetError()});
+    } else {
+	setTimeout(f,0); // start receiving pings
+    }
     return {ignore : true}; // async results
 };
 
 /* Exported method: stop running ping server. */
 function pingStop() {
-    settings.pendingStop = true;
+    if (!util.data.multiresponse_running) {
+	return {logmsg: 'No ping server is running (nothing to stop).'};
+    }
+    util.data.multiresponse_stop = true;
     return {ignore : true};
 };
 
@@ -402,8 +497,8 @@ function ping(args) {
     debug(settings);
 
     if (settings.client) {
-	cli();
+	return cli();
     } else {
-	serv();
+	return serv();
     }
 };

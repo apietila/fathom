@@ -373,6 +373,7 @@ FathomAPI.prototype = {
 
         if (!requestinfo) {
           Logger.warning('Received response from worker for unknown requestid: ' + requestid);
+	  Logger.warning('Data ' + JSON.stringify(result,null,2));
         } else {
 
         // TODO: possibly make sure the worker is the one we expect (the one
@@ -391,15 +392,17 @@ FathomAPI.prototype = {
 		  requestinfo['callback'](result);
         } catch (e) {
           // TODO: decide on a good way to send this error back to the document.
-          Logger.warning('Error when calling user-provide callback: ' + e);
+          Logger.error('Error when calling user-provide callback: ' + e);
 	  Logger.error(e.stack);
         }
 	}
 
+	// one time request or multiresponse is done ?
         if ((requestinfo && !requestinfo['multiresponse']) || 
 	    (result && result['done'])) 
 	{
           delete fathomapi.requests[requestid];
+          Logger.info('Request done: ' + requestid);
         }
 
 	// Anna: adding a way to clean things up inside fathom
@@ -410,7 +413,7 @@ FathomAPI.prototype = {
 	  delete fathomapi.chromeworkers[workername];
           Logger.info('Worker closed: ' + workername);
 	}
-      };
+      }; // onmessage
 
       Components.utils.import("resource://gre/modules/Services.jsm");
       Components.utils.import("resource://gre/modules/ctypes.jsm");
