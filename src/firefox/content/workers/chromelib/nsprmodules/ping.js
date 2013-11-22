@@ -26,7 +26,32 @@ var settings = {
 
 // default implementation - overriden with NSPR.PR_Now below.
 var gettime = function() {return (new Date()).getTime();};
+// time since epoch in ms
 var gettimets = function() {return (new Date()).getTime();};
+
+/** Helper to get high-res timestamps */
+var timestamper = function() {
+    // current time is calculated as baseTime + (process.hrtime() - baseTimeHr)
+    var baseTime = gettimets()*1.0; // milliseconds since epoch
+    var baseTimeHr = gettime(); // high-res timestamp
+
+    // get base reference time
+    this.getbasets = function() {
+	return baseTime + 0.0;
+    };
+    
+    // get current time
+    this.getts = function() {
+	var hrt = gettime();
+	var diff = hrt-baseTimeHr;
+	return baseTime + diff;	
+    };
+
+    // diff between now and ts
+    this.diff = function(ts) {
+	return Math.abs(ts - this.getts());
+    };
+};
 
 // cleanup and terminate this worker
 var shutdown = function(r) {
@@ -70,15 +95,19 @@ var reporter = function() {
 	if (s) {
 	    succ += 1;
 	    r.upd = r.r - r.s; // uplink delay
-	    r.downd = r.rr - r.r; // downlink delay
-	    times.push(r.time); // rtt
 	    updv.push(r.upd); 
+
+	    r.downd = r.rr - r.r; // downlink delay
 	    downdv.push(r.downd);
 
+	    times.push(r.time); // rtt
+
+	    // keep track of the smallest uplink delay
 	    if (minupdv === undefined)
 		minupdv = r.upd;
 	    minupdv = Math.min(minupdv,r.upd);
 
+	    // keep track of the smallest downlink delay
 	    if (mindowndv === undefined)
 		mindowndv = r.downd;
 	    mindowndv = Math.min(mindowndv,r.downd);
@@ -91,6 +120,7 @@ var reporter = function() {
 		    r.downj = 15.0/16.0 * prevreport.downj + 
 			1.0/16.0 * Math.abs(r.downd-prevreport.downd)
 		} else {
+		    // first jitter (we've got at least two measurements)
 		    r.upj = Math.abs(r.upd-prevreport.upd)
 		    r.downj = Math.abs(r.downd-prevreport.downd)
 		}
@@ -110,8 +140,9 @@ var reporter = function() {
 	var max = undefined;
 
 	// mean
-	var sum = 0;
-	for (var v in data) { 
+	var sum = 0.0;
+	for (var i = 0; i< data.length; i++) { 
+	    var v = data[i];
 	    sum += v;
 	    if (min === undefined)
 		min = v;
@@ -120,14 +151,15 @@ var reporter = function() {
 		max = v;
 	    max = Math.max(max,v);
 	};
-	var avg = sum / data.length;
+	var avg = (1.0 * sum) / data.length;
 	
 	// variance
-	var v = 0;
-	for (var v in data) { 
+	var v = 0.0;
+	for (var i = 0; i< data.length; i++) { 
+	    var v = data[i];
 	    v += (v-avg)*(v-avg); 
 	};
-	v = v / data.length;
+	v = (1.0 * v) / data.length;
 	
 	return {
 	    min : min,
@@ -247,10 +279,12 @@ var cli = function() {
 	return {error : "no destination!"};
     }
 
+    var tr = new timestamper();
+
     // fill the request with dummy payload upto requested num bytes
     var stats = {
 	seq:0,
-	s:gettimets(),
+	s:tr.getts(),
     };
     if (settings.size && settings.size>0) {
 	var i = 0;
@@ -282,33 +316,28 @@ var cli = function() {
     var reqs = {}; 
     var pd = new NSPR.types.PRPollDesc();
     var f = function() {		    
-	var time = gettime(); 
 	var pstats = { 
 	    seq:sent,
-	    s:gettimets(),
+	    s:tr.getts(),
 	};
 	if (stats.payload)
 	    pstats.payload = stats.payload;
+	reqs[pstats.seq] = pstats;
 
 	var len = setobj(pstats,buf);
 	NSPR.sockets.PR_Send(settings.socket, buf, len, 0, NSPR.sockets.PR_INTERVAL_NO_TIMEOUT);
 	sent += 1;
 
-	var time2 = gettime();		
-	pstats.time = time;
-	reqs[pstats.seq] = pstats;
-
-	var sleep = settings.interval*1000 - (time2 - time);
-	if (sleep < 0)
-	    sleep = 0;
-
 	// now block in Poll for the interval (or until we get an answer back from the receiver)
 	pd.fd = settings.socket;
 	pd.in_flags = NSPR.sockets.PR_POLL_READ;
 
-	var prv = NSPR.sockets.PR_Poll(pd.address(), 1, Math.floor(sleep));
+	var diff = tr.diff(pstats.s);
+	var sleep = settings.interval*1000 - diff;
+	if (sleep<0)
+	    sleep = 0;
 
-	time2 = gettime();	
+	var prv = NSPR.sockets.PR_Poll(pd.address(), 1, Math.floor(sleep));
 	if (prv < 0) {
 	    // Failure in polling
 	    done();
@@ -317,13 +346,12 @@ var cli = function() {
 	    d(true);
 	} // else timeout
 
-	sleep = settings.interval*1000 - (time2 - time);
-	if (sleep < 0)
-	    sleep = 0;	
-
 	// schedule next round ?
 	if (sent < settings.count) {
-	    // how long should we sleep (ms)?
+	    diff = tr.diff(pstats.s);
+	    sleep = settings.interval*1000 - diff;
+	    if (sleep<0)
+		sleep = 0;
 	    setTimeout(f, sleep);
 	} else {
 	    d(false); // make sure we have all answers
@@ -339,8 +367,7 @@ var cli = function() {
 	    return;
 
 	var rv = NSPR.sockets.PR_Recv(settings.socket, recvbuf, bufsize, 0, settings.timeout*1000);
-	var hts = gettime();
-	var ts = gettimets();
+	var ts = tr.getts();
 
 	if (rv == -1) {
 	    // Failure. We should check the reason but for now we assume it was a timeout.
@@ -356,14 +383,15 @@ var cli = function() {
 
 	var obj = getobj(recvbuf,strbuf);
 	if (obj && obj.seq!==undefined && obj.seq>=0) {
-	    var pstats = reqs[obj.seq];
-	    var ms = hts - pstats.time;
-			
-	    pstats.time = ms;
-	    pstats.rr = ts;
-	    pstats.s = obj.s;
-	    pstats.r = obj.r;
+	    var pstats = reqs[obj.seq];				
+	    pstats.rr = ts;           // resp received
+	    pstats.s = obj.s;         // req sent
+	    pstats.r = obj.r;         // server received
+	    pstats.time = pstats.rr - pstats.s; // rtt
 	    rep.addreport(pstats, true);
+	    delete reqs[obj.seq]; // TODO: could count dublicates?
+
+	    // send intermediate reports?
 	    if (settings.reports) {
 		util.postResult(pstats);
 	    }
@@ -411,6 +439,7 @@ var serv = function() {
     var recvbuf = util.getBuffer(bufsize);
 
     var pd = new NSPR.types.PRPollDesc();
+    var tr = new timestamper();
 
     // main handler loop
     var f = function() {
@@ -431,7 +460,8 @@ var serv = function() {
 	    var peeraddr = new NSPR.types.PRNetAddr();
 	    var rv = NSPR.sockets.PR_RecvFrom(settings.socket, recvbuf, bufsize, 0, 
 					      peeraddr.address(), NSPR.sockets.PR_INTERVAL_NO_WAIT);
-	    var ts = gettimets();
+	    var ts = tr.getts();
+
 	    if (rv > 0) {
 		// make sure the string terminates at correct place as buffer reused
 		recvbuf[rv] = 0; 
@@ -440,6 +470,7 @@ var serv = function() {
 		    obj.r = ts;
 		    obj.ra = NSPR.util.NetAddrToString(peeraddr);
 		    obj.rp = NSPR.util.PR_ntohs(peeraddr.port);
+
 		    debug("req from " + obj.ra + ":" + obj.rp);
 
 		    var len = setobj(obj,buf);
