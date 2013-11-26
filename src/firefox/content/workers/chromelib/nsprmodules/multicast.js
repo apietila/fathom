@@ -46,6 +46,8 @@ function multicastSend(socketid, msg, ip, port) {
 
   var sendBuf = newBufferFromString(msg);
   NSPR.sockets.PR_SendTo(fd, sendBuf, msg.length, 0, addr.address(), NSPR.sockets.PR_INTERVAL_NO_WAIT);
+
+  return {};
 }
 
 function multicastOpenReceiveSocket(ip, port) {
