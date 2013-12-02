@@ -214,8 +214,10 @@ var libParse = function (output, obj) {
     // Anna: return always { error : "<reason>" } if fails
     var errobj = {
 	error : null,
+	exitstatus : null,
 	__exposedProps__: {
-	    error: "r"
+	    error: "r",
+	    exitstatus: "r"
 	}	
     }
     if (obj && obj["error"]) {
@@ -227,18 +229,19 @@ var libParse = function (output, obj) {
 	var err = obj.stderr;
 	if (!out && err) {
 	    errobj.error = err + "";
+	    errobj.exitstatus = status;
 	    return errobj;
-	} else {
-	    if(out && out["error"]) {
-		errobj.error = obj["error"];
-		return errobj;
-	    }
+	} else if (out && out["error"]) {
+	    // Anna: can this even happen ?
+	    errobj.error = obj["error"];
+	    errobj.exitstatus = status;
+	    return errobj;
 	}
     }
 
     obj = out;	
 
-	//var tmpos = window.fathom.util.os();
+    //var tmpos = window.fathom.util.os();
 
 	switch (name) {
 	case "traceroute":
@@ -441,8 +444,10 @@ var libParse = function (output, obj) {
 
 					    var p = {
 						bytes : parseInt(s[0]),
+						ip : s[3].replace(/:/,''),
 						__exposedProps__: {
 						    bytes : "r",
+						    ip : "r",
 						}
 					    };
 					    [4,5,6].map(function(j) {
@@ -789,39 +794,94 @@ var libParse = function (output, obj) {
 		function parseInterfaceInfo(info) {
 			switch (tmpos) {
 			case "Android":
-				var inter = info.trim().replace(/\s{2,}/g, ' ').split("\n");
-				for (var i = 0; i < inter.length; i++) {
-				        // output format: wlan0 UP 192.168.1.139/24 0x00001043 08:60:6e:9f:db:0d
-					var w = inter[i].split(" ");
-					if (w[1].trim() == "UP") {
-						var intf = new interfaces();
-						intf.name = w[0].trim();
-						intf.address = {
-							ipv4: null,
-							ipv6: null,
-							broadcast: null,
-							mask: null,
-							__exposedProps__: {
-								ipv4: "r",
-								ipv6: "r",
-								broadcast: "r",
-								mask: "r"
-							}
-						};
-						if (w[2].indexOf('/')>=0) {
-  						  var temp_ip = w[2].trim().split("/");
-						  intf.address.ipv4 = temp_ip[0].trim();
-						  intf.address.mask = cidrToNetmask(parseInt(temp_ip[1].trim()));
-						} else {
-  					          intf.address.ipv4 = w[2].trim();
-  						  intf.address.mask = w[3].trim();
-                                                }
-						intf.address.ipv6 = "N/A";
-						intf.address.broadcast = "N/A";
-						network.interface.push(intf);
+			    var inter = info.trim().replace(/\s{2,}/g, ' ').split("\n");
+			    var cache = {};
+			    for (var i = 0; i < inter.length; i++) {
+				var w = inter[i].split(" ");
+				if (w[1].trim() == "UP") {
+				    // netcfg output format: wlan0 UP 192.168.1.139/24 0x00001043 08:60:6e:9f:db:0d
+				    var intf = new interfaces();
+				    intf.name = w[0].trim();
+				    intf.address = {
+					ipv4: null,
+					ipv6: null,
+					broadcast: null,
+					mask: null,
+					__exposedProps__: {
+					    ipv4: "r",
+					    ipv6: "r",
+					    broadcast: "r",
+					    mask: "r"
 					}
+				    };
+				    if (w[2].indexOf('/')>=0) {
+  					var temp_ip = w[2].trim().split("/");
+					intf.address.ipv4 = temp_ip[0].trim();
+					intf.address.mask = cidrToNetmask(parseInt(temp_ip[1].trim()));
+				    } else {
+  					intf.address.ipv4 = w[2].trim();
+  					intf.address.mask = w[3].trim();
+                                    }
+				    //intf.address.ipv6 = "N/A";
+				    //intf.address.broadcast = "N/A";
+				    network.interface.push(intf);
+
+				} else {
+				    // ip link output format
+				    var name = w[0].trim().replace(':','');
+				    var intf = cache[name] || new interfaces();
+				    if (!intf.name)
+					intf.name = name;
+				    if (!intf.address) {
+					intf.address = {
+					    ipv4: null,
+					    ipv6: null,
+					    broadcast: null,
+					    mask: null,
+					    __exposedProps__: {
+						ipv4: "r",
+						ipv6: "r",
+						broadcast: "r",
+						mask: "r"
+					    }
+					}
+				    }
+
+				    var k = 1; 
+				    while (k < w.length) {
+					if (w[k] === 'mtu') {
+					    intf.mtu = parseInt(w[k+1]);
+
+					} else if (w[k].indexOf('link')>0) {
+					    intf.mac = w[k+1];
+
+					} else if (w[k] === 'inet') {
+					    var temp_ip = w[k+1].trim().split("/");
+					    intf.address.ipv4 = temp_ip[0].trim();
+					    intf.address.mask = cidrToNetmask(parseInt(temp_ip[1].trim()));
+
+					} else if (w[k] === 'inet6') {
+					    var temp_ip = w[k+1].trim().split("/");
+					    intf.address.ipv6 = temp_ip[0].trim();
+
+					} else if (w[k].indexOf('brd')>0) {
+					    intf.broadcast = w[k+1];
+					}					
+					k += 1
+				    }
+				    if (!cache[name])
+					cache[name] = intf;					
 				}
-				break;
+			    }
+
+			    // all done, push to the results
+			    for (var k in cache) {
+				if (cache.hasOwnProperty(k) && cache[k].address.ipv4!==null && 
+				    (cache[k].address.ipv4!=='127.0.0.1' || cache[k].address.ipv4!=='0.0.0.0'))
+				    network.interface.push(cache[k]);
+			    }
+			    break;
+
 			case "Linux":
 				var inter = info.trim().split("\n\n");
 				for (var i = 0; i < inter.length; i++) {
@@ -1413,6 +1473,19 @@ var libParse = function (output, obj) {
 						arpCache.push(gateway);
 					}
 					break;
+				case "Android":
+					var tmp = info.trim().split('\n');
+					for(var k = 0; k < tmp.length; k++) {
+						var i = tmp[k];
+						var x = i.split(' ');
+						var gateway = new Gateway();
+						gateway.host = undefined;
+						gateway.ip = x[0];
+						gateway.mac = x[4];
+						gateway.interface = x[2];
+						arpCache.push(gateway);
+					}
+					break;
 				case "Windows":
 					break;
 				default:
@@ -1468,12 +1541,32 @@ var libParse = function (output, obj) {
 							cell.mac = cols[1];
 							cell.channel = cols[3];
 							cell.signal = cols[2];
-							cell.encryption = (cols[6]) ? "on" : "off";
+//							cell.encryption = (cols[6]) ? "on" : "off";
+						        cell.encryption = cols[6];
 							cell.essid = cols[0];
 						}
 					
 						network.wireless.cells.push(cell);
 					}
+					break;
+				case "Android":
+			                if (cellInfo.trim().indexOf('bssid') >= 0) {
+					    var tmpCells = cellInfo.trim().split("\n");
+					    for(var i = 2; i < tmpCells.length; i++) {
+						var info = tmpCells[i].trim().replace(/\s{2,}/g,' ');
+						var cell = new Cell(); 
+						var cols = info.split(' ');
+						for(var j = 0; j < cols.length; j++) {
+							cell.id = i;
+							cell.mac = cols[0]; // bssid
+							cell.frequency = cols[1];
+							cell.signal = cols[2];
+							cell.encryption = cols[3];
+							cell.essid = cols[4];
+						}					
+						network.wireless.cells.push(cell);
+					    }
+		               	        }
 					break;
 				case "Windows":
 					break;

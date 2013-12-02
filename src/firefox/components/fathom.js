@@ -1054,34 +1054,36 @@ FathomAPI.prototype = {
         var exitstatus = subject.exitValue;
 
         function handleOutfileData(outdata) {
-        	 function handleErrfileData(errdata) {
-           	try {
-	             callback({exitstatus: exitstatus, stdout: outdata, stderr: errdata, __exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
-    	        callback = null;
-    	        incrementalCallback = false;
+          function handleErrfileData(errdata) {
+            try {
+	      callback({exitstatus: exitstatus, stdout: outdata, stderr: errdata, __exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
+    	      callback = null;
+    	      incrementalCallback = false;
     	    } catch(e) {
     	    	dump("\n" + "Error executing the callback function: " + e + "\n");
     	    }
           }
+
+          try {
+            fathomapi._readFile(errfile, handleErrfileData);
+            //fathomapi._deleteFile(errfile);
+	  } catch(e) {
+	  }
+	  
+	  // kill the process          
           try{
-          	fathomapi._readFile(errfile, handleErrfileData);
-          	//fathomapi._deleteFile(errfile);
-		  } catch(e) {
-		  }
-	  	  // kill the process          
-          try{
-          	if (subject.isRunning) {
-	    		subject.kill();
-	  	  	}
-	  	  } catch (e) {
-    			dump("\n" + "Failed to kill process: " + e + "\n");
-      			Logger.warning("Failed to kill process: " + e);
+            if (subject.isRunning) {
+	      subject.kill();
+	    }
+	  } catch (e) {
+    	    dump("\n" + "Failed to kill process: " + e + "\n");
+      	    Logger.warning("Failed to kill process: " + e);
     	  }
         }
 
-		try{
-	        fathomapi._readFile(outfile, handleOutfileData);
-        	//fathomapi._deleteFile(outfile);
+	try{
+	  fathomapi._readFile(outfile, handleOutfileData);
+          //fathomapi._deleteFile(outfile);
         } catch(e) {
         }
       }
@@ -3318,8 +3320,10 @@ FathomAPI.prototype = {
 	}
 	args.push(host);
 
-		} else if (os == "Android")
-			return;	// no traceroute on Android
+      } else if (os == "Android") {
+	callback({error:'Traceroute is not available on Android'});	  
+	return;
+      }
 			
 	  function cbk(info) {
       	var output = {
@@ -3350,10 +3354,12 @@ FathomAPI.prototype = {
      * "stderr" (data rendered to standard error).
      *
      * @param {string} host The host (name or IP address) to ping.
-     *
      * @param {integer} count The number of pings to attempt.
+     * @param {number} interval The interval between pings.
+     * @param {boolean} bcast Ping broadcast address.
+     * @param {boolean} incrementaloutput Send incremental output.
      */
-    doPing : function(callback, host, count, iface, incrementaloutput) {
+    doPing : function(callback, host, count, iface, interval, bcast, incrementaloutput) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       // do incremental output? default false
       var inc = false;
@@ -3363,6 +3369,7 @@ FathomAPI.prototype = {
       if (os == "WINNT") {
         cmd = "ping";
         args = [host];//[(count == -1) ? ("-n 4") : ("-n " + count), host];
+	// TODO: args!
       } else if (os == "Linux" || os == "Android" || os == "Darwin") {
         cmd = "ping";
 //        args = [(count == -1) ? ("-c 5") : ("-c " + count), host];
@@ -3379,8 +3386,15 @@ FathomAPI.prototype = {
             args.push("-I"+iface);
 	  }	
 	}
+	if (interval) {
+          args.push("-i " + interval);
+	}
+	if (bcast !== undefined && bcast==true && os == "Android") {
+          args.push("-b"); // required on Android
+	}
 	args.push(host);
       }
+
 //      dump("\n in ping.... " + host + " --- " + args + "\n")
       
       function cbk(info) {
@@ -3411,7 +3425,9 @@ FathomAPI.prototype = {
      * "stderr" (data rendered to standard error).
      */
     getWifiInfo : function(callback) {
+      var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cont = false;
       if (os == "WINNT") {
         cmd = "netsh";
         args = ["wlan", "show", "interfaces", "mode=bssid"];
@@ -3419,19 +3435,30 @@ FathomAPI.prototype = {
         cmd = "iwlist";
         args = ["scan"];
       } else if (os == "Darwin") {
-      	cmd = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/A/Resources/airport";
+      	cmd = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
         args = ["-s"];
-      } else if(os == "Android")
-			return; // TODO: check if we can do something similar to iwlist scan
-			
-	  function cbk(info) {
+      } else if(os == "Android") {
+	// wpa_cli is available on some devices, trigger new scan, then request the list
+        cmd = "wpa_cli";
+        args = ["scan"];	
+	cont = true;
+      }
+
+      function cbk(info) {
       	var output = {
-      		name: "wifiInfo",
-      		os: os
+      	  name: "wifiInfo",
+      	  os: os
       	};
       	var data = libParse(output, info);
-      	callback(data);
-      }		
+
+	if (os == "Android" && !data.error && cont) {
+	  // wpa_cli is available, request the list
+	  cont = false;
+	  that._executeCommandAsync(cbk, 'wpa_cli', ['scan_results']);
+	} else {
+      	  callback(data);
+	}		
+      };
 			
       //this._executeCommandAsync(callback, cmd, args);
       this._executeCommandAsync(cbk, cmd, args);
@@ -3451,6 +3478,7 @@ FathomAPI.prototype = {
      * "stderr" (data rendered to standard error).
      */
     getNameservers : function(callback) {
+      var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       if (os == "WINNT") {
         dump("\n os = windows");
@@ -3460,17 +3488,36 @@ FathomAPI.prototype = {
         cmd = "cat";
         args = ["/etc/resolv.conf"];
       } else if(os == "Android") {
-		cmd = "getprop";
-		args = ["net.dns1"];
-	  }
+	cmd = "getprop";
+	args = ["net.dns1"];
+      }
+      var tmp = [];
 	  
       function cbk(info) {
       	var output = {
       		name: "nameserver",
       		os: os
       	};
+	dump(JSON.stringify(info));
       	var data = libParse(output, info);
-      	callback(data);
+	if (os == "Android") {
+	  if (data.length > 0) // just returns a single result at the time
+	    tmp.push(data[0]);
+
+	  if ( tmp.length == 1) {
+	    // get the 2nd choice if available, TODO: there could be more I guess
+	    cmd = "getprop";
+	    args = ["net.dns2"];
+	    that._executeCommandAsync(cbk, cmd, args);	  
+	  } else {
+	    // done
+      	    callback(tmp);
+	  }
+
+	} else {
+	  // all nameservers returned in one call
+      	  callback(data);
+	}
       }
       
       //this._executeCommandAsync(callback, cmd, args);
@@ -3525,8 +3572,6 @@ FathomAPI.prototype = {
       this._executeCommandAsync(cbk, cmd, args);
     },
 
-    
-
     /**
      * @method getActiveInterfaces
      * @static
@@ -3550,9 +3595,12 @@ FathomAPI.prototype = {
         cmd = "ifconfig";
         args = [];
       } else if (os == "Android") {
-			cmd = "netcfg";
-			args = [];
-	  }
+//			cmd = "netcfg";
+//			args = [];
+	// Anna: more details with ip
+	cmd = "ip";
+	args ['-o','addr','show','up'];
+      }
 	  
 	  function cbk(info) {
       	var output = {
@@ -3648,9 +3696,10 @@ FathomAPI.prototype = {
       } else if (os == "Linux" || os == "Darwin") {
         cmd = "arp";
         args = ["-a"];
-      } else if (os == "Android")
-			return; // no arp on Android
-			
+      } else if (os == "Android") {
+        cmd = "ip";
+        args = ['neigh'];
+      }			
 	  function cbk(info) {
       	var output = {
       		name: "arpCache",
@@ -4428,9 +4477,21 @@ FathomAPI.prototype = {
      * @return {string} This function returns the string "test" when
      * successful.
      */
-    test : function test() {
+    test : function test(callback) {
       if (!this.securityCheck())
 	return;    
+
+      function cbk(info) {      
+	var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      	var output = {
+	  name: "foo",
+	  os: os,
+	  params : []
+	};
+	var data = libParse(output, info);
+	callback(data);
+      }
+      this._executeCommandAsync(cbk, "doesnotexists", []);
       return "test";
     },
 
