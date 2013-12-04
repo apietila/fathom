@@ -11,7 +11,7 @@
 
 // Anna: adding a public version number to help tracking
 // API in the browser
-var VERSION = [0,2];
+var VERSION = [0,3];
 var versionstr = function() { return VERSION.join("."); };
 
 /* this is for Android debugging */
@@ -47,6 +47,8 @@ Components.utils.import("resource://fathom/http.jsm");
 Components.utils.import("resource://fathom/DNS/dns.jsm");
 
 Components.utils.import("resource://fathom/libParse.jsm");
+// Anna: testing improved parser
+Components.utils.import("resource://fathom/libParse2.jsm");
 
 var GlobalFathomObject = null;
 
@@ -1410,7 +1412,7 @@ FathomAPI.prototype = {
           recvfromstart : self.socket.udp.recvfromstart.bind(self),
           recvfromstop : self.socket.udp.recvfromstop.bind(self),
           setsockopt : self.socket.udp.setsockopt.bind(self),
-		  netprobe : self.socket.udp.netprobe.bind(self),
+//		  netprobe : self.socket.udp.netprobe.bind(self),
 		  getHostIP : self.socket.udp.getHostIP.bind(self),
 		  getPeerIP : self.socket.udp.getPeerIP.bind(self),
 		  __exposedProps__: {
@@ -2770,9 +2772,9 @@ FathomAPI.prototype = {
 	this.doSocketUsageRequest(callback, 'udpSetsockopt', [socketid, name, value]);
       },
 
-      netprobe : function(callback, args) {
-	this.doNonSocketRequest(callback, 'netprobe', [args]);
-      },
+//      netprobe : function(callback, args) {
+//	this.doNonSocketRequest(callback, 'netprobe', [args]);
+//      },
 
       /** 
        * @method getHostIP
@@ -3302,9 +3304,9 @@ FathomAPI.prototype = {
       if (os == "WINNT") {
         cmd = "tracert";
         args = [host];
-      } else if (os == "Linux" || os == "Darwin"){
-			cmd = "traceroute";
-//			args = ["-q3", "-m30", host];
+      } else if (os == "Linux" || os == "Darwin" || os == "Android"){
+	// anna: just trying in case on Android too, some of them may have this
+	cmd = "traceroute";
 	// anna: added few more params
 	args = [];
 	if (iface!==undefined) {
@@ -3319,19 +3321,15 @@ FathomAPI.prototype = {
           args.push("-m30");
 	}
 	args.push(host);
-
-      } else if (os == "Android") {
-	callback({error:'Traceroute is not available on Android'});	  
-	return;
       }
 			
-	  function cbk(info) {
+      function cbk(info) {
       	var output = {
-      		name: "traceroute",
-      		os: os,
-      		params: [host]
+      	  name: "traceroute",
+      	  os: os,
+      	  params: [host]
       	};
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
       	callback(data);
       }
       //dump("\n in traceroute.... " + cmd + " --- " + args + " inc="  + inc + "\n");
@@ -3481,36 +3479,39 @@ FathomAPI.prototype = {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       if (os == "WINNT") {
-        dump("\n os = windows");
         cmd = "ipconfig";
         args = ["/all"];
       } else if (os == "Linux" || os == "Darwin") {
         cmd = "cat";
         args = ["/etc/resolv.conf"];
       } else if(os == "Android") {
+	// must request server at the time ..
+	var tmp = [];
+	var idx = 1;
 	cmd = "getprop";
-	args = ["net.dns1"];
+	args = ["net.dns"+idx];
       }
-      var tmp = [];
 	  
       function cbk(info) {
       	var output = {
-      		name: "nameserver",
-      		os: os
+      	  name: "nameserver",
+      	  os: os
       	};
-	dump(JSON.stringify(info));
+
       	var data = libParse(output, info);
 	if (os == "Android") {
-	  if (data.length > 0) // just returns a single result at the time
+	  dump(data);
+	  dump(tmp);
+	  dump(idx);
+	  if (!data.error && data.length > 0) { // just returns a single result at the time
 	    tmp.push(data[0]);
-
-	  if ( tmp.length == 1) {
-	    // get the 2nd choice if available, TODO: there could be more I guess
+	    idx += 1
 	    cmd = "getprop";
-	    args = ["net.dns2"];
-	    that._executeCommandAsync(cbk, cmd, args);	  
+	    args = ["net.dns"+idx];
+	    that._executeCommandAsync(cbk, cmd, args);
+	  } else if (data.error) {
+	    callback(data);
 	  } else {
-	    // done
       	    callback(tmp);
 	  }
 
@@ -3586,6 +3587,7 @@ FathomAPI.prototype = {
      * "stderr" (data rendered to standard error).
      */       
     getActiveInterfaces : function(callback) {
+      var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       // ifconfig or netstat -i
       if (os == "WINNT") {
@@ -3595,21 +3597,26 @@ FathomAPI.prototype = {
         cmd = "ifconfig";
         args = [];
       } else if (os == "Android") {
-//			cmd = "netcfg";
-//			args = [];
 	// Anna: more details with ip
 	cmd = "ip";
 	args ['-o','addr','show','up'];
       }
 	  
-	  function cbk(info) {
+      function cbk(info) {
       	var output = {
-      		name: "activeInterfaces",
-      		os: os
+	  cmd : cmd,
+      	  name: "activeInterfaces",
+      	  os: os
       	};
       	var data = libParse(output, info);
-//      	dump("\nActive Interface\n" + JSON.stringify(info) + "\n");
-      	callback(data);
+	if (os == "Android" && data.error && data.error.indexOf('not found')>=0) {
+	  // Anna: fallback to netcfg
+	  cmd = "netcfg";
+	  args = [];
+	  that._executeCommandAsync(cbk, cmd, args);
+	} else {
+      	  callback(data);
+	}
       }
       
       //this._executeCommandAsync(callback, cmd, args);

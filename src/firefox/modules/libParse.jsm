@@ -205,11 +205,9 @@ var network = {
 };
 
 var libParse = function (output, obj) {
-
-	var tmpos = output.os;
-	var name = output.name;
-	var params = output.params;
-
+    var tmpos = output.os;
+    var name = output.name;
+    var params = output.params;
 	
     // Anna: return always { error : "<reason>" } if fails
     var errobj = {
@@ -228,7 +226,11 @@ var libParse = function (output, obj) {
 	var out = obj.stdout;
 	var err = obj.stderr;
 	if (!out && err) {
-	    errobj.error = err + "";
+	    var serr = err.trim() + "";
+	    if (err.indexOf(':')>0) { 
+		serr = err.substring(err.indexOf(':')+1).trim();
+	    };
+	    errobj.error = serr;
 	    errobj.exitstatus = status;
 	    return errobj;
 	} else if (out && out["error"]) {
@@ -240,8 +242,6 @@ var libParse = function (output, obj) {
     }
 
     obj = out;	
-
-    //var tmpos = window.fathom.util.os();
 
 	switch (name) {
 	case "traceroute":
@@ -255,6 +255,7 @@ var libParse = function (output, obj) {
 				start = 0;
 			switch (tmpos) {
 			case "Linux":
+			case "Android": // TODO : check if this works ...
 				var lines = info.split("\n");
 				for (var i = start; i < lines.length; i++) {
 					var str = lines[i].replace(/\s{2,}/g,' ');//.replace(/\sms/g,'');
