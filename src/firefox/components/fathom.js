@@ -9,11 +9,6 @@
  * ***** END LICENSE BLOCK *****
  */
 
-// Anna: adding a public version number to help tracking
-// API in the browser
-var VERSION = [0,3];
-var versionstr = function() { return VERSION.join("."); };
-
 /* this is for Android debugging */
 var old_dump = dump;
 var dump = function (msg) {
@@ -1149,7 +1144,7 @@ FathomAPI.prototype = {
 	}
 
   },
-  
+
   /*
    * Before any API invocation, a security check is performed to determine if 
    * the call is allowed or not. Currently, the API call is allowed if the
@@ -1263,7 +1258,11 @@ FathomAPI.prototype = {
       Logger.debug("init() called on window that has already been initialized");
     }
 
-   	gFathomObject.obj = GlobalFathomObject = this.fullapi = {
+    var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+    gFathomObject.obj = GlobalFathomObject = this.fullapi = {
+
+      build: pref.getCharPref("extensions.fathom.build"),
+      version: pref.getCharPref("extensions.fathom.version"),
 
       proto: {
       	http: {
@@ -1541,16 +1540,23 @@ FathomAPI.prototype = {
       // Temporary location for deprecated APIs
       depr: {
       },
+
+      __exposedProps__: {
+        version : "r",
+        build : "r",
+      },
     };
     
     //var Application = Components.classes["@mozilla.org/fuel/application;1"].getService(Components.interfaces.fuelIApplication);
     //Application.storage.set("gFathomObject", GlobalFathomObject);
+    var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
 
     this.api = {
 
       init : self.misc.fathominit.bind(self),
 
-      version : versionstr(),
+      build: pref.getCharPref("extensions.fathom.build"),
+      version: pref.getCharPref("extensions.fathom.version"),
 
       proto: {},
       script: {},
@@ -1564,8 +1570,7 @@ FathomAPI.prototype = {
       __exposedProps__: {
         init: "r",
         version : "r",
-//        devtest: "r", // XXX What's this --cpk
-
+        build : "r",
 	proto: "r",
 	script: "r",
 	socket: "r",
@@ -3288,45 +3293,51 @@ FathomAPI.prototype = {
      * traceroute to.
      */
     doTraceroute : function(callback, host, incrementaloutput, iface, fast) {
-      // TODO: maybe we should detect first whether the system has a traceroute
-      // or tracert and call the callback immediately with an error if there
-      // isn't one.
-      // TODO: the output should probably be parsed and put into a common
-      // format (some array of objects, maybe) that is independent of the
-      // individual traceroute implementation.
+      var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
 
       // do incremental output? default false
       var inc = false;
       if (incrementaloutput !== undefined)
 	inc = incrementaloutput; 
 
-      var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      if (!host)
+	callback({error: "doTraceroute: missing host argument"});
+
       if (os == "WINNT") {
         cmd = "tracert";
-        args = [host];
+	if (fast) {
+	  // anna: just one query per hop and wait at most 2s for response
+          args.push("-w 1000");
+	}
+	args.push(host);
+
       } else if (os == "Linux" || os == "Darwin" || os == "Android"){
 	// anna: just trying in case on Android too, some of them may have this
 	cmd = "traceroute";
-	// anna: added few more params
-	args = [];
 	if (iface!==undefined) {
           args.push("-i"+iface);
 	}
 	if (fast) {
-	  // anna: just one query per hop and wait at most 2s for response
-          args.push("-w2");
+	  // anna: just one query per hop and wait at most 1s for response
+          args.push("-w1");
           args.push("-q1");
 	} else {
           args.push("-q3");
           args.push("-m30");
 	}
 	args.push(host);
+      } else {
+	callback({error: "doTraceroute: not available on " + os});
       }
 			
       function cbk(info) {
       	var output = {
       	  name: "traceroute",
       	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	  params: [host]
       	};
       	var data = libParse2(output, info);
@@ -3359,23 +3370,29 @@ FathomAPI.prototype = {
      */
     doPing : function(callback, host, count, iface, interval, bcast, incrementaloutput) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = 'ping';
+      var args = [];
+
       // do incremental output? default false
       var inc = false;
       if (incrementaloutput !== undefined)
 	inc = incrementaloutput; 
 
+      if (!host)
+	callback({error: "doPing: missing host argument"});
+
       if (os == "WINNT") {
-        cmd = "ping";
-        args = [host];//[(count == -1) ? ("-n 4") : ("-n " + count), host];
-	// TODO: args!
+	if (count) {
+          args.push("-n " + count);
+	}
+	if (iface) {
+          args.push("-S "+iface); // must be IP address ... -I does not work..
+	}
+	args.push(host);	
+
       } else if (os == "Linux" || os == "Android" || os == "Darwin") {
-        cmd = "ping";
-//        args = [(count == -1) ? ("-c 5") : ("-c " + count), host];
-	args = [];
 	if (count) {
           args.push("-c" + count);
-	} else {
-          args.push("-c5");
 	}
 	if (iface) {
 	  if (os == "Darwin") {
@@ -3387,20 +3404,26 @@ FathomAPI.prototype = {
 	if (interval) {
           args.push("-i " + interval);
 	}
-	if (bcast !== undefined && bcast==true && os == "Android") {
-          args.push("-b"); // required on Android
+	if (bcast !== undefined && bcast==true && 
+	    (os == "Android" || os == "Linux")) 
+	{
+          args.push("-b");
 	}
 	args.push(host);
+      } else {
+	callback({error: "doPing: not available on " + os});
       }
 
 //      dump("\n in ping.... " + host + " --- " + args + "\n")
       
       function cbk(info) {
       	var output = {
-      		name: "ping",
-      		os: os
+      	  name: "ping",
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
       	callback(data);
       }
       
@@ -3426,33 +3449,46 @@ FathomAPI.prototype = {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       var cont = false;
+      var cmd = undefined;
+      var args = [];
+
       if (os == "WINNT") {
         cmd = "netsh";
         args = ["wlan", "show", "interfaces", "mode=bssid"];
+
       } else if (os == "Linux") {
         cmd = "iwlist";
         args = ["scan"];
+
       } else if (os == "Darwin") {
       	cmd = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
         args = ["-s"];
+
       } else if(os == "Android") {
 	// wpa_cli is available on some devices, trigger new scan, then request the list
         cmd = "wpa_cli";
         args = ["scan"];	
 	cont = true;
+
+      } else {
+	callback({error: "getWifiInfo not available on " + os});
       }
 
       function cbk(info) {
       	var output = {
       	  name: "wifiInfo",
-      	  os: os
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
       	var data = libParse(output, info);
 
 	if (os == "Android" && !data.error && cont) {
 	  // wpa_cli is available, request the list
 	  cont = false;
-	  that._executeCommandAsync(cbk, 'wpa_cli', ['scan_results']);
+          cmd = "wpa_cli";
+          args = ["scan_results"];
+	  that._executeCommandAsync(cbk, cmd, args);
 	} else {
       	  callback(data);
 	}		
@@ -3478,6 +3514,9 @@ FathomAPI.prototype = {
     getNameservers : function(callback) {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       if (os == "WINNT") {
         cmd = "ipconfig";
         args = ["/all"];
@@ -3490,6 +3529,8 @@ FathomAPI.prototype = {
 	var idx = 1;
 	cmd = "getprop";
 	args = ["net.dns"+idx];
+      } else {
+	callback({error: "getNameservers not available on " + os});
       }
 	  
       function cbk(info) {
@@ -3539,17 +3580,16 @@ FathomAPI.prototype = {
      */
     getHostname : function(callback) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
-      if (os == "WINNT") {
-	// FIXME: should check the right command for windoze
-	callback("hostname");
-      } else if (os == "Linux" || os == "Darwin") {
+      var cmd = undefined;
+      var args = [];
+
+      if (os == "Linux" || os == "Darwin") {
         cmd = "hostname";
-	args = [];
       } else if(os == "Android") {
 	cmd = "getprop";
 	args = ["net.hostname"];
       } else {
-	throw "unknown OS " + os;
+	callback({error: "getHostname not available on " + os});
       }
 	  
       function cbk(obj) {
@@ -3589,17 +3629,21 @@ FathomAPI.prototype = {
     getActiveInterfaces : function(callback) {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       // ifconfig or netstat -i
       if (os == "WINNT") {
         cmd = "ipconfig";
         args = ["/all"];
       } else if (os == "Linux" || os == "Darwin") {
         cmd = "ifconfig";
-        args = [];
       } else if (os == "Android") {
 	// Anna: more details with ip
 	cmd = "ip";
 	args ['-o','addr','show','up'];
+      } else {
+	callback({error: "getActiveInterfaces not available on " + os});
       }
 	  
       function cbk(info) {
@@ -3639,6 +3683,9 @@ FathomAPI.prototype = {
     getActiveWifiInterface : function(callback) {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       if (os == "WINNT") {
 	// TODO: test on windoze!!
 //        cmd = "ipconfig";
@@ -3647,13 +3694,14 @@ FathomAPI.prototype = {
 	return null;
       } else if (os == "Linux") {
         cmd = "iwconfig";
-        args = [];
       } else if (os == "Darwin") {
 	cmd = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
         args = ["-I"];
       } else if (os == "Android") {
 	cmd = "getprop";
 	args = ['wifi.interface'];
+      } else {
+	callback({error: "getActiveWifiInterface not available on " + os});
       }
 	  
       function cbk(info) {
@@ -3696,6 +3744,9 @@ FathomAPI.prototype = {
      */       
     getArpCache : function(callback) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       // /usr/sbin/arp -a
       if (os == "WINNT") {
         cmd = "arp";
@@ -3706,7 +3757,10 @@ FathomAPI.prototype = {
       } else if (os == "Android") {
         cmd = "ip";
         args = ['neigh'];
+      } else {
+	callback({error: "getArpCache not available on " + os});
       }			
+
 	  function cbk(info) {
       	var output = {
       		name: "arpCache",
@@ -3734,6 +3788,9 @@ FathomAPI.prototype = {
      */       
     getRoutingTable : function(callback) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       // netstat -rn or route -n
       if (os == "WINNT") {
         cmd = "route";
@@ -3744,7 +3801,9 @@ FathomAPI.prototype = {
       } else if(os == "Android") {
 			cmd = "cat";
 			args = ["/proc/net/route"];
-	  }
+      } else {
+	callback({error: "getRoutingTable not available on " + os});
+      }
 		
 	  function cbk(info) {
       	var output = {
@@ -3775,7 +3834,12 @@ FathomAPI.prototype = {
      */       
     getLoad : function(callback) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       // top -n 1
+      var cmd;
+      var args;
       if (os == "WINNT") {
 		return;
       } else if (os == "Linux"){
@@ -3819,6 +3883,9 @@ FathomAPI.prototype = {
 	 */
 	getMemInfo: function (callback) {
 		var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
 		if (os == "WINNT") {
 			return;
 		} else if (os == "Linux") {
@@ -4087,6 +4154,9 @@ FathomAPI.prototype = {
      */       
     getIfaceStats : function(callback) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       if (os == "WINNT") {
         var cmd = "netstat";
         var args = ["-e"];
@@ -4159,6 +4229,9 @@ FathomAPI.prototype = {
      */   
     getWifiStats : function(callback, name) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
       var params = [];
       if (name)
 	params.push(name);
@@ -4216,6 +4289,8 @@ FathomAPI.prototype = {
        */       
       getMemLoad: function(callback) {
     	var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
 	if (os != "WINNT")
 	  return;
     	// systeminfo
@@ -4241,6 +4316,9 @@ FathomAPI.prototype = {
        */       
       getProcLoad: function(callback) {
     	var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+      var cmd = undefined;
+      var args = [];
+
 	if (os != "WINNT")
 	  return;
 	cmd = "tasklist";

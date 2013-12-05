@@ -2,6 +2,8 @@ var EXPORTED_SYMBOLS = ["libParse2"];
 
 //------ Parsers ---------//
 
+Components.utils.import("resource://fathom/Logger.jsm");
+
 /* Traceroute output. */
 function parseTraceroute(config, output) {
     var traceroute = {
@@ -13,13 +15,13 @@ function parseTraceroute(config, output) {
 	}
     };
 
-    function Hop() {}
+    function Hop() {};
     Hop.prototype = {
 	id: null,
 	host: null,
 	ip: null,
-	rtt: [],
-	missed : 0,
+	rtt: null,
+	missed : null,
 	__exposedProps__: {
 	    id: "r",
 	    host: "r",
@@ -28,29 +30,30 @@ function parseTraceroute(config, output) {
 	    missed : "r",
 	}
     };
-
     var lines = output.split("\n");
 
     switch (config.os.toLowerCase()) {
     case "linux":
     case "android": // TODO : check if this works ...
-	var start = 1;
-	for (var i = start; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g,' ');//.replace(/\sms/g,'');
-	    if (str.trim() == "") continue;
+	for (var i = 1; i < lines.length; i++) {
+	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
+	    if (str.trim() == "") 
+		continue;
+
 	    var ent = str.trim().split(' ');
+
 	    var h = new Hop();
 	    h.id = ent[0];
 	    h.host = ent[1];
 	    h.ip = ent[2] ? ent[2].replace(/\(|\)/gi, '') : ent[2];
 	   
+	    h.missed = 0;
+	    h.rtt = [];
 	    for (var k = 3; k < ent.length; k++) {
-		if (ent[k+1] == 'ms') {
-		    // delay in ms
-		    h.rtt.push(parseFloat(ent[k]));
-		} else if (ent[k] == '*') {
-		    // no response
-		    h.missed += 1;
+		if (ent[k] === '*') {
+		    h.missed = h.missed + 1;
+		} else {
+		    h.rtt.push(ent[k]);
 		}
 	    }
 	    
@@ -58,56 +61,27 @@ function parseTraceroute(config, output) {
 	}
 	break;
     case "darwin":
-	var start = 0;
-	for (var i = start; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g,' ');//.replace(/\sms/g,'');
-	    if (str.trim() == "") continue;
+	for (var i = 0; i < lines.length; i++) {
+	    var str = lines[i].replace(/\s{2,}/g,' ');
+	    if (str.trim() == "") 
+		continue;
+
 	    var ent = str.trim().split(' ');
+
 	    var h = new Hop();
 	    h.id = ent[0];
 	    h.host = ent[1];
 	    h.ip = ent[2] ? ent[2].replace(/\(|\)/gi, '') : ent[2];
 	    
-	    var tmprtt = "";
-	    for (var k = 3; k < ent.length; k++)
-		tmprtt += ent[k] + " ";
-	    var tmprtt1 = ent[3],
-	    tmprtt2 = ent[4],
-	    tmprtt3 = ent[5];
-	    
-	    var flag = false;
-	    while(!flag) {
-		if(i == lines.length) {
-		    flag = true;
-		    continue;
-		}
-		// test if the following lines are next hops
-		var newline = (i < lines.length && lines[i+1]) ? lines[i+1].replace(/\s{2,}/g,' ').trim() : "";
-		var elems = newline;
-		var start = elems.split(" ")[0];
-		// check if this is a hop number
-		var par_t = parseInt(start);
-		var par_e = par_t.toString().length;
-		if(par_e == start.length && par_t != NaN) {
-		    // this is a hop, so continue forward
-		    flag = true;
+	    h.missed = 0;
+	    h.rtt = [];
+	    for (var k = 3; k < ent.length; k++) {
+		if (ent[k] === '*') {
+		    h.missed = h.missed + 1;
 		} else {
-		    i++;
-		    tmprtt += elems + " ";
+		    h.rtt.push(ent[k]);
 		}
 	    }
-	    
-	    var rtts = tmprtt.split("ms");
-	    
-	    var len = rtts.length > 1 ? rtts[0].trim().split(" ") : [];
-	    h.rtt1 = (len.length > 0) ? len[len.length - 1] : "*";
-	    //tmprtt1;
-	    len = rtts.length > 2 ? rtts[1].trim().split(" ") : [];
-	    h.rtt2 = (len.length > 0) ? len[len.length - 1] : "*";
-	    //tmprtt2;
-	    len = rtts.length > 3 ? rtts[2].trim().split(" ") : [];
-	    h.rtt3 = (len.length > 0) ? len[len.length - 1] : "*";
-	    //tmprtt3;
 	    
 	    traceroute.hop.push(h);
 	}
@@ -115,28 +89,36 @@ function parseTraceroute(config, output) {
     case "winnt":
 	for (var i = 3; i < lines.length - 2; i++) {
 	    var str = lines[i].replace(/\s{2,}/g, ' ').replace(/\sms/g, '');
-	    if (str.trim() == "") continue;
+	    if (str.trim() == "") {
+		continue;
+	    }
+
 	    var ent = str.trim().split(' ');
+
 	    var h = new Hop();
+	    h.id = ent[0];
+
 	    if(ent.length == 6) {
-		h.id = ent[0];
 		h.host = ent[4];
 		h.ip = ent[5].replace(/\[|\]/gi, '');
-		h.rtt1 = ent[1];
-		h.rtt2 = ent[2];
-		h.rtt3 = ent[3];
-
-		traceroute.hop.push(h);
-
 	    } else if(ent.length == 5) {
-		h.id = ent[0];
 		h.ip = ent[4];
-		h.rtt1 = ent[1];
-		h.rtt2 = ent[2];
-		h.rtt3 = ent[3];
-
-		traceroute.hop.push(h);
 	    }
+
+	    if (h.ip) {
+		h.missed = 0;
+		h.rtt = [];
+		for (var k = 1; k <= 3; k++) {
+		    if (ent[k] === '*') {
+			h.missed = h.missed + 1;
+		    } else {
+			h.rtt.push(ent[k].replace(/</g,''));
+		    }
+		}
+	    }
+
+	    traceroute.hop.push(h);
+
 	}
 	break;
     default:
@@ -215,7 +197,7 @@ function parsePing(config, output) {
 	}
     };
 
-    var lines = output.split("\n");
+    var lines = output.trim().split("\n");
 
     switch (config.os.toLowerCase()) {
     case "linux":
@@ -233,11 +215,12 @@ function parsePing(config, output) {
 		
 	    } else if (line.indexOf("bytes from")>0) {
 		var s = line.split(' ');
-		var p = new Ping();
 
+		var p = new Ping();
 		p.bytes = parseInt(s[0]);
-		// 64 bytes from 192.168.1.1: icmp_req=1 ttl=64 time=0.291 ms
+
 		if (s[3].indexOf(':')>=0) {
+		    // 64 bytes from 192.168.1.1: icmp_req=1 ttl=64 time=0.291 ms
 		    p.ip = s[3].replace(/\(|\)|:/gi, '');
 		    p.domain = p.ip;
 		    [4,5,6].map(function(j) {
@@ -250,6 +233,7 @@ function parsePing(config, output) {
 		    // 64 bytes from wi-in-f99.1e100.net (173.194.67.99): icmp_req=3 ttl=46 time=6.83 ms
 		    p.domain = s[3];
 		    p.ip = s[4].replace(/\(|\)|:/gi, '');
+
 		    [5,6,7].map(function(j) {
 			if (s[j].indexOf('=')>0) {
 			    var tmp = s[j].trim().split('=');
@@ -257,6 +241,7 @@ function parsePing(config, output) {
 			}
 		    });
 		}
+
 		ping.pings.push(p);
 		
 	    } else if (line.indexOf("packet")>0) {
@@ -273,6 +258,7 @@ function parsePing(config, output) {
 		    ping.stats.packets.lossrate = ping.stats.packets.lost*100.0/ping.stats.packets.sent;
 		    ping.stats.packets.succrate = ping.stats.packets.received*100.0/ping.stats.packets.sent;
 		}
+
 	    } else if (line.indexOf("avg")>0) {
  		var s = line.split('=')[1].split('/');
 		var min = s[0].replace(/ms/, "");
@@ -287,40 +273,64 @@ function parsePing(config, output) {
 	    }
 	}
 	break;
+
     case "winnt":
-	if (lines.length == 1) {
-	    ping.domain = "";
-	    ping.ip = "";
-	    return ping;
-	}
-	for (var i = 0; i < lines.length; i++) {
-	    var line = lines[i].trim().replace(/\s{2,}/g, ' ');
-	    if (i > 0 && i < lines.length - 4) continue;
-	    if (i == 0) {
-		var s = line.split(' ');
-		ping.domain = s[1];
-		ping.ip = (s[2].indexOf('[') == -1) ? s[1] : s[2].replace(/[|]|:/gi, '');
+	if (lines.length > 1) {
+	    for (var i = 0; i < lines.length; i++) {
+		var line = lines[i].trim().replace(/\s{2,}/g, ' ');
+		Logger.debug(line);
 
-	    } else if (i == lines.length - 3) {
-		var s = line.split(',');
-		var sent = s[0].trim().split(' ')[3];
-		var received = s[1].trim().split(' ')[2];
-		var lost = s[2].trim().split('%')[0].split("(")[1];
-		ping.stats.packets.sent = sent;
-		ping.stats.packets.received = received;
-		ping.stats.packets.lost = lost;
+		if (i == 0) {
+		    var s = line.split(' ');
+		    ping.domain = s[1];
+		    ping.ip = (s[2].indexOf('[') == -1) ? s[1] : s[2].replace(/[|]|:/gi, '');
 
-	    } else if (i == lines.length - 1) {
-		var s = line.split(',');
-		var min = s[0].split('=')[1].split('ms')[0].trim();
-		var max = s[1].split('=')[1].split('ms')[0].trim();
-		var avg = s[2].split('=')[1].split('ms')[0].trim();
-		var mdev = 0;
-		ping.stats.rtt.min = min;
-		ping.stats.rtt.max = max;
-		ping.stats.rtt.avg = avg;
-		ping.stats.rtt.mdev = mdev;
+		} else if (line.indexOf("Reply from")>=0) {
+		    var s = line.split(' ');
+
+		    var p = new Ping();
+		    p.ip = s[2].replace(/\(|\)/gi, '');
+		    p.domain = p.ip;
+
+		    for (var j = 3; j<s.length; j++) {
+			if (s[j].indexOf('=')>0) {
+			    var tmp = s[j].trim().split('=');
+			    p[tmp[0].toLowerCase()] = parseFloat(tmp[1].replace(/ms/,''));
+			}
+		    };
+
+		    ping.pings.push(p);
+
+		} else if (line.indexOf("Packets: Sent =")>=0) {
+		    var s = line.split(',');
+
+		    var sent = s[0].trim().split(' ')[3];
+		    var received = s[1].trim().split(' ')[2];
+		    var lost = s[2].trim().split('%')[0].split("(")[1];
+		    ping.stats.packets.sent = sent;
+		    ping.stats.packets.received = received;
+		    ping.stats.packets.lost = lost;
+
+		} else if (line.indexOf("Minimum =")>=0) {
+		    var s = line.split(',');
+
+		    var min = s[0].split('=')[1].split('ms')[0].trim();
+		    var max = s[1].split('=')[1].split('ms')[0].trim();
+		    var avg = s[2].split('=')[1].split('ms')[0].trim();
+		    var mdev = 0;
+		    ping.stats.rtt.min = min;
+		    ping.stats.rtt.max = max;
+		    ping.stats.rtt.avg = avg;
+		    ping.stats.rtt.mdev = mdev;
+		}
 	    }
+	} else {
+	    ping = {
+		error: lines[0],
+		__exposedProps__: {
+		    error: "r",
+		}
+	    };
 	}
 	break;
     default:
@@ -1548,10 +1558,30 @@ var libParse2 = function (config, obj) {
 	};
     }
 
-    if (res !== undefined) {
-	res.ts = Date.now();
-	res.__exposedProps__.ts = "r";	
+    var addcommon = function(res) {
+	// add some common metadata for each report
+	var meta = {
+	    ts : Date.now(),
+	    name : config.name,
+	    cmd : config.cmd,
+	    args : config.args,
+	    os : config.os,
+	    __exposedProps__ : {
+		ts : "r",
+		cmd : "r",	
+		args : "r",	
+		os : "r",	
+	    }
+	};
+	res.meta = meta;
+	if (!res.__exposedProps__)
+	    res.__exposedProps__ = {};
+	res.__exposedProps__.meta = 'r';
 	return res;
+    };
+
+    if (res !== undefined) {
+	return addcommon(res);
     }
 
     // choose the parser
@@ -1607,7 +1637,5 @@ var libParse2 = function (config, obj) {
 	break;
     };
 
-    res.ts = Date.now();
-    res.__exposedProps__.ts = "r";
-    return res;
+    return addcommon(res);
 }

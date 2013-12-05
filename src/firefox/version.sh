@@ -2,8 +2,9 @@
 #
 # This file is the central defintion of version and build number.
 #
-version=0.2
-build=`svn info | grep 'Revision:' | awk '{print $2}'`
+version=0.3
+#build=`svn info | grep 'Revision:' | awk '{print $2}'`
+build=`git log -n 1 | grep commit | cut -d ' ' -f 2`
 
 # This is a public key
 updatekey='MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCaww+igknCDR2\/kWisLU8lnxGqCr50lL1oIRJHvKokqskEtyB+p1FS5Tiq1rkCdiNb3RFU9e9PYNiLT\/zqx3hMn6u+EFbpjInKgit79YTTQa+LveB1oOgkXJHYXfDE7aNB06xMGhIFzt3cu2o7VSs32bijHsjESI4AHCdKTFHODwIDAQAB'
@@ -22,3 +23,7 @@ if [ "$1" != docbuild ]; then
 	| sed "s/@BUILD@/$build/" \
 	>defaults/preferences/defaults.js
 fi
+
+echo "{\"version\":$version}" > dist/fathom_version
+
+
