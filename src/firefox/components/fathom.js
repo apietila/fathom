@@ -1215,7 +1215,7 @@ FathomAPI.prototype = {
    * provides access to the window.
    */
   init: function (aWindow) {
-    let self = this;
+    var self = this;
     this.window = XPCNativeWrapper.unwrap(aWindow);
 
     try {
@@ -1580,32 +1580,31 @@ FathomAPI.prototype = {
       }
     };
 
-	/*
-	 * parse client policy
-	 */
-	var data = "";
-	 
-	try {
-		var file = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties).get("ProfD", Ci.nsIFile);
-		file.append("client_policy.xml");
-	
-		var fstream = Cc["@mozilla.org/network/file-input-stream;1"].createInstance(Ci.nsIFileInputStream);
-		var cstream = Cc["@mozilla.org/intl/converter-input-stream;1"].createInstance(Ci.nsIConverterInputStream);
-		fstream.init(file, -1, 0, 0);
-		cstream.init(fstream, "UTF-8", 0, 0);
+    /*
+     * parse client policy
+     */
+    var data = "";
+    
+    try {
+      var file = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties).get("ProfD", Ci.nsIFile);
+      file.append("client_policy.xml");
+      
+      var fstream = Cc["@mozilla.org/network/file-input-stream;1"].createInstance(Ci.nsIFileInputStream);
+      var cstream = Cc["@mozilla.org/intl/converter-input-stream;1"].createInstance(Ci.nsIConverterInputStream);
+      fstream.init(file, -1, 0, 0);
+      cstream.init(fstream, "UTF-8", 0, 0);
+      
+      var read = 0;
+      do { 
+	read = cstream.readString(0xffffffff, str);
+	data += str.value;
+      } while (read != 0);      
+      cstream.close();
 
-		let (str = {}) {
-			let read = 0;
-			do { 
-				read = cstream.readString(0xffffffff, str);
-				data += str.value;
-			} while (read != 0);
-		}
-		cstream.close();
-	} catch (e) {
-//		dump(e);
-		Logger.info("No client policy available.");
-	}
+    } catch (e) {
+      //		dump(e);
+      Logger.info("No client policy available.");
+    }
 	
 	var lines = data.split("\n");
 	for(var i = 0; i < lines.length - 1; i++) {
@@ -1705,7 +1704,7 @@ FathomAPI.prototype = {
 	}
 
     var url = 'http://' + requested_destination + '/fathom.xml';
-    let self = this;
+    var self = this;
 
 	// this enables chrome scripts to bypass this restriction
   	//dump("\nWindow url == " + this.window.content.location.href + "\n");
@@ -1766,9 +1765,9 @@ FathomAPI.prototype = {
       
       var requested_apis = [];
       if (manifest && manifest['api']) {
-        for (let i in manifest['api']) {
+        for (var i in manifest['api']) {
           apiname = manifest['api'][i];
-          let parts = apiname.split('.');
+          var parts = apiname.split('.');
           if (parts.length != 2 || !parts[0] || !parts[1]) {
             callback({'error': "Invalid API format in manifest: " + apiname, __exposedProps__: { error: "r" }});
           }
@@ -1794,7 +1793,7 @@ FathomAPI.prototype = {
       //      ourselves?
       var requested_destinations = [];
       if (manifest && manifest['destinations']) {
-        for (let i in manifest['destinations']) {
+        for (var i in manifest['destinations']) {
           // TODO: sanitize/validate destinations
           // TODO: We should allow:
           // * IPv4 addresses and ranges
@@ -1876,9 +1875,9 @@ FathomAPI.prototype = {
 				dump("Matched == " + host + " :: " + domain);
 				// get the apis
 				var policy_apis = client_policy[domain][1];
-				for (let i = 0; i < policy_apis.length; i++) {
+				for (var i = 0; i < policy_apis.length; i++) {
 					apiname = policy_apis[i];
-					let parts = apiname.split('.');
+					var parts = apiname.split('.');
 					if (parts.length != 2 || !parts[0] || !parts[1]) {
 						callback({'error': "Invalid API format in manifest: " + apiname, __exposedProps__: { error: "r" }});
 					}
@@ -2284,7 +2283,7 @@ FathomAPI.prototype = {
        * @param {integer} destport  Port to connect to.
        */ 
       openSendSocket : function (callback, destip, destport) {
-	let self = this;
+	var self = this;
 	function destPermCheckCompleted(result) {
           if (result['error']) {
             result["__exposedProps__"] = { error: "r" };
@@ -3329,7 +3328,8 @@ FathomAPI.prototype = {
 	}
 	args.push(host);
       } else {
-	callback({error: "doTraceroute: not available on " + os});
+	callback({error: "doTraceroute: not available on " + os, __exposedProps__: {error: "r"}});
+	return;
       }
 			
       function cbk(info) {
@@ -3411,7 +3411,8 @@ FathomAPI.prototype = {
 	}
 	args.push(host);
       } else {
-	callback({error: "doPing: not available on " + os});
+	callback({error: "doPing: not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 
 //      dump("\n in ping.... " + host + " --- " + args + "\n")
@@ -3471,7 +3472,8 @@ FathomAPI.prototype = {
 	cont = true;
 
       } else {
-	callback({error: "getWifiInfo not available on " + os});
+	callback({error: "getWifiInfo not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 
       function cbk(info) {
@@ -3481,7 +3483,7 @@ FathomAPI.prototype = {
 	  cmd : cmd,
 	  args : args.join(" "),
       	};
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
 
 	if (os == "Android" && !data.error && cont) {
 	  // wpa_cli is available, request the list
@@ -3530,16 +3532,20 @@ FathomAPI.prototype = {
 	cmd = "getprop";
 	args = ["net.dns"+idx];
       } else {
-	callback({error: "getNameservers not available on " + os});
+	callback({error: "getNameservers not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 	  
       function cbk(info) {
       	var output = {
       	  name: "nameserver",
-      	  os: os
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
 
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
+
 	if (os == "Android") {
 	  dump(data);
 	  dump(tmp);
@@ -3589,24 +3595,20 @@ FathomAPI.prototype = {
 	cmd = "getprop";
 	args = ["net.hostname"];
       } else {
-	callback({error: "getHostname not available on " + os});
+	callback({error: "getHostname not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 	  
-      function cbk(obj) {
-	var res = undefined;
-	if (obj && obj["error"]) {
-          res = {error: obj["error"]};
-	} else {
-          var status = obj.exitstatus;
-          var out = obj.stdout;
-          var err = obj.stderr;
-          if (!out && err) {
-            res = {error: "Error: " + err};
-          } else {
-            res = out.trim();
-          }
-	}
-	callback(res);
+      function cbk(info) {
+      	var output = {
+      	  name: "hostname",
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
+      	};
+
+      	var data = libParse2(output, info);
+	callback(data);
       }
       
       //this._executeCommandAsync(callback, cmd, args);
@@ -3643,17 +3645,21 @@ FathomAPI.prototype = {
 	cmd = "ip";
 	args ['-o','addr','show','up'];
       } else {
-	callback({error: "getActiveInterfaces not available on " + os});
+	callback({error: "getActiveInterfaces not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 	  
       function cbk(info) {
       	var output = {
 	  cmd : cmd,
       	  name: "activeInterfaces",
-      	  os: os
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
-      	var data = libParse(output, info);
-	if (os == "Android" && data.error && data.error.indexOf('not found')>=0) {
+      	var data = libParse2(output, info);
+
+	if (os == "Android" && data.error && data.error.indexOf('not found')>=0 && cmd !== 'netcfg') {
 	  // Anna: fallback to netcfg
 	  cmd = "netcfg";
 	  args = [];
@@ -3701,22 +3707,25 @@ FathomAPI.prototype = {
 	cmd = "getprop";
 	args = ['wifi.interface'];
       } else {
-	callback({error: "getActiveWifiInterface not available on " + os});
+	callback({error: "getActiveWifiInterface not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 	  
       function cbk(info) {
       	var output = {
       	  name: "activeWifiInterface",
-      	  os: os
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
 
 	if (os == 'Darwin' && !data.error) {
 	  // get the name (and mac) of the wifi interface on OS X
 	  cmd = "networksetup";
           args = ["-listallhardwareports"];
 	  that._executeCommandAsync(function(info2) {
-      	    var data2 = libParse(output, info2);
+      	    var data2 = libParse2(output, info2);
 	    data.name = data2.name;
 	    data.mac = data2.mac;
       	    callback(data);
@@ -3758,15 +3767,18 @@ FathomAPI.prototype = {
         cmd = "ip";
         args = ['neigh'];
       } else {
-	callback({error: "getArpCache not available on " + os});
+	callback({error: "getArpCache not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }			
 
-	  function cbk(info) {
+      function cbk(info) {
       	var output = {
-      		name: "arpCache",
-      		os: os
+      	  name: "arpCache",
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
       	callback(data);
       }
       	
@@ -3802,15 +3814,18 @@ FathomAPI.prototype = {
 			cmd = "cat";
 			args = ["/proc/net/route"];
       } else {
-	callback({error: "getRoutingTable not available on " + os});
+	callback({error: "getRoutingTable not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
 		
-	  function cbk(info) {
+      function cbk(info) {
       	var output = {
-      		name: "routingInfo",
-      		os: os
+      	  name: "routingInfo",
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
       	callback(data);
       }
 		
@@ -3840,78 +3855,81 @@ FathomAPI.prototype = {
       // top -n 1
       var cmd;
       var args;
-      if (os == "WINNT") {
-		return;
-      } else if (os == "Linux"){
+      if (os == "Linux"){
         cmd = "top";
         args = ['-b -n1'];
       } else if (os == "Darwin") {
         cmd = "top";
-        args = ["-l 1"];
+        args = ["-l2","-n1"];
       } else if (os == "Android") {
-			cmd = "top";
-			args = ['-n', '1'];
-	  }
+	cmd = "top";
+	args = ['-n', '1'];
+      } else {
+	callback({error: "getLoad not available on " + os, __exposedProps__: {error: "r"}});
+        return;
+      }
 	  
-	  function cbk(info) {
+      function cbk(info) {
       	var output = {
-      		name: "loadInfo",
-      		os: os
+      	  name: "loadInfo",
+      	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
       	};
 
-      	var data = libParse(output, info);
+      	var data = libParse2(output, info);
       	callback(data);
-      }
+      };
 	  
       //this._executeCommandAsync(callback, cmd, args);
       this._executeCommandAsync(cbk, cmd, args);
     },
     
-	/**
-	 * @method getMemInfo
-	 * @static
-	 *
-	 * @description This function retrieves the client's current memory load via "proc".
-	 *
-	 * [% INCLUDE todo.tmpl msg='Windows is currently not supported.' %]
-	 *
-	 * @param {function} callback The callback Fathom invokes once the
-	 * call completes. If successful, the result is a dictionary with
-	 * three members: "exitstatus" (the numeric exit status of the
-	 * invocation), "stdout" (data rendered to standard output), and
-	 * "stderr" (data rendered to standard error).
-	 */
-	getMemInfo: function (callback) {
-		var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+    /**
+     * @method getMemInfo
+     * @static
+     *
+     * @description This function retrieves the client's current memory load via "proc".
+     *
+     * [% INCLUDE todo.tmpl msg='Windows is currently not supported.' %]
+     *
+     * @param {function} callback The callback Fathom invokes once the
+     * call completes. If successful, the result is a dictionary with
+     * three members: "exitstatus" (the numeric exit status of the
+     * invocation), "stdout" (data rendered to standard output), and
+     * "stderr" (data rendered to standard error).
+     */
+    getMemInfo: function (callback) {
+      var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       var cmd = undefined;
       var args = [];
 
-		if (os == "WINNT") {
-			return;
-		} else if (os == "Linux") {
-			cmd = "cat";
-			args = ['/proc/meminfo'];
-		} else if (os == "Darwin") {
-			//TODO:
-			return;
-		} else if (os == "Android") {
-			cmd = "cat";
-			args = ['/proc/meminfo'];
-		}
+      if (os == "Linux") {
+	cmd = "cat";
+	args = ['/proc/meminfo'];
+      } else if (os == "Android") {
+	cmd = "cat";
+	args = ['/proc/meminfo'];
+      } else {
+	callback({error: "getMemInfo not available on " + os, __exposedProps__: {error: "r"}});
+        return;
+      }
 		
-		function cbk(info) {
-		  	var output = {
-		  		name: "memInfo",
-		  		os: os
-		  	};
+      function cbk(info) {
+	var output = {
+	  name: "memInfo",
+	  os: os,
+	  cmd : cmd,
+	  args : args.join(" "),
+	};
 
-		  	var data = libParse(output, info);
-		  	callback(data);
-		  }
+	var data = libParse2(output, info);
+	callback(data);
+      }
 		
-		//this._executeCommandAsync(callback, cmd, args);
-		this._executeCommandAsync(cbk, cmd, args);
-	},    
+      //this._executeCommandAsync(callback, cmd, args);
+      this._executeCommandAsync(cbk, cmd, args);
+    },    
     
     /**
      * @method getProxyInfo
@@ -4152,7 +4170,7 @@ FathomAPI.prototype = {
      * invocation), "stdout" (data rendered to standard output), and
      * "stderr" (data rendered to standard error).
      */       
-    getIfaceStats : function(callback) {
+    getIfaceStats : function(callback, iface) {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       var cmd = undefined;
       var args = [];
@@ -4168,45 +4186,58 @@ FathomAPI.prototype = {
       	// netstat -bi
         cmd = "netstat";
         args = ["-bi"];
+	if (iface) {
+	  args.push("-I " + iface);
+	}
+      } else {
+	callback({error: "getIfaceStats not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
       
       function cbk(info) {
-      
-		  var file = FileUtils.getFile("ProfD", ["baseline_endhost.sqlite"]);
-		  var db = Services.storage.openDatabase(file);
+	if (!iface) {
+	  // last known iface 
+	  var file = FileUtils.getFile("ProfD", ["baseline_endhost.sqlite"]);
+	  var db = Services.storage.openDatabase(file);		  
+	  var data = "";
 		  
-		  var data = "";
-		  
-		  try {
-			var q1 = "SELECT * FROM endhost ORDER BY id DESC LIMIT 1";
-		  	var statement = db.createStatement(q1);
-		    if (statement.executeStep()) {
-			data = statement.getString(1);
-		    }
-		  } catch(e) {
-			dump(e);
-		  } finally {
-			statement.reset();
-		  }
-      
-	if (data && data.length>0) {
-      	  // get the top most entry in the db
-	  var dataobj = JSON.parse(data);
-	  if (dataobj.interface) {
-      	  var dIface = dataobj.interface.current;
-			  	  
-	  	  var output = {
-			name: "interfaceStats",
-			os: os,
-			params: [dIface]
-		  };
-
-		  var data = libParse(output, info);
-		  callback(data);
-	}
-	}
-
+	  try {
+	    var q1 = "SELECT * FROM endhost ORDER BY id DESC LIMIT 1";
+	    var statement = db.createStatement(q1);
+	    if (statement.executeStep()) {
+	      data = statement.getString(1);
+	    }
+	  } catch(e) {
+	    dump(e);
+	  } finally {
+	    statement.reset();
 	  }
+      
+	  if (data && data.length>0) {
+      	    // get the top most entry in the db
+	    var dataobj = JSON.parse(data);
+	    if (dataobj.interface) {
+      	      iface = dataobj.interface.current;
+	    }
+	  }
+
+	  if (!iface) {
+	    callback({error: "getIfaceStats failed to find active interface, got " + data, __exposedProps__: {error: "r"}});
+	    return;
+	  }
+	}
+
+	var output = {
+	  name: "interfaceStats",
+	  os: os,
+	  params: [iface],
+	  cmd : cmd,
+	  args : args.join(" "),
+	};
+	
+	var data = libParse2(output, info);
+	callback(data);
+      }
       
       //this._executeCommandAsync(callback, cmd, args);
       this._executeCommandAsync(cbk, cmd, args);
@@ -4248,19 +4279,23 @@ FathomAPI.prototype = {
       	// /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I
         cmd = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
         args = ["-I"];
+      } else {
+	callback({error: "getWifiStats not available on " + os, __exposedProps__: {error: "r"}});
+        return;
       }
       
-      function cbk(info) {
-      
+      function cbk(info) {      
       	var output = {
 	  name: "wifiStats",
 	  os: os,
-	  params : params
+	  params : params,
+	  cmd : cmd,
+	  args : args.join(" "),
 	};
 
-	  	var data = libParse(output, info);
-	  	callback(data);
-	  }
+	var data = libParse2(output, info);
+	callback(data);
+      }
       
       //this._executeCommandAsync(callback, cmd, args);
       this._executeCommandAsync(cbk, cmd, args);

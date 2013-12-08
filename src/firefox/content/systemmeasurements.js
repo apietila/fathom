@@ -220,8 +220,8 @@ var endhostinfo = {
 
 // this timer runs every 5 secs to get wifi, cross-traffic, system info, ffxMemuse
 var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-timer.init(timerevent, 5*1000, Ci.nsITimer.TYPE_REPEATING_PRECISE);
+//timer.init(timerevent, 5*1000, Ci.nsITimer.TYPE_REPEATING_PRECISE);
 
 // this timer runs every 60 secs to update the endhost info
 var timer1 = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-timer1.init(endhostinfo, 60*1000, Ci.nsITimer.TYPE_REPEATING_PRECISE);
+//timer1.init(endhostinfo, 60*1000, Ci.nsITimer.TYPE_REPEATING_PRECISE);

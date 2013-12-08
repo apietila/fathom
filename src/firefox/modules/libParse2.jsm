@@ -1,8 +1,8 @@
 var EXPORTED_SYMBOLS = ["libParse2"];
 
-//------ Parsers ---------//
-
 Components.utils.import("resource://fathom/Logger.jsm");
+
+//------ Parsers ---------//
 
 /* Traceroute output. */
 function parseTraceroute(config, output) {
@@ -34,7 +34,7 @@ function parseTraceroute(config, output) {
 
     switch (config.os.toLowerCase()) {
     case "linux":
-    case "android": // TODO : check if this works ...
+    case "android":
 	for (var i = 1; i < lines.length; i++) {
 	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
 	    if (str.trim() == "") 
@@ -53,7 +53,7 @@ function parseTraceroute(config, output) {
 		if (ent[k] === '*') {
 		    h.missed = h.missed + 1;
 		} else {
-		    h.rtt.push(ent[k]);
+		    h.rtt.push(parseFloat(ent[k]));
 		}
 	    }
 	    
@@ -61,30 +61,72 @@ function parseTraceroute(config, output) {
 	}
 	break;
     case "darwin":
+        var prevhop = undefined;
 	for (var i = 0; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g,' ');
-	    if (str.trim() == "") 
+	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
+	    str = str.trim();
+	    if (str == "" || str.indexOf('traceroute')>=0) 
 		continue;
 
-	    var ent = str.trim().split(' ');
+	    var ent = str.split(' ');
+	    var dre = new RegExp(/^\d{1,2} /); // <id> <host> ..
+	    if (dre.test(str)) {
+		if (prevhop) {
+		    if (prevhop.id>traceroute.hop.length+1)
+			break; // things are going wrong - looks like this traceroute failed
+		    traceroute.hop.push(prevhop);
+		}
+		prevhop = undefined;
+		    
+		// new hop id
+		var h = new Hop();
+		h.id = parseInt(ent[0]);
 
-	    var h = new Hop();
-	    h.id = ent[0];
-	    h.host = ent[1];
-	    h.ip = ent[2] ? ent[2].replace(/\(|\)/gi, '') : ent[2];
+		if (ent[1] == '*') {
+		    h.host = '*';
+		    h.ip = '*';
+		    h.missed = 0;
+		    h.rtt = [];
+		    for (var k = 1; k < ent.length; k++) {
+			if (ent[k] === '*') {
+			    h.missed = h.missed + 1;
+			} else {
+			    h.rtt.push(parseFloat(ent[k]));
+			}
+		    }
+
+		} else {		
+		    // TODO: should really be a lists due to varying routes ...
+		    h.host = ent[1];
+		    h.ip = ent[2] ? ent[2].replace(/\(|\)/gi, '') : ent[2];
+		    h.missed = 0;
+		    h.rtt = [];
+		    
+		    for (var k = 3; k < ent.length; k++) {
+			if (ent[k] === '*') {
+			    h.missed = h.missed + 1;
+			} else {
+			    h.rtt.push(parseFloat(ent[k]));
+			}
+		    }
+		}
 	    
-	    h.missed = 0;
-	    h.rtt = [];
-	    for (var k = 3; k < ent.length; k++) {
-		if (ent[k] === '*') {
-		    h.missed = h.missed + 1;
-		} else {
-		    h.rtt.push(ent[k]);
+		prevhop = h;
+
+	    } else if (prevhop) {
+		// more results on previous hop due varying routes
+		// TODO: will have different hop ip .. 
+		for (var k = 2; k < ent.length; k++) {
+		    if (ent[k] === '*') {
+			prevhop.missed = h.missed + 1;
+		    } else {
+			prevhop.rtt.push(parseFloat(ent[k]));
+		    }
 		}
 	    }
-	    
-	    traceroute.hop.push(h);
 	}
+	if (prevhop && prevhop.id==traceroute.hop.length+1)
+	    traceroute.hop.push(prevhop);
 	break;
     case "winnt":
 	for (var i = 3; i < lines.length - 2; i++) {
@@ -112,7 +154,7 @@ function parseTraceroute(config, output) {
 		    if (ent[k] === '*') {
 			h.missed = h.missed + 1;
 		    } else {
-			h.rtt.push(ent[k].replace(/</g,''));
+			h.rtt.push(parseFloat(ent[k].replace(/</g,'')));
 		    }
 		}
 	    }
@@ -248,10 +290,9 @@ function parsePing(config, output) {
 		var s = line.split(',');
 		var sent = s[0].trim().split(' ')[0];
 		var received = s[1].trim().split(' ')[0];
-		var lost = s[2].trim().split('%')[0];
 		ping.stats.packets.sent = parseInt(sent);
 		ping.stats.packets.received = parseInt(received);
-		ping.stats.packets.lost = parseInt(lost);
+		ping.stats.packets.lost = ping.stats.packets.sent - ping.stats.packets.received;
 		ping.stats.packets.lossrate = 100.0;
 		ping.stats.packets.succrate = 0.0;
 		if (sent>0) {
@@ -307,10 +348,15 @@ function parsePing(config, output) {
 		    var sent = s[0].trim().split(' ')[3];
 		    var received = s[1].trim().split(' ')[2];
 		    var lost = s[2].trim().split('%')[0].split("(")[1];
-		    ping.stats.packets.sent = sent;
-		    ping.stats.packets.received = received;
-		    ping.stats.packets.lost = lost;
-
+		    ping.stats.packets.sent = parseInt(sent);
+		    ping.stats.packets.received = parseInt(received);
+		    ping.stats.packets.lost = ping.stats.packets.sent - ping.stats.packets.received;
+		    ping.stats.packets.lossrate = 100.0;
+		    ping.stats.packets.succrate = 0.0;
+		    if (sent>0) {
+			ping.stats.packets.lossrate = ping.stats.packets.lost*100.0/ping.stats.packets.sent;
+			ping.stats.packets.succrate = ping.stats.packets.received*100.0/ping.stats.packets.sent;
+		    }
 		} else if (line.indexOf("Minimum =")>=0) {
 		    var s = line.split(',');
 
@@ -318,10 +364,11 @@ function parsePing(config, output) {
 		    var max = s[1].split('=')[1].split('ms')[0].trim();
 		    var avg = s[2].split('=')[1].split('ms')[0].trim();
 		    var mdev = 0;
-		    ping.stats.rtt.min = min;
-		    ping.stats.rtt.max = max;
-		    ping.stats.rtt.avg = avg;
-		    ping.stats.rtt.mdev = mdev;
+
+		    ping.stats.rtt.min = parseFloat(min);
+		    ping.stats.rtt.max = parseFloat(max);
+		    ping.stats.rtt.avg = parseFloat(avg);
+		    ping.stats.rtt.mdev = parseFloat(mdev);
 		}
 	    }
 	} else {
@@ -346,7 +393,7 @@ function parsePing(config, output) {
 };
 
 /* /etc/resolv.conf or getprop net.dnsX */
-function parseNameServerInfo(config, output) {
+function parseNameServer(config, output) {
     var nameserver = {
 	domain: null,
 	list: [],
@@ -359,13 +406,13 @@ function parseNameServerInfo(config, output) {
     switch (config.os.toLowerCase()) {
     case "android":
 	// cmd: getprop net.dnsX
-	var s = info.trim();
+	var s = output.trim();
 	nameserver.list.push(s);
 	break;
     case "linux":
     case "darwin":
 	// cmd: cat /etc/resolf.con
-	var lines = output.split("\n");
+	var lines = output.trim().split("\n");
 	for (var i = 0; i < lines.length; i++) {
 	    var line = lines[i].trim().replace(/\s{2,}/g, ' ');
 	    if (line[0] == "#" || line == "") 
@@ -524,7 +571,7 @@ function parseRoutingTable(config,output) {
 	    var ent = str.trim().split(' ');
 	    dest.push(ent[0]);
 	    gate.push(ent[1]);
-	    mask.push("N/A");
+	    mask.push(null);
 	    intf.push(ent[5]);
 	    if (ent[0] == "default") {
 		// optionally check for flags -- like UG
@@ -569,7 +616,7 @@ function parseRoutingTable(config,output) {
 }
 
 /* ifconfig/ipconfig */
-function parseInterfaceInfo(config,output) {
+function parseInterface(config,output) {
     // output is a list of Ifaces
     var interfaces = new Array();
     function Iface() {};
@@ -692,8 +739,8 @@ function parseInterfaceInfo(config,output) {
 		intf.address.ipv6 = w[6].trim();
 		intf.mtu = w[7].trim();
 		intf.mac = w[2].trim();
-		intf.tx = w[9].trim();
-		intf.rx = w[8].trim();
+		intf.tx = parseInt(w[9].trim());
+		intf.rx = parseInt(w[8].trim());
 
 		interfaces.push(intf);
 
@@ -723,9 +770,11 @@ function parseInterfaceInfo(config,output) {
 			case 'name':
 			case 'mtu':
 			case 'mac':
+			    intf[j] = ww[1];
+			    break;
 			case 'tx':
 			case 'rx':
-			    intf[j] = ww[1];
+			    intf[j] = parseInt(ww[1]);
 			    break;
 			default:
 			    break;
@@ -738,7 +787,7 @@ function parseInterfaceInfo(config,output) {
 	}
 	break;
     case "darwin":
-	var lines = info.trim().split("\n");
+	var lines = output.trim().split("\n");
 	var inter = "";
 	var x = new RegExp(".+flags.+mtu.+");
 
@@ -750,28 +799,30 @@ function parseInterfaceInfo(config,output) {
 	    var w = reg1.exec(text);
 	    if (w) {
 		intf.name = w[1];
-		intf.address.ipv4 = w[5];
-		intf.address.broadcast = w[7];
-		intf.address.mask = w[6];
-		intf.address.ipv6 = w[4];
 		intf.mtu = w[2];
 		intf.mac = w[3];
+		intf.address.ipv6 = w[4];
+		intf.address.ipv4 = w[5];
+		intf.address.mask = w[6];
+		intf.address.broadcast = w[7];
+
 		interfaces.push(intf);
 
 	    } else {
 		w = reg2.exec(text);
 		if (w) {
 		    intf.name = w[1];
-		    intf.address.ipv4 = w[4];
-		    intf.address.broadcast = w[6];
-		    intf.address.mask = w[5];
 		    intf.mtu = w[2];
 		    intf.mac = w[3];
+		    intf.address.ipv4 = w[4];
+		    intf.address.mask = w[5];
+		    intf.address.broadcast = w[6];
 		    
 		    interfaces.push(intf);
+		} else {
+		    Logger.debug("No match: " + text);
 		}
 	    }
-	    
 	}
 
 	for (var i = 0; i < lines.length; i++) {
@@ -860,7 +911,7 @@ function parseMem(config, output) {
 	var w = y.exec(text[0].trim());
 	if (w) {
 	    memory.used = parseInt(w[1].trim()) - parseInt(w[2].trim());
-	    memory.free =  w[2].trim();
+	    memory.free = parseInt(w[2].trim());
 	}
 	break;
     default:
@@ -888,6 +939,16 @@ function parseTop(config, output) {
 		sleeping: "r"
 	    }
 	},
+	loadavg : {
+	    onemin : null,
+	    fivemin : null,
+	    fifteenmin : null,
+	    __exposedProps__: {
+		onemin : "r",
+		fivemin : "r",
+		fifteenmin : "r",
+	    }
+	},
 	cpu : {
 	    user: null,
 	    system: null,
@@ -910,6 +971,7 @@ function parseTop(config, output) {
 	},
 	__exposedProps__ : {
 	    tasks: "r",
+	    loadavg: "r",
 	    cpu: "r",
 	    memory: "r",
 	}
@@ -922,20 +984,20 @@ function parseTop(config, output) {
 
 	var w = x.exec(text[0].trim());
 	if (w) {
-	    sys.tasks.total = w[4].trim();
+	    sys.tasks.total = parseInt(w[4].trim());
 	    sys.tasks.running = parseInt(w[4].trim()) - parseInt(w[3].split("+")[0].trim());
-	    sys.tasks.sleeping = w[3].split("+")[0].trim();
+	    sys.tasks.sleeping = parseInt(w[3].split("+")[0].trim());
 
-	    sys.cpu.user = w[1].trim();
-	    sys.cpu.system = w[2].trim();
-	    sys.cpu.idle = w[9].trim();
+	    sys.cpu.user = parseFloat(w[1].trim());
+	    sys.cpu.system = parseFloat(w[2].trim());
+	    sys.cpu.idle = parseFloat(w[9].trim());
 	}
 	var y = new RegExp("MemTotal:(.+)kB\\s+MemFree:(.+)kB\\s+Buffers");
 	var w = y.exec(text[0].trim());
 	if (w) {
-	    sys.memory.total = w[10].trim();
+	    sys.memory.total = parseInt(w[10].trim());
 	    sys.memory.used = parseInt(w[1].trim()) - parseInt(w[2].trim());
-	    sys.memory.free = w[2].trim();
+	    sys.memory.free = parseInt(w[2].trim());
 	}
 	break;
     case "linux":
@@ -944,35 +1006,47 @@ function parseTop(config, output) {
 
 	var w = x.exec(text);
 	if (w) {
-	    sys.tasks.total = w[4].trim();
-	    sys.tasks.running = w[5].trim();
-	    sys.tasks.sleeping = w[6].trim();
-	    sys.cpu.user = w[7].trim();
-	    sys.cpu.system = w[8].trim();
-	    sys.cpu.idle = w[9].trim();
-	    sys.memory.total = w[10].trim();
-	    sys.memory.used = w[11].trim().split("k")[0];
-	    sys.memory.free = w[12].trim().split("k")[0];
+	    sys.tasks.total = parseInt(w[4].trim());
+	    sys.tasks.running = parseInt(w[5].trim());
+	    sys.tasks.sleeping = parseInt(w[6].trim());
+	    sys.cpu.user = parseFloat(w[7].trim());
+	    sys.cpu.system = parseFloat(w[8].trim());
+	    sys.cpu.idle = parseFloat(w[9].trim());
+	    sys.memory.total = parseInt(w[10].trim());
+	    sys.memory.used = parseInt(w[11].trim().split("k")[0]);
+	    sys.memory.free = parseInt(w[12].trim().split("k")[0]);
 	}
 	break;
     case "darwin":
-	var text = output.trim().replace(/\s{2,}/g, ' ').split("\n\n");
-	var x = new RegExp("Processes:(.+)total,(.+)running,(.+)sleeping.+\\s+.+\\s+Load Avg:(.+),(.+),(.+)\\s+CPU usage:(.+)user,(.+)sys,(.+)idle\\s+SharedLibs.+\\s+MemRegions.+\\s+PhysMem:.+inactive,(.+)M used,(.+)M free.\\s+");
-
-	var w = x.exec(text);
-	if (w) {
-	    sys.tasks.total = w[1].trim();
-	    sys.tasks.running = w[2].trim();
-	    sys.tasks.sleeping = w[3].trim();
-	    sys.cpu.user = w[7].trim().slice(0, -1);
-	    sys.cpu.system = w[8].trim().slice(0, -1);
-	    sys.cpu.idle = w[9].trim();
-	    sys.memory.total = (parseInt(w[10].trim()) + parseInt(w[11].trim())) + "M";
-	    sys.memory.used = w[10].trim();
-	    sys.memory.free = w[11].trim();
+	var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+	for (var i = 0; i < lines.length; i++) {
+	    var row = lines[i].trim().split(' ');
+	    switch(row[0]) {
+	    case "Processes:":
+		sys.tasks.total = parseInt(row[1]);
+		sys.tasks.running = parseInt(row[3]);
+		sys.tasks.sleeping = parseInt(row[7]);
+		break;
+	    case "Load":
+		sys.loadavg.onemin = parseFloat(row[2].replace(',',''));
+		sys.loadavg.fivemin = parseFloat(row[3].replace(',',''));
+		sys.loadavg.fifteenmin = parseFloat(row[4].replace(',',''));
+		sys.cpu.user = parseFloat(row[7].replace('%',''));
+		sys.cpu.system = parseFloat(row[9].replace('%',''));
+		sys.cpu.idle = parseFloat(row[11].replace('%',''));
+		break;
+	    case "PhysMem:":
+		sys.memory.used = parseInt(row[1].replace('M',''));
+		sys.memory.free = parseInt(row[5].replace('M',''));
+		sys.memory.total = (sys.memory.used + sys.memory.free);
+		break;
+	    default:
+		break;
+	    };
 	}
 	break;
     case "winnt":
+	// TODO:
 	var cpux = new RegExp("LoadPercentage\\s+(.+)");
 	var memoryx = new RegExp("Total Physical Memory:\\s+(.+) MB\\s+Available Physical Memory:\\s+(.+) MB\\s+Virtual Memory: Max Size");
 	var processx = new RegExp("System.+\\s+System");
@@ -989,7 +1063,7 @@ function parseTop(config, output) {
 	    sys.memory.free = 1024 * memoryw[2].trim();
 	}
 	if (processw) {
-	    sys.tasks.total = info.trim().split("\n").length - 2;
+	    sys.tasks.total = output.trim().split("\n").length - 2;
 	}
 	break;
     default:
@@ -1004,8 +1078,17 @@ function parseTop(config, output) {
     return sys;
 };
 
-/* /proc/net/dev */
-function parseProcNetDev(config,output) {
+/* /proc/net/dev or netstat */
+function parseIfaceStats(config,output) {
+    if (!config.params || config.params.length!=1) {
+	return {
+	    error: 'libParse: missing interface name parameter in ' +config.name+ ' on ' + config.os,
+	    __exposedProps__: {
+		error: "r",
+	    }
+	};
+    };
+
     // target interface
     var dIface = config.params[0];
 
@@ -1036,9 +1119,11 @@ function parseProcNetDev(config,output) {
     var stats = {
 	tx: tx,
 	rx: rx,
+	iface: dIface,
 	__exposedProps__: {
 	    tx: "r",
 	    rx: "r",
+	    iface: "r"
 	}
     };
 	
@@ -1050,35 +1135,33 @@ function parseProcNetDev(config,output) {
 	    var w = x.exec(output);
 	    if (w) {
 		var elems = w[1].trim().replace(/\s{2,}/g, ' ').split(" ");
-		// store the tx, rx info
-		rx.bytes = elems[0].trim();
-		rx.packets = elems[1].trim();
-		rx.errs = elems[2].trim();
-		rx.drops = elems[3].trim();
-		tx.bytes = elems[8].trim();
-		tx.packets = elems[9].trim();
-		tx.errs = elems[10].trim();
-		tx.drops = elems[11].trim();
+		rx.bytes = parseInt(elems[0].trim());
+		rx.packets = parseInt(elems[1].trim());
+		rx.errs = parseInt(elems[2].trim());
+		rx.drops = parseInt(elems[3].trim());
+		tx.bytes = parseInt(elems[8].trim());
+		tx.packets = parseInt(elems[9].trim());
+		tx.errs = parseInt(elems[10].trim());
+		tx.drops = parseInt(elems[11].trim());
 	    }
 	}
 	break;
     case "darwin":
 	if (dIface) {
-	    var x = new RegExp(dIface.trim() + "(.+)\\s*");
-	    var w = x.exec(output);
-	    if (w) {
-		//dump(w);
-		var elems = w[1].trim().replace(/\s{2,}/g, ' ').split(" ");
-		//dump(elems);
-		// store the tx, rx info
-		rx.bytes = elems[5].trim();
-		rx.packets = elems[3].trim();
-		rx.errs = 0;
-		rx.drops = 0;
-		tx.bytes = elems[8].trim();
-		tx.packets = elems[6].trim();
-		tx.errs = 0;
-		tx.drops = 0;
+	    var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+	    for (var i = 0; i < lines.length; i++) {
+		var row = lines[i].trim().split(' ');
+		if (row[0] === dIface && row[2].indexOf('Link')>=0) {
+		    rx.packets = parseInt(row[4].trim());
+		    rx.errs = parseInt(row[5].trim());
+		    rx.bytes = parseInt(row[6].trim());
+		    rx.drops = 0;
+		    tx.packets = parseInt(row[7].trim());
+		    tx.errs = parseInt(row[8].trim());
+		    tx.bytes = parseInt(row[9].trim());
+		    tx.drops = 0;
+		    break;
+		}
 	    }
 	}
 	break;
@@ -1087,12 +1170,12 @@ function parseProcNetDev(config,output) {
 	    var x = new RegExp("Bytes\\s+(.+)\\s+(.+)\\s+Unicast packets\\s+(.+)\\s+(.+)\\s+Non-unicast packets\\s+(.+)\\s+(.+)\\s+Discards\\s+(.+)\\s+(.+)\\s+Errors\\s+(.+)\\s+(.+)\\s+");
 	    var elems = x.exec(output);
 	    if (elems) {
-		rx.bytes = elems[1].trim();
-		rx.packets = elems[3].trim();
+		rx.bytes = parseInt(elems[1].trim());
+		rx.packets = parseInt(elems[3].trim());
 		rx.errs = 0;
 		rx.drops = 0;
-		tx.bytes = elems[2].trim();
-		tx.packets = elems[4].trim();
+		tx.bytes = parseInt(elems[2].trim());
+		tx.packets = parseInt(elems[4].trim());
 		tx.errs = 0;
 		tx.drops = 0;
 	    }
@@ -1111,7 +1194,7 @@ function parseProcNetDev(config,output) {
 };
 
 /* arp -a or ip neigh show */
-function parseArpCache(info) {
+function parseArpCache(config,output) {
     // Array of Elems
     var arpCache = new Array();
     function Elem() {};
@@ -1128,11 +1211,12 @@ function parseArpCache(info) {
 	}
     };
 
+    var lines = output.trim().split('\n');
+
     switch (config.os.toLowerCase()) {
     case "linux":
-	var tmp = info.trim().split('\n');
-	for(var k = 0; k < tmp.length; k++) {
-	    var i = tmp[k];
+	for(var k = 0; k <lines.length; k++) {
+	    var i = lines[k];
 	    var x = i.split(' ');
 	    var e = new Elem();
 	    e.host = x[0];
@@ -1143,9 +1227,8 @@ function parseArpCache(info) {
 	}
 	break;
     case "darwin":
-	var tmp = info.trim().split('\n');
-	for(var k = 0; k < tmp.length; k++) {
-	    var i = tmp[k];
+	for(var k = 0; k <lines.length; k++) {
+	    var i = lines[k];
 	    var x = i.split(' ');
 	    var e = new Elem();
 	    e.host = x[0];
@@ -1156,9 +1239,8 @@ function parseArpCache(info) {
 	}
 	break;
     case "android":
-	var tmp = info.trim().split('\n');
-	for(var k = 0; k < tmp.length; k++) {
-	    var i = tmp[k];
+	for(var k = 0; k <lines.length; k++) {
+	    var i = lines[k];
 	    var x = i.split(' ');
 	    var e = new Elem();
 	    e.host = undefined;
@@ -1309,10 +1391,11 @@ function parseProcNetWireless(config, output) {
 	}
     };
     
+    var lines = output.trim().split("\n");
+
     switch (config.os.toLowerCase()) {
     case "linux":
     case "android":
-	var lines = info.trim().split("\n");
 	// just 3 lines are printed on linux
 	// less than 3 lines means no wifi adapter is present
 	if (lines.length < 3) 
@@ -1336,7 +1419,6 @@ function parseProcNetWireless(config, output) {
 	}
 	break;
     case "darwin":
-	var lines = info.trim().split("\n");
 	for (var i = 0; i < lines.length; i++) {
 	    var elems = lines[i].trim().replace(/\s{2,}/g, ' ').split(":");
 	    if (elems[0] == "agrCtlRSSI") wifi.signal = elems[1];
@@ -1345,7 +1427,7 @@ function parseProcNetWireless(config, output) {
 	break;
     case "winnt":
 	var x = new RegExp("Signal\\s+:\\s+(.+)%");
-	var elems = x.exec(info.trim());
+	var elems = x.exec(output.trim());
 	if (elems) wifi.link = elems[1];
 	break;
     default:
@@ -1360,7 +1442,7 @@ function parseProcNetWireless(config, output) {
     return wifi;
 };
 		
-function parseWifiInterface(info) {
+function parseWifiInterface(config,output) {
     var iwconfig = {
 	mac : null,
 	proto: null,
@@ -1392,7 +1474,8 @@ function parseWifiInterface(info) {
 	}
     };
 
-    var lines = info.trim().split("\n");
+    var lines = output.trim().split("\n");
+
     switch (config.os.toLowerCase()) {
     case "linux":
 	var i;
@@ -1493,7 +1576,7 @@ function parseWifiInterface(info) {
 	}
 	break;
     case "android":
-	iwconfig.name = info.trim();
+	iwconfig.name = output.trim();
 	break;
     default:
 	iwconfig = {
@@ -1595,6 +1678,9 @@ var libParse2 = function (config, obj) {
     case "nameserver":
 	res = parseNameServer(config,out);
 	break;
+    case "hostname":
+	res = {hostname : out.trim(), __exposedProps__ : {hostname : "r" }};
+	break;
     case "defaultInterfaces":
 	res = parseRoutingTable(config,out);
 	if (!res.error)
@@ -1613,7 +1699,7 @@ var libParse2 = function (config, obj) {
 	res = parseTop(config,out);
 	break;
     case "interfaceStats":
-	res = parseProcNetDev(config,out);
+	res = parseIfaceStats(config,out);
 	break;
     case "arpCache":
 	res = parseArpCache(config,out);
