@@ -1433,10 +1433,10 @@ function parseWireless(config, output) {
 	    var cell = new Cell(); 
 	    cell.id = w[1];
 	    cell.mac = w[2];
-	    cell.channel = w[3];
+	    cell.channel = parseInt(w[3]);
 	    cell.frequency = w[4];
 	    cell.quality = w[5];
-	    cell.signal = w[6];
+	    cell.signal = parseInt(w[6]);
 	    cell.encryption = w[7];
 	    cell.essid = w[8];
 	    
@@ -1459,8 +1459,8 @@ function parseWireless(config, output) {
 	    var cell = new Cell(); 
 	    cell.id = i;
 	    cell.mac = cols[1];
-	    cell.channel = cols[3];
-	    cell.signal = cols[2];
+	    cell.channel = parseInt(cols[3].split(',')[0]);
+	    cell.signal = parseInt(cols[2]);
 	    cell.encryption = cols[6];
 	    cell.essid = cols[0];
 	    
@@ -1478,7 +1478,7 @@ function parseWireless(config, output) {
 		cell.id = i;
 		cell.mac = cols[0]; // bssid
 		cell.frequency = cols[1];
-		cell.signal = cols[2];
+		cell.signal = parseInt(cols[2]);
 		cell.encryption = cols[3];
 		cell.essid = cols[4];
 
@@ -1526,28 +1526,31 @@ function parseProcNetWireless(config, output) {
 	if (params && params.length==1) {
 	    var iface = elems[0].replace(':','');
 	    if (params[0] === iface) {
-		wifi.link = elems[2];
-		wifi.signal = elems[3];
-		wifi.noise = elems[4];
+		wifi.link = parseInt(elems[2]);
+		wifi.signal = parseInt(elems[3]);
+		wifi.noise = parseInt(elems[4]);
 	    }
 	} else {
 	    // just pick the last line
-	    wifi.link = elems[2];
-	    wifi.signal = elems[3];
-	    wifi.noise = elems[4];
+	    wifi.link = parseInt(elems[2]);
+	    wifi.signal = parseInt(elems[3]);
+	    wifi.noise = parseInt(elems[4]);
 	}
 	break;
     case "darwin":
 	for (var i = 0; i < lines.length; i++) {
 	    var elems = lines[i].trim().replace(/\s{2,}/g, ' ').split(":");
-	    if (elems[0] == "agrCtlRSSI") wifi.signal = elems[1];
-	    if (elems[0] == "agrCtlNoise") wifi.noise = elems[1];
+	    if (elems[0] == "agrCtlRSSI") 
+	       wifi.signal = parseInt(elems[1].trim());
+	    else if (elems[0] == "agrCtlNoise") 
+	       wifi.noise = parseInt(elems[1].trim());
 	}
 	break;
     case "winnt":
 	var x = new RegExp("Signal\\s+:\\s+(.+)%");
 	var elems = x.exec(output.trim());
-	if (elems) wifi.link = elems[1];
+	if (elems) 
+	   wifi.link = parseInt(elems[1]);
 	break;
     default:
 	wifi = {
@@ -1617,7 +1620,7 @@ function parseWifiInterface(config,output) {
 		// Bit Rate[=;]6 Mb/s   Tx-Power[=;]15 dBm
 		if (tmp[1].indexOf('=')>=0) { // fixed bitrate
 		    var tmp2 = tmp[1].trim().split('=');
-		    iwconfig.bitrate = tmp2[1];
+		    iwconfig.bitrate = parseInt(tmp2[1]);
 		} else { // auto bitrate
 		    var tmp2 = tmp[1].trim().split(';');
 		    iwconfig.bitrate = tmp2[1];
@@ -1625,7 +1628,7 @@ function parseWifiInterface(config,output) {
 
 		if (tmp[3].indexOf('=')>=0) { // fixed power
 		    var tmp2 = tmp[3].trim().split('=');
-		    iwconfig.txpower = tmp2[1];
+		    iwconfig.txpower = parseInt(tmp2[1]);
 		} else if (tmp[3].indexOf('=')>=0) { // auto power
 		    var tmp2 = tmp[3].trim().split(';');
 		    iwconfig.txpower = tmp2[1];
@@ -1635,10 +1638,10 @@ function parseWifiInterface(config,output) {
 		// Link Quality=66/70  Signal level=-44 dBm 
 		if (tmp[3].indexOf('=')>=0) { // fixed
 		    var tmp2 = tmp[3].trim().split('=');
-		    iwconfig.signal = tmp2[1];
+		    iwconfig.signal = parseInt(tmp2[1]);
 		} else { // auto
 		    var tmp2 = tmp[3].trim().split(';');
-		    iwconfig.signale = tmp2[1];
+		    iwconfig.signal = tmp2[1];
 		}
 	    }
 	}
@@ -1657,16 +1660,16 @@ function parseWifiInterface(config,output) {
 		    iwconfig.offline = true;
 		break;
 	    case "agrCtlRSSI":
-		iwconfig.signal = tmp[1].trim();
+		iwconfig.signal = parseInt(tmp[1].trim());
 		break;
 	    case "agrCtlNoise":
-		iwconfig.noise = tmp[1].trim();
+		iwconfig.noise = parseInt(tmp[1].trim());
 		break;
 	    case "op mode":
 		iwconfig.mode = tmp[1].trim();
 		break;
 	    case "lastTxRate":
-		iwconfig.bitrate = tmp[1].trim();
+		iwconfig.bitrate = parseInt(tmp[1].trim());
 		break;
 	    case "BSSID":
 		iwconfig.bssid = tmp[1].trim();
@@ -1675,7 +1678,7 @@ function parseWifiInterface(config,output) {
 		iwconfig.ssid = tmp[1].trim();
 		break;
 	    case "channel":
-		iwconfig.channel = tmp[1].trim();
+		iwconfig.channel = parseInt(tmp[1].trim());
 		break;
 	    case "Hardware Port":
 		if (tmp[1].trim() === "Wi-Fi")
