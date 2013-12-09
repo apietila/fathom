@@ -1231,9 +1231,9 @@ function parseArpCache(config,output) {
 	    var i = lines[k];
 	    var x = i.split(' ');
 	    var e = new Elem();
-	    e.host = x[0];
+	    e.host = (x[0].indexOf('?')>=0 : null : x[0]);
 	    e.ip = x[1].replace(/\(|\)/gi,'');
-	    e.mac = x[3];
+	    e.mac = (x[3].indexOf('incomplete')>=0 ? null : x[3]);
 	    e.interface = x[5];
 	    arpCache.push(e);
 	}
@@ -1606,6 +1606,8 @@ var libParse2 = function (config, obj) {
     var res = undefined;
     var out = obj.stdout;
     var err = obj.stderr;
+
+    Logger.debug("libParse2: calling for " + config.name);
 
     // check first if the output exists and has no errors
     if (obj && obj["error"]) {

@@ -41,7 +41,7 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://fathom/http.jsm");
 Components.utils.import("resource://fathom/DNS/dns.jsm");
 
-Components.utils.import("resource://fathom/libParse.jsm");
+//Components.utils.import("resource://fathom/libParse.jsm");
 // Anna: testing improved parser
 Components.utils.import("resource://fathom/libParse2.jsm");
 
@@ -1259,7 +1259,8 @@ FathomAPI.prototype = {
     }
 
     var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-    gFathomObject.obj = GlobalFathomObject = this.fullapi = {
+//    gFathomObject.obj = 
+    GlobalFathomObject = this.fullapi = {
 
       build: pref.getCharPref("extensions.fathom.build"),
       version: pref.getCharPref("extensions.fathom.version"),
@@ -3373,27 +3374,34 @@ FathomAPI.prototype = {
       var cmd = 'ping';
       var args = [];
 
+      if (host === undefined) {
+	callback({error: "doPing: missing host argument", __exposedProps__: {error: "r"}});
+	return;
+      }
+
       // do incremental output? default false
       var inc = false;
       if (incrementaloutput !== undefined)
 	inc = incrementaloutput; 
 
-      if (!host)
-	callback({error: "doPing: missing host argument"});
-
       if (os == "WINNT") {
 	if (count) {
           args.push("-n " + count);
+	} else {
+	  args.push("-n 5");
 	}
+
 	if (iface) {
           args.push("-S "+iface); // must be IP address ... -I does not work..
 	}
-	args.push(host);	
 
       } else if (os == "Linux" || os == "Android" || os == "Darwin") {
 	if (count) {
           args.push("-c" + count);
+	} else {
+	  args.push("-c 5");
 	}
+
 	if (iface) {
 	  if (os == "Darwin") {
             args.push("-S"+iface); // must be IP address ... -I does not work..
@@ -3401,21 +3409,21 @@ FathomAPI.prototype = {
             args.push("-I"+iface);
 	  }	
 	}
+
 	if (interval) {
           args.push("-i " + interval);
 	}
+
 	if (bcast !== undefined && bcast==true && 
 	    (os == "Android" || os == "Linux")) 
 	{
           args.push("-b");
 	}
-	args.push(host);
       } else {
 	callback({error: "doPing: not available on " + os, __exposedProps__: {error: "r"}});
         return;
       }
-
-//      dump("\n in ping.... " + host + " --- " + args + "\n")
+      args.push(host);
       
       function cbk(info) {
       	var output = {
@@ -3691,14 +3699,8 @@ FathomAPI.prototype = {
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
       var cmd = undefined;
       var args = [];
-
-      if (os == "WINNT") {
-	// TODO: test on windoze!!
-//        cmd = "ipconfig";
-//        args = ["/all"];
-	callback();
-	return null;
-      } else if (os == "Linux") {
+      
+      if (os == "Linux") {
         cmd = "iwconfig";
       } else if (os == "Darwin") {
 	cmd = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
@@ -4608,7 +4610,7 @@ FathomAPI.prototype = {
 	  os: os,
 	  params : []
 	};
-	var data = libParse(output, info);
+	var data = libParse2(output, info);
 	callback(data);
       }
       this._executeCommandAsync(cbk, "doesnotexists", []);
