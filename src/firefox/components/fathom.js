@@ -1765,6 +1765,7 @@ FathomAPI.prototype = {
     fathominit : function (callback, manifest, win) {
       
       var requested_apis = [];
+      var apiname = undefined;
       if (manifest && manifest['api']) {
         for (var i in manifest['api']) {
           apiname = manifest['api'][i];
@@ -1793,6 +1794,7 @@ FathomAPI.prototype = {
       //      we check the hostname is allowed and then do the dns lookup
       //      ourselves?
       var requested_destinations = [];
+      var destination = undefined;
       if (manifest && manifest['destinations']) {
         for (var i in manifest['destinations']) {
           // TODO: sanitize/validate destinations
@@ -3337,8 +3339,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "traceroute",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	  params: [host]
       	};
       	var data = libParse2(output, info);
@@ -3429,8 +3430,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "ping",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	};
       	var data = libParse2(output, info);
       	callback(data);
@@ -3488,8 +3488,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "wifiInfo",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	};
       	var data = libParse2(output, info);
 
@@ -3548,8 +3547,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "nameserver",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	};
 
       	var data = libParse2(output, info);
@@ -3611,8 +3609,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "hostname",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	};
 
       	var data = libParse2(output, info);
@@ -3659,11 +3656,9 @@ FathomAPI.prototype = {
 	  
       function cbk(info) {
       	var output = {
-	  cmd : cmd,
       	  name: "activeInterfaces",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	};
       	var data = libParse2(output, info);
 
@@ -3717,8 +3712,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "activeWifiInterface",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
       	};
       	var data = libParse2(output, info);
 
@@ -3777,8 +3771,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "arpCache",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd+ " " + args.join(" "),
       	};
       	var data = libParse2(output, info);
       	callback(data);
@@ -3824,8 +3817,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "routingInfo",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd+ " " + args.join(" "),
       	};
       	var data = libParse2(output, info);
       	callback(data);
@@ -3875,8 +3867,7 @@ FathomAPI.prototype = {
       	var output = {
       	  name: "loadInfo",
       	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd+ " " + args.join(" "),
       	};
 
       	var data = libParse2(output, info);
@@ -3921,8 +3912,7 @@ FathomAPI.prototype = {
 	var output = {
 	  name: "memInfo",
 	  os: os,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
 	};
 
 	var data = libParse2(output, info);
@@ -4233,8 +4223,7 @@ FathomAPI.prototype = {
 	  name: "interfaceStats",
 	  os: os,
 	  params: [iface],
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
 	};
 	
 	var data = libParse2(output, info);
@@ -4291,8 +4280,7 @@ FathomAPI.prototype = {
 	  name: "wifiStats",
 	  os: os,
 	  params : params,
-	  cmd : cmd,
-	  args : args.join(" "),
+	  cmd : cmd + " " + args.join(" "),
 	};
 
 	var data = libParse2(output, info);

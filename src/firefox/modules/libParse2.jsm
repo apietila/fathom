@@ -303,8 +303,8 @@ function parsePing(config, output) {
 	    } else if (line.indexOf("avg")>0) {
  		var s = line.split('=')[1].split('/');
 		var min = s[0].replace(/ms/, "");
-		var max = s[1].replace(/ms/, "");
-		var avg = s[2].replace(/ms/, "");
+		var avg = s[1].replace(/ms/, "");
+		var max = s[2].replace(/ms/, "");
 		var mdev = s[3].replace(/ms/, "");
 		
 		ping.stats.rtt.min = parseFloat(min);
@@ -617,23 +617,10 @@ function parseRoutingTable(config,output) {
 
 /* ifconfig/ipconfig */
 function parseInterface(config,output) {
-    // output is a list of Ifaces
-    var interfaces = new Array();
     function Iface() {};
     Iface.prototype = {
 	name: null,
-	address: {
-	    ipv4: null,
-	    ipv6: null,
-	    broadcast: null,
-	    mask: null,
-	    __exposedProps__: {
-		ipv4: "r",
-		ipv6: "r",
-		broadcast: "r",
-		mask: "r"
-	    }
-	},
+	address: null,
 	mtu: null,
 	mac: null,
 	tx: null,
@@ -645,6 +632,15 @@ function parseInterface(config,output) {
 	    mac: "r",
 	    tx: "r",
 	    rx: "r"
+	}
+    };
+
+    // output is a list of Ifaces
+    var interfaces = new Array();
+    var res = {
+	interfaces: interfaces,
+	__exposedProps__: {
+	    interfaces: "r"
 	}
     };
 
@@ -673,6 +669,18 @@ function parseInterface(config,output) {
 		// netcfg output format: wlan0 UP 192.168.1.139/24 0x00001043 08:60:6e:9f:db:0d
 		var intf = new Iface();
 		intf.name = w[0].trim();
+		intf.address = {
+		    ipv4: null,
+		    ipv6: null,
+		    broadcast: null,
+		    mask: null,
+		    __exposedProps__: {
+			ipv4: "r",
+			ipv6: "r",
+			broadcast: "r",
+			mask: "r"
+		    }
+		};
 		if (w[2].indexOf('/')>=0) {
   		    var temp_ip = w[2].trim().split("/");
 		    intf.address.ipv4 = temp_ip[0].trim();
@@ -690,6 +698,20 @@ function parseInterface(config,output) {
 		var intf = cache[name] || new Iface();
 		if (!intf.name)
 		    intf.name = name;		
+		if (!intf.address)
+		    intf.address = {
+			ipv4: null,
+			ipv6: null,
+			broadcast: null,
+			mask: null,
+			__exposedProps__: {
+			    ipv4: "r",
+			    ipv6: "r",
+			    broadcast: "r",
+			    mask: "r"
+			}
+		    };
+
 		var k = 1; 
 		while (k < w.length) {
 		    if (w[k] === 'mtu') {
@@ -728,17 +750,30 @@ function parseInterface(config,output) {
     case "linux":
 	var inter = output.trim().split("\n\n");
 	for (var i = 0; i < inter.length; i++) {
-	    var x = new RegExp("(.+)\\s+Link.+HWaddr\\s(.+)\\s+inet addr:(.+)\\s+Bcast:(.+)\\s+Mask:(.+)\\s+inet6 addr:\\s+(.+)\\s+Scope.+\\s+.+MTU:(.+)\\s+Metric.+\\s+.+\\s+.+\\s+.+\\s+RX bytes:(.+)TX bytes:(.+)\\s*");
-	    var w = x.exec(inter[i]);
-	    var intf = new Iface();
+	    var str = inter[i].trim().replace(/\s{2,}/g, ' ');
+
+	    var x = new RegExp("(.+)\\s+Link.+HWaddr\\s(.+)\\sinet addr:(.+)\\sBcast:(.+)\\sMask:(.+)\\sinet6 addr:\\s(.+)\\sScope.+\\sMTU:(\\d+)\\sMetric.+\\sRX bytes:(\\d+)\\s.+\\sTX bytes:(\\d+)\\s.+");
+	    var w = x.exec(str);
+
+	    Logger.debug(str);
 	    if (w) {
+		Logger.debug('full str match ' + w[3]);
+		var intf = new Iface();
 		intf.name = w[1].trim();
-		intf.address.ipv4 = w[3].trim();
-		intf.address.broadcast = w[4].trim();
-		intf.address.mask = w[5].trim();
-		intf.address.ipv6 = w[6].trim();
-		intf.mtu = w[7].trim();
 		intf.mac = w[2].trim();
+		intf.address = {
+		    ipv4: w[3].trim(),
+		    ipv6: w[6].trim(),
+		    broadcast: w[4].trim(),
+		    mask: w[5].trim(),
+		    __exposedProps__: {
+			ipv4: "r",
+			ipv6: "r",
+			broadcast: "r",
+			mask: "r"
+		    }
+		};
+		intf.mtu = parseInt(w[7].trim());
 		intf.tx = parseInt(w[9].trim());
 		intf.rx = parseInt(w[8].trim());
 
@@ -753,12 +788,27 @@ function parseInterface(config,output) {
 		    'ipv6': new RegExp("inet6 ([\\d\\w:]+)\\s", "ig"),
 		    'mtu': new RegExp("mtu (\\d+)", "ig"),
 		    'mac': new RegExp("ether ([\\d\\w:]+)\\s", "ig"),
-		    'tx': new RegExp("TX .+ bytes (.+)"),
-		    'rx': new RegExp("RX .+ bytes (.+)"),
+		    'tx': new RegExp("TX .+ bytes (\\d+)"),
+		    'rx': new RegExp("RX .+ bytes (\\d+)"),
 		}
-		
+		Logger.debug('part match');
+
+		var intf = new Iface();
+		intf.address = {
+		    ipv4: null,
+		    ipv6: null,
+		    broadcast: null,
+		    mask: null,
+		    __exposedProps__: {
+			ipv4: "r",
+			ipv6: "r",
+			broadcast: "r",
+			mask: "r"
+		    }
+		};
+
 		for (var j in regexp) {
-		    var ww = regexp[j].exec(inter[i]);
+		    var ww = regexp[j].exec(str);
 		    if (ww && ww[1]) {
 			switch (j) {
 			case 'ipv4':
@@ -768,10 +818,10 @@ function parseInterface(config,output) {
 			    intf.address[j] = ww[1];
 			    break;
 			case 'name':
-			case 'mtu':
 			case 'mac':
 			    intf[j] = ww[1];
 			    break;
+			case 'mtu':
 			case 'tx':
 			case 'rx':
 			    intf[j] = parseInt(ww[1]);
@@ -799,26 +849,42 @@ function parseInterface(config,output) {
 	    var w = reg1.exec(text);
 	    if (w) {
 		intf.name = w[1];
-		intf.mtu = w[2];
+		intf.mtu = parseInt(w[2]);
 		intf.mac = w[3];
-		intf.address.ipv6 = w[4];
-		intf.address.ipv4 = w[5];
-		intf.address.mask = w[6];
-		intf.address.broadcast = w[7];
-
+		intf.address = {
+		    ipv4: w[5],
+		    ipv6: w[4],
+		    broadcast: w[7],
+		    mask: w[6],
+		    __exposedProps__: {
+			ipv4: "r",
+			ipv6: "r",
+			broadcast: "r",
+			mask: "r"
+		    }
+		};
 		interfaces.push(intf);
 
 	    } else {
 		w = reg2.exec(text);
 		if (w) {
 		    intf.name = w[1];
-		    intf.mtu = w[2];
+		    intf.mtu = parseInt(w[2]);
 		    intf.mac = w[3];
-		    intf.address.ipv4 = w[4];
-		    intf.address.mask = w[5];
-		    intf.address.broadcast = w[6];
-		    
+		    intf.address = {
+			ipv4: w[4],
+			ipv6: null,
+			broadcast: w[6],
+			mask: w[5],
+			__exposedProps__: {
+			    ipv4: "r",
+			    ipv6: "r",
+			    broadcast: "r",
+			    mask: "r"
+			}
+		    };		    
 		    interfaces.push(intf);
+
 		} else {
 		    Logger.debug("No match: " + text);
 		}
@@ -844,8 +910,23 @@ function parseInterface(config,output) {
 	var text = output.trim().split(":\r\n\r\n");
 	for(var i = 1; i < text.length; i++) {
 	    var intf = new Iface();
+
 	    var tmp = text[i-1].trim().split("\n");
 	    intf.name = tmp[tmp.length - 1];
+
+	    intf.address = {
+		ipv4: null,
+		ipv6: null,
+		broadcast: null,
+		mask: null,
+		__exposedProps__: {
+		    ipv4: "r",
+		    ipv6: "r",
+		    broadcast: "r",
+		    mask: "r"
+		}
+	    };
+	    
 	    if (intf.name.indexOf("adapter") != -1) {
 		var regexp = {
 		    'ipv4': new RegExp("IPv4 Address.*:\\s+(.+)", "ig"),
@@ -882,7 +963,7 @@ function parseInterface(config,output) {
 	}
 	break;
     default:
-	interfaces = {
+	res = {
 	    error: 'libParse: no parser for ' +config.name+ ' on ' + config.os,
 	    __exposedProps__: {
 		error: "r",
@@ -890,7 +971,7 @@ function parseInterface(config,output) {
 	};
 	break;
     }
-    return interfaces;
+    return res;
 };
 
 function parseMem(config, output) {
@@ -977,6 +1058,9 @@ function parseTop(config, output) {
 	}
     };
 
+
+    var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+
     switch (config.os.toLowerCase()) {
     case "android":
 	var text = output.trim().split("\n\n");
@@ -1001,24 +1085,41 @@ function parseTop(config, output) {
 	}
 	break;
     case "linux":
-	var text = output.trim().replace(/\s{2,}/g, ' ').split("\n\n");
-	var x = new RegExp(".+average:(.+),(.+),(.+)\\s+Tasks:(.+)total,(.+)running,(.+)sleeping.+\\s+Cpu.+:(.+)%us,(.+)%sy,.+ni,(.+)%id.+\\s+Mem:(.+)total,(.+)used,(.+)free");
-
-	var w = x.exec(text);
-	if (w) {
-	    sys.tasks.total = parseInt(w[4].trim());
-	    sys.tasks.running = parseInt(w[5].trim());
-	    sys.tasks.sleeping = parseInt(w[6].trim());
-	    sys.cpu.user = parseFloat(w[7].trim());
-	    sys.cpu.system = parseFloat(w[8].trim());
-	    sys.cpu.idle = parseFloat(w[9].trim());
-	    sys.memory.total = parseInt(w[10].trim());
-	    sys.memory.used = parseInt(w[11].trim().split("k")[0]);
-	    sys.memory.free = parseInt(w[12].trim().split("k")[0]);
+	for (var i = 0; i < lines.length; i++) {
+	    var row = lines[i].trim().split(' ');
+	    switch(row[0]) {
+	    case "top":
+		for (var j = 1; j<row.length; j++) {
+		    if (row[j] == "average:") {
+			sys.loadavg.onemin = parseFloat(row[j+1].replace(',',''));
+			sys.loadavg.fivemin = parseFloat(row[j+2].replace(',',''));
+			sys.loadavg.fifteenmin = parseFloat(row[j+3].replace(',',''));
+			break;
+		    }
+		}
+	    case "Tasks:":
+		sys.tasks.total = parseInt(row[1]);
+		sys.tasks.running = parseInt(row[3]);
+		sys.tasks.sleeping = parseInt(row[5]);
+		break;
+	    case "%Cpu(s):":
+		sys.cpu.user = parseFloat(row[1]);
+		sys.cpu.system = parseFloat(row[3]);
+		sys.cpu.idle = parseFloat(row[7]);
+		break;
+	    case "KiB":
+		if (row[1] == 'Mem:') {
+		    sys.memory.total = parseInt(row[2]);
+		    sys.memory.used = parseInt(row[4]);
+		    sys.memory.free = parseInt(row[6]);
+		}
+		break;
+	    default:
+		break;
+	    };
 	}
 	break;
     case "darwin":
-	var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
 	for (var i = 0; i < lines.length; i++) {
 	    var row = lines[i].trim().split(' ');
 	    switch(row[0]) {
@@ -1130,55 +1231,66 @@ function parseIfaceStats(config,output) {
     switch (config.os.toLowerCase()) {
     case "linux":
     case "android":
-	if (dIface) {
-	    var x = new RegExp(dIface.trim() + ":(.+)\\s*");
-	    var w = x.exec(output);
-	    if (w) {
-		var elems = w[1].trim().replace(/\s{2,}/g, ' ').split(" ");
-		rx.bytes = parseInt(elems[0].trim());
-		rx.packets = parseInt(elems[1].trim());
-		rx.errs = parseInt(elems[2].trim());
-		rx.drops = parseInt(elems[3].trim());
-		tx.bytes = parseInt(elems[8].trim());
-		tx.packets = parseInt(elems[9].trim());
-		tx.errs = parseInt(elems[10].trim());
-		tx.drops = parseInt(elems[11].trim());
-	    }
+	var x = new RegExp(dIface.trim() + ":(.+)\\s*");
+	var w = x.exec(output);
+	if (w) {
+	    var elems = w[1].trim().replace(/\s{2,}/g, ' ').split(" ");
+	    rx.bytes = parseInt(elems[0].trim());
+	    rx.packets = parseInt(elems[1].trim());
+	    rx.errs = parseInt(elems[2].trim());
+	    rx.drops = parseInt(elems[3].trim());
+	    tx.bytes = parseInt(elems[8].trim());
+	    tx.packets = parseInt(elems[9].trim());
+	    tx.errs = parseInt(elems[10].trim());
+	    tx.drops = parseInt(elems[11].trim());
+	} else {
+	    stats = {
+		error: 'libParse: no such interface ' +dIface,
+		__exposedProps__: {
+		    error: "r",
+		}
+	    };
 	}
 	break;
     case "darwin":
-	if (dIface) {
-	    var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
-	    for (var i = 0; i < lines.length; i++) {
-		var row = lines[i].trim().split(' ');
-		if (row[0] === dIface && row[2].indexOf('Link')>=0) {
-		    rx.packets = parseInt(row[4].trim());
-		    rx.errs = parseInt(row[5].trim());
-		    rx.bytes = parseInt(row[6].trim());
-		    rx.drops = 0;
-		    tx.packets = parseInt(row[7].trim());
-		    tx.errs = parseInt(row[8].trim());
-		    tx.bytes = parseInt(row[9].trim());
-		    tx.drops = 0;
-		    break;
-		}
+	var found = false;
+	var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+	for (var i = 0; i < lines.length; i++) {
+	    var row = lines[i].trim().split(' ');
+	    if (row[0] === dIface && row[2].indexOf('Link')>=0) {
+		rx.packets = parseInt(row[4].trim());
+		rx.errs = parseInt(row[5].trim());
+		rx.bytes = parseInt(row[6].trim());
+		rx.drops = 0;
+		tx.packets = parseInt(row[7].trim());
+		tx.errs = parseInt(row[8].trim());
+		tx.bytes = parseInt(row[9].trim());
+		tx.drops = 0;
+		found = true;
+		break;
 	    }
+	}
+	if (!found) {
+	    stats = {
+		error: 'libParse: no such interface ' +dIface,
+		__exposedProps__: {
+		    error: "r",
+		}
+	    };
 	}
 	break;
     case "winnt":
-	if (dIface) {
-	    var x = new RegExp("Bytes\\s+(.+)\\s+(.+)\\s+Unicast packets\\s+(.+)\\s+(.+)\\s+Non-unicast packets\\s+(.+)\\s+(.+)\\s+Discards\\s+(.+)\\s+(.+)\\s+Errors\\s+(.+)\\s+(.+)\\s+");
-	    var elems = x.exec(output);
-	    if (elems) {
-		rx.bytes = parseInt(elems[1].trim());
-		rx.packets = parseInt(elems[3].trim());
-		rx.errs = 0;
-		rx.drops = 0;
-		tx.bytes = parseInt(elems[2].trim());
-		tx.packets = parseInt(elems[4].trim());
-		tx.errs = 0;
-		tx.drops = 0;
-	    }
+	var x = new RegExp("Bytes\\s+(.+)\\s+(.+)\\s+Unicast packets\\s+(.+)\\s+(.+)\\s+Non-unicast packets\\s+(.+)\\s+(.+)\\s+Discards\\s+(.+)\\s+(.+)\\s+Errors\\s+(.+)\\s+(.+)\\s+");
+	var elems = x.exec(output);
+	if (elems) {
+	    rx.bytes = parseInt(elems[1].trim());
+	    rx.packets = parseInt(elems[3].trim());
+	    rx.errs = 0;
+	    rx.drops = 0;
+	    tx.bytes = parseInt(elems[2].trim());
+	    tx.packets = parseInt(elems[4].trim());
+	    tx.errs = 0;
+	    tx.drops = 0;
 	}
 	break;
     default:
@@ -1195,8 +1307,6 @@ function parseIfaceStats(config,output) {
 
 /* arp -a or ip neigh show */
 function parseArpCache(config,output) {
-    // Array of Elems
-    var arpCache = new Array();
     function Elem() {};
     Elem.prototype = {
 	host: null,
@@ -1208,6 +1318,15 @@ function parseArpCache(config,output) {
 	    ip: "r",
 	    mac: "r",
 	    interface: "r"
+	}
+    };
+
+    // Array of Elems
+    var arpCache = new Array();
+    var res = {
+	entries: arpCache,
+	__exposedProps__: {
+	    entries: "r"
 	}
     };
 
@@ -1231,7 +1350,7 @@ function parseArpCache(config,output) {
 	    var i = lines[k];
 	    var x = i.split(' ');
 	    var e = new Elem();
-	    e.host = (x[0].indexOf('?')>=0 : null : x[0]);
+	    e.host = (x[0].indexOf('?')>=0 ? null : x[0]);
 	    e.ip = x[1].replace(/\(|\)/gi,'');
 	    e.mac = (x[3].indexOf('incomplete')>=0 ? null : x[3]);
 	    e.interface = x[5];
@@ -1251,7 +1370,7 @@ function parseArpCache(config,output) {
 	}
 	break;
     default:
-	arpCache = {
+	res = {
 	    error: 'libParse: no parser for ' +config.name+ ' on ' + config.os,
 	    __exposedProps__: {
 		error: "r",
@@ -1259,7 +1378,7 @@ function parseArpCache(config,output) {
 	};
 	break;
     }
-    return arpCache;
+    return res;
 };
 	
 /* iwconfig / airport / ip  */
@@ -1456,7 +1575,7 @@ function parseWifiInterface(config,output) {
 	signal : null,
 	noise : null,
 	bitrate : null,
-	error : null,
+	offline : null,
 	__exposedProps__: {
 	    mac: "r",
 	    proto: "r",
@@ -1470,7 +1589,7 @@ function parseWifiInterface(config,output) {
 	    signal : "r",
 	    noise : "r",
 	    bitrate : "r",		    			
-	    error : "r",
+	    offline : "r",
 	}
     };
 
@@ -1535,7 +1654,7 @@ function parseWifiInterface(config,output) {
 	    switch(tmp[0]) {
 	    case "AirPort":
 		if (tmp[1].trim().toLowerCase() === 'off')
-		    iwconfig.error = "wifi is off";
+		    iwconfig.offline = true;
 		break;
 	    case "agrCtlRSSI":
 		iwconfig.signal = tmp[1].trim();
@@ -1643,7 +1762,7 @@ var libParse2 = function (config, obj) {
 	};
     }
 
-    var addcommon = function(res) {
+    var addcommon = function(res) {	
 	// add some common metadata for each report
 	var meta = {
 	    ts : Date.now(),
@@ -1653,6 +1772,7 @@ var libParse2 = function (config, obj) {
 	    os : config.os,
 	    __exposedProps__ : {
 		ts : "r",
+		name: "r",
 		cmd : "r",	
 		args : "r",	
 		os : "r",	
