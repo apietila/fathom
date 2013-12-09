@@ -216,7 +216,7 @@ function udpRecvstop(socketid) {
     return {error: 'No multiresponse function is running (nothing to stop).'};
   }
   util.data.multiresponse_stop = true;
-  return {};
+  return;
 }
 
 function udpRecvfrom(socketid) {

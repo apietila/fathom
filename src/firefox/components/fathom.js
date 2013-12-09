@@ -372,39 +372,38 @@ FathomAPI.prototype = {
           Logger.warning('Received response from worker for unknown requestid: ' + requestid);
 	  Logger.warning('Data ' + JSON.stringify(result,null,2));
         } else {
+          // TODO: possibly make sure the worker is the one we expect (the one
+          // stored in the requestinfo).
+          try {
+            if(result) {
+	      // TODO: call the callback async using setTimeout.
 
-        // TODO: possibly make sure the worker is the one we expect (the one
-        // stored in the requestinfo).
-        try {
-          if(result) {
-		      // TODO: call the callback async using setTimeout.
+	      // Anna: recursively mark everything visible
+	      var recur = function(o) {
+		var exp = {};
+		for(var props in o) {
+		  if (!o.hasOwnProperty(props))
+		    continue;
 
-	    // Anna: recursively mark everything visible
-	    var recur = function(o) {
-	      var exp = {};
-	      for(var props in o) {
-		if (!o.hasOwnProperty(props))
-		  continue;
-
-		exp[props] = "r";
-		if (o[props] instanceof Array) {
-		  for (var i = 0; i < o[props].length; i++) {
-		    recur(o[props][i]);
+		  exp[props] = "r";
+		  if (o[props] instanceof Array) {
+		    for (var i = 0; i < o[props].length; i++) {
+		      recur(o[props][i]);
+		    }
+		  } else if (o[props] instanceof Object) {
+		    recur(o[props]);
 		  }
-		} else if (o[props] instanceof Object) {
-		  recur(o[props]);
 		}
-	      }
-	      o["__exposedProps__"] = exp;
-	    };
-	    recur(result);
-	    requestinfo['callback'](result);
-	  }
-        } catch (e) {
-          // TODO: decide on a good way to send this error back to the document.
-          Logger.error('Error when calling user-provide callback: ' + e);
-	  Logger.error(e.stack);
-        }
+		o["__exposedProps__"] = exp;
+	      };
+	      recur(result);
+	      requestinfo['callback'](result);
+	    }
+          } catch (e) {
+            // TODO: decide on a good way to send this error back to the document.
+            Logger.error('Error when calling user-provide callback: ' + e);
+	    Logger.error(e.stack);
+          }
 	}
 
 	// one time request or multiresponse is done ?

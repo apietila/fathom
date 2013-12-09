@@ -32,7 +32,6 @@ var util = {
   // Name and path to the nspr library passed in through an init message.
   nsprname : null,
   nsprpath : null,
-
   arch : null,
   os : null,
 
