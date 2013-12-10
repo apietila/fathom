@@ -842,8 +842,9 @@ function parseInterface(config,output) {
 	var x = new RegExp(".+flags.+mtu.+");
 
   	var addIface = function(text) {
-	    var reg1 = new RegExp("(.+):.\\s+mtu\\s([0-9]+)\\s+.*\\sether\\s(.+)\\sinet6\\s(.+)\\sprefixlen.+\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
-	    var reg2 = new RegExp("(.+):.+\\smtu\\s([0-9]+)\\s+.*\\sether\\s(.+)\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
+	    text = text.replace(/\s+/g, ' ');
+	    var reg1 = new RegExp("(.+):.+\\smtu\\s([0-9]+).+\\sether\\s(.+)\\sinet6\\s(.+)\\sprefixlen.+\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
+	    var reg2 = new RegExp("(.+):.+\\smtu\\s([0-9]+).+\\sether\\s(.+)\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
 
 	    var intf = new Iface();	    
 	    var w = reg1.exec(text);
@@ -853,7 +854,7 @@ function parseInterface(config,output) {
 		intf.mac = w[3];
 		intf.address = {
 		    ipv4: w[5],
-		    ipv6: w[4],
+		    ipv6: w[4].split('%')[0],
 		    broadcast: w[7],
 		    mask: w[6],
 		    __exposedProps__: {
@@ -895,14 +896,14 @@ function parseInterface(config,output) {
 	    if (x.test(lines[i].trim())) {
 		// next iface starts, add prev
 		if (inter != "") 
-		    addIface(inter.replace(/\s{2,}/g, ' '));
+		    addIface(inter);
 
 		inter = lines[i];
 	    } else {
 		inter += lines[i];
 		// last on the list
 		if (i == lines.length - 1) 
-		    addIface(inter.replace(/\s{2,}/g, ' ')); 
+		    addIface(inter); 
  	    }
 	}
 	break;
@@ -1658,6 +1659,8 @@ function parseWifiInterface(config,output) {
 	    case "AirPort":
 		if (tmp[1].trim().toLowerCase() === 'off')
 		    iwconfig.offline = true;
+		else
+		    iwconfig.offline = false;
 		break;
 	    case "agrCtlRSSI":
 		iwconfig.signal = parseInt(tmp[1].trim());
