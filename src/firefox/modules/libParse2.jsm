@@ -842,8 +842,8 @@ function parseInterface(config,output) {
 	var x = new RegExp(".+flags.+mtu.+");
 
   	var addIface = function(text) {
-	    var reg1 = new RegExp("(.+):.+mtu\\s([0-9]+)\\s+ether\\s(.+)\\sinet6\\s(.+)\\sprefixlen.+\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
-	    var reg2 = new RegExp("(.+):.+mtu\\s([0-9]+)\\s+ether\\s(.+)\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
+	    var reg1 = new RegExp("(.+):.\\s+mtu\\s([0-9]+)\\s+.*\\sether\\s(.+)\\sinet6\\s(.+)\\sprefixlen.+\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
+	    var reg2 = new RegExp("(.+):.+\\smtu\\s([0-9]+)\\s+.*\\sether\\s(.+)\\sinet\\s(.+)\\snetmask\\s(.+)\\sbroadcast\\s([0-9\.]+)");
 
 	    var intf = new Iface();	    
 	    var w = reg1.exec(text);
