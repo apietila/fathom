@@ -319,8 +319,6 @@ function parsePing(config, output) {
 	if (lines.length > 1) {
 	    for (var i = 0; i < lines.length; i++) {
 		var line = lines[i].trim().replace(/\s{2,}/g, ' ');
-		Logger.debug(line);
-
 		if (i == 0) {
 		    var s = line.split(' ');
 		    ping.domain = s[1];
@@ -755,9 +753,7 @@ function parseInterface(config,output) {
 	    var x = new RegExp("(.+)\\s+Link.+HWaddr\\s(.+)\\sinet addr:(.+)\\sBcast:(.+)\\sMask:(.+)\\sinet6 addr:\\s(.+)\\sScope.+\\sMTU:(\\d+)\\sMetric.+\\sRX bytes:(\\d+)\\s.+\\sTX bytes:(\\d+)\\s.+");
 	    var w = x.exec(str);
 
-	    Logger.debug(str);
 	    if (w) {
-		Logger.debug('full str match ' + w[3]);
 		var intf = new Iface();
 		intf.name = w[1].trim();
 		intf.mac = w[2].trim();
@@ -791,7 +787,6 @@ function parseInterface(config,output) {
 		    'tx': new RegExp("TX .+ bytes (\\d+)"),
 		    'rx': new RegExp("RX .+ bytes (\\d+)"),
 		}
-		Logger.debug('part match');
 
 		var intf = new Iface();
 		intf.address = {
@@ -885,9 +880,6 @@ function parseInterface(config,output) {
 			}
 		    };		    
 		    interfaces.push(intf);
-
-		} else {
-		    Logger.debug("No match: " + text);
 		}
 	    }
 	}
