@@ -322,18 +322,30 @@ function parsePing(config, output) {
 		if (i == 0) {
 		    var s = line.split(' ');
 		    ping.domain = s[1];
-		    ping.ip = (s[2].indexOf('[') == -1) ? s[1] : s[2].replace(/[|]|:/gi, '');
+		    if (s[2] === "::1:") {
+			ping.ip = '127.0.0.1'
+		    } else {
+			ping.ip = s[2].replace(/[\[\]:]/gi, '');
+		    }
 
 		} else if (line.indexOf("Reply from")>=0) {
 		    var s = line.split(' ');
 
 		    var p = new Ping();
-		    p.ip = s[2].replace(/\(|\)/gi, '');
-		    p.domain = p.ip;
+		    if (s[2] === "::1:") {
+			p.ip = '127.0.0.1'
+			p.domain = 'localhost'
+		    } else {
+			p.ip = s[2].replace(/[\[\]:]/gi, '');
+			p.domain = p.ip;
+		    }
 
 		    for (var j = 3; j<s.length; j++) {
 			if (s[j].indexOf('=')>0) {
 			    var tmp = s[j].trim().split('=');
+			    p[tmp[0].toLowerCase()] = parseFloat(tmp[1].replace(/ms/,''));
+			} else if (s[j].indexOf('<')>=0) {
+			    var tmp = s[j].trim().split('<');
 			    p[tmp[0].toLowerCase()] = parseFloat(tmp[1].replace(/ms/,''));
 			}
 		    };
@@ -920,15 +932,12 @@ function parseInterface(config,output) {
 		}
 	    };
 	    
-	    if (intf.name.indexOf("adapter") != -1) {
+	    if (intf.name.indexOf("adapter") >= 0) {
 		var regexp = {
 		    'ipv4': new RegExp("IPv4 Address.*:\\s+(.+)", "ig"),
 		    'mask': new RegExp("Subnet Mask.*:\\s+(.+)", "ig"),
 		    'ipv6': new RegExp("IPv6 Address.*:\\s+(.+)", "ig"),
-		    'mtu': new RegExp("NA", "ig"),
 		    'mac': new RegExp("Physical Address.*:\\s+(.+)", "ig"),
-		    'tx': new RegExp("NA", "ig"),
-		    'rx': new RegExp("NA", "ig")
 		}
 		
 		for (var j in regexp) {
@@ -943,7 +952,7 @@ function parseInterface(config,output) {
 			    intf.address[j] = ww[1];
 			    break;
 			case 'mac':
-			    intf[j] = ww[1];
+			    intf[j] = ww[1].toLowerCase().replace(/-/g,':');
 			    break;
 			default:
 			    break;
@@ -1174,7 +1183,9 @@ function parseTop(config, output) {
 
 /* /proc/net/dev or netstat */
 function parseIfaceStats(config,output) {
-    if (!config.params || config.params.length!=1) {
+    if (config.os.toLowerCase() !== "winnt" && 
+	(!config.params || config.params.length!=1)) 
+    {
 	return {
 	    error: 'libParse: missing interface name parameter in ' +config.name+ ' on ' + config.os,
 	    __exposedProps__: {
@@ -1184,7 +1195,7 @@ function parseIfaceStats(config,output) {
     };
 
     // target interface
-    var dIface = config.params[0];
+    var dIface = (config.os.toLowerCase() !== "winnt" ? config.params[0] : undefined);
 
     var tx = {
 	bytes: 0,
@@ -1362,6 +1373,16 @@ function parseArpCache(config,output) {
 	    arpCache.push(e);
 	}
 	break;
+    case "winnt":
+	for(var k = 2; k <lines.length; k++) {
+	    var i = lines[k].trim().replace(/\s{2,}/g,' ');
+	    var x = i.split(' ');
+	    var e = new Elem();
+	    e.ip = x[0];
+	    e.mac = x[1].replace(/-/g,':').toLowerCase();
+	    arpCache.push(e);
+	}
+	break;
     default:
 	res = {
 	    error: 'libParse: no parser for ' +config.name+ ' on ' + config.os,
@@ -1373,8 +1394,56 @@ function parseArpCache(config,output) {
     }
     return res;
 };
+
+
+// Map 802.11 channels to frequencies  (availability depends on country)
+var channel2freq = {
+    // 2.4GHz
+    1 :	2412,
+    2 :	2417,
+    3 :	2422,
+    4 :	2427,
+    5 :	2432,
+    6 :	2437,
+    7 :	2442,
+    8 :	2447,
+    9 :	2452,
+    10:	2457,
+    11:	2462, 
+    12:	2467, 
+    13:	2472, 
+    14:	2484,
+    // 5GHz
+    36: 5180,
+    38: 5190,
+    40: 5200,
+    42: 5210,
+    44: 5220,
+    46: 5230,
+    48: 5240,
+    52: 5260,
+    56: 5280,
+    60: 5300,
+    64: 5320,
+    100:5500,
+    104:5520,
+    108:5540,
+    112:5560,
+    116:5580,
+    120:5600,
+    124:5620,
+    128:5640,
+    132:5660,
+    136:5680,
+    140:5700,
+    149:5745,
+    153:5765,
+    157:5785,
+    161:5805,
+    165:5825,
+};
 	
-/* iwconfig / airport / ip  */
+/* iwconfig / airport / ip / netsh  */
 function parseWireless(config, output) {
     // cells is a list of Cells
     var wireless = {
@@ -1387,24 +1456,24 @@ function parseWireless(config, output) {
     function Cell() {};
     Cell.prototype = {
 	id: null,
-	mac: null,
-	essid: null,
-	frequency: null,
-	quality: null,
-	signal: null,
-	channel: null,
-	bitrate: [],
-	encryption: null,
-	mode: null,
+	mac: null,       // ap mac
+	essid: null,     // network ssid
+	channel: null,   // 
+	frequency: null, // MHz
+	quality: null,   // %
+	signal: null,    // signal strength dBm
+	bitrate: [],     // available bitrates
+	encryption: null,// true | false
+	mode: null,      // managed or adhoc
 	lastBeacon: null,
 	__exposedProps__: {
 		id: "r",
 		mac: "r",
 		essid: "r",
 		frequency: "r",
+		channel: "r",
 		quality: "r",
 		signal: "r",
-		channel: "r",
 		bitrate: "r",
 		encryption: "r",
 		mode: "r",
@@ -1419,7 +1488,7 @@ function parseWireless(config, output) {
 	for(var i = 1; i < tmpCells.length; i++) {
 	    var info = "Cell" + tmpCells[i];
 	    
-	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+).+ Signal level=(.+ dBm)\\s+Encryption key:(.+)\\s+ESSID:(.+)\\s+");
+	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+).+ Signal level=(.+) dBm\\s+Encryption key:(.+)\\s+ESSID:(.+)\\s+");
 	    
 	    var w = x.exec(info);
 	    
@@ -1427,18 +1496,37 @@ function parseWireless(config, output) {
 	    cell.id = w[1];
 	    cell.mac = w[2];
 	    cell.channel = parseInt(w[3]);
-	    cell.frequency = w[4];
-	    cell.quality = w[5];
+	    cell.frequency = ~~(parseInt(w[4])*1000); // GHz -> MHz
+	    if (w[5].indexOf('/')>=0) {
+		var tmp = w[5].split('/'); // Quality=31/70
+		cell.quality = 100.0 * parseFloat(tmp[0]) / parseFloat(tmp[1]);
+	    } else {
+		cell.quality = w[5]; // can this happen?
+	    }
 	    cell.signal = parseInt(w[6]);
-	    cell.encryption = w[7];
-	    cell.essid = w[8];
+	    cell.encryption = (w[7].trim() === "on");
+	    cell.essid = w[8].replace(/"/g,'');
 	    
 	    cell.mode = /Mode:(.+)\s/.exec(info)[1];
-	    cell.lastBeacon = /Last beacon:(.+)\s/.exec(info)[1];
-	    
-	    var tmp = /Bit Rates:(.+)\s(.*)\s+Bit Rates:(.+)\s/.exec(info);
-	    if(tmp)
-		cell.bitrate = tmp[1] + "; " + tmp[2] + "; " + tmp[3];
+	    cell.lastBeacon = parseInt(/Last beacon:(\d+)ms/.exec(info)[1]);
+
+	    // Lines for bitrates look like this:
+	    //
+	    //  Bit Rates:6 Mb/s; 9 Mb/s; 12 Mb/s; 18 Mb/s; 24 Mb/s
+            //            36 Mb/s; 48 Mb/s; 54 Mb/s
+
+	    var idx = info.indexOf('Bit Rates:');
+	    if (idx>=0) {
+		idx += 'Bit Rates:'.length;
+		var subinfo = info.substring(idx);
+		var idx2 = subinfo.indexOf('Mb');
+		while (idx2>=0 && idx2 - idx < 4) {
+		    cell.bitrate.push(parseInt(subinfo.substring(0,idx2-1).trim()));
+		    idx = idx2+4;
+		    subinfo = info.substring(idx);
+		    idx2 = subinfo.indexOf('Mb');
+		}
+	    }
 	    
 	    wireless.cells.push(cell);
 	}
@@ -1469,7 +1557,7 @@ function parseWireless(config, output) {
 
 		var cell = new Cell(); 
 		cell.id = i;
-		cell.mac = cols[0]; // bssid
+		cell.mac = cols[0];
 		cell.frequency = cols[1];
 		cell.signal = parseInt(cols[2]);
 		cell.encryption = cols[3];
@@ -1477,6 +1565,59 @@ function parseWireless(config, output) {
 
 		wireless.cells.push(cell);
 	    }
+	}
+	break;
+    case "winnt":
+	// split the info into cells
+	Logger.debug(output);
+
+	var tmpCells = output.trim().split("SSID");
+	for(var i = 1; i < tmpCells.length; i++) {
+	    var info = ("SSID " + tmpCells[i]).trim().split("\n");
+	    Logger.debug(tmpCells[i]);
+
+	    var id,ssid,mode,enc,cell;
+
+	    for (var j = 1; j < info.length; j++) {
+		Logger.debug(info[j]);
+		var w = info[j].trim().replace(/\s{2,}/g,' ').split(': ');
+		if (w.length!==2)
+		    continue;
+
+		if (w[0].indexOf('BSSID')>=0) {
+		    // Each cell can have multiple APs (bssids)
+		    if (cell !== undefined) {
+			wireless.cells.push(cell);			
+		    }
+		    cell = new Cell();
+		    cell.id = 'SSID'+id+':'+w[0].replace("BSSID ",'');
+		    cell.mac = w[1];
+		    cell.essid = ssid;
+		    cell.mode = mode;
+		    cell.enc = enc;
+
+		} else if (w[0].indexOf('SSID')>=0) {
+		    id = w[0].replace("SSID ",'');
+		    ssid = w[1];
+		} else if (w[0] == 'Network type') {
+		    mode = w[1];
+		} else if (w[0] == 'Authentication') {
+		    enc = (w[1] !== 'Open');
+		} else if (w[0] == 'Signal' && cell) {
+		    cell.quality = parseInt(w[1].replace('%',''));
+		} else if (w[0] == 'Channel' && cell) {
+		    cell.channel = parseInt(w[1]);
+		    cell.freq = channel2freq[cell.channel];
+		} else if (w[0].indexOf('rates')>=0 && cell) {
+		    var tmp = w[1].split(' ');
+		    for (var k = 0; k < tmp.length; k++) {
+			cell.bitrate.push(parseInt(tmp[k]));
+		    }
+		}
+	    } // end for
+	    if (cell !== undefined) {
+		wireless.cells.push(cell);			
+	    }	    
 	}
 	break;
     default:
@@ -1493,9 +1634,9 @@ function parseWireless(config, output) {
 
 function parseProcNetWireless(config, output) {
     var wifi = {
-	link: null,
-	signal: null,
-	noise: null,
+	link: null,   // quality: % or abstract quantity
+	signal: null, // dBm
+	noise: null,  // dBm
 	__exposedProps__: {
 	    link: "r",
 	    signal: "r",
@@ -1559,18 +1700,20 @@ function parseProcNetWireless(config, output) {
 		
 function parseWifiInterface(config,output) {
     var iwconfig = {
-	mac : null,
-	proto: null,
-	ssid: null,
-	bssid : null,
-	mode: null,
-	freq: null,
-	channel: null,
-	name : null,
-	txpower : null,
-	signal : null,
-	noise : null,
-	bitrate : null,
+	mac : null,      // mac address
+	proto: null,     // 802.11 version
+	ssid: null,      // network name
+	bssid : null,    // network bssid
+	mode: null,      // managed or adhoc
+	freq: null,      // MHz
+	channel: null,   // 
+	name : null,     // device name
+	txpower : null,  // 
+	signal : null,   // signal strength
+	noise : null,    // noise 
+	quality : null,     // link quality (%)
+	txbitrate : null,// last known transmit bitrate (Mbps)
+	rxbitrate : null,// last known receive bitrate (Mbps)
 	offline : null,
 	__exposedProps__: {
 	    mac: "r",
@@ -1584,7 +1727,9 @@ function parseWifiInterface(config,output) {
 	    txpower : "r",
 	    signal : "r",
 	    noise : "r",
-	    bitrate : "r",		    			
+	    quality : "r",
+	    txbitrate : "r",		    			
+	    rxbitrate : "r",		    			
 	    offline : "r",
 	}
     };
@@ -1601,22 +1746,31 @@ function parseWifiInterface(config,output) {
 		iwconfig.name = tmp[0].trim();
 		iwconfig.proto = tmp[2].trim();
 		var tmp2 = tmp[3].trim().split(':');
-		iwconfig.ssid = tmp2[1].replace("\"",'');
+		iwconfig.ssid = tmp2[1].replace(/"/g,'');
 	    } else if (lines[i].indexOf('Mode:')>=0) {
 		// Mode:Managed  Frequency:5.18 GHz  Access Point: A0:21:B7:BB:17:54
 		var tmp2 = tmp[0].trim().split(':');
-		iwconfig.mode = tmp2[1];
+		iwconfig.mode = tmp2[1].toLowerCase();
 		tmp2 = tmp[1].trim().split(':');
-		iwconfig.freq = tmp2[1];
+		iwconfig.freq = ~~(parseFloat(tmp2[1])*1000); // GHz -> MHz
+
+		// find channel
+		for (var channel in channel2freq) {
+		    if (channel2freq[channel] === iwconfig.freq) {
+			iwconfig.channel = channel
+			break;
+		    }
+		}
+
 		iwconfig.bssid = tmp[5];
 	    } else if (lines[i].indexOf('Bit Rate')>=0) {
 		// Bit Rate[=;]6 Mb/s   Tx-Power[=;]15 dBm
 		if (tmp[1].indexOf('=')>=0) { // fixed bitrate
 		    var tmp2 = tmp[1].trim().split('=');
-		    iwconfig.bitrate = parseInt(tmp2[1]);
+		    iwconfig.txbitrate = parseInt(tmp2[1]);
 		} else { // auto bitrate
 		    var tmp2 = tmp[1].trim().split(';');
-		    iwconfig.bitrate = tmp2[1];
+		    iwconfig.txbitrate = tmp2[1];
 		}
 
 		if (tmp[3].indexOf('=')>=0) { // fixed power
@@ -1629,11 +1783,17 @@ function parseWifiInterface(config,output) {
 
 	    } else if (lines[i].indexOf('Link Quality')>=0) {
 		// Link Quality=66/70  Signal level=-44 dBm 
+		if (tmp[1].indexOf('/')>=0) {
+		    // convert to %
+		    var tmp2 = tmp[1].trim().split('=')[1].split('/');
+		    iwconfig.quality = 100.0 * parseInt(tmp2[0])/parseInt(tmp2[1]);
+		}
+
 		if (tmp[3].indexOf('=')>=0) { // fixed
-		    var tmp2 = tmp[3].trim().split('=');
+		    tmp2 = tmp[3].trim().split('=');
 		    iwconfig.signal = parseInt(tmp2[1]);
 		} else { // auto
-		    var tmp2 = tmp[3].trim().split(';');
+		    tmp2 = tmp[3].trim().split(';');
 		    iwconfig.signal = tmp2[1];
 		}
 	    }
@@ -1661,10 +1821,10 @@ function parseWifiInterface(config,output) {
 		iwconfig.noise = parseInt(tmp[1].trim());
 		break;
 	    case "op mode":
-		iwconfig.mode = tmp[1].trim();
+		iwconfig.mode = (tmp[1].trim() === 'station' ? 'managed' : 'adhoc');
 		break;
 	    case "lastTxRate":
-		iwconfig.bitrate = parseInt(tmp[1].trim());
+		iwconfig.txbitrate = parseInt(tmp[1].trim());
 		break;
 	    case "BSSID":
 		iwconfig.bssid = tmp[1].trim();
@@ -1674,7 +1834,8 @@ function parseWifiInterface(config,output) {
 		break;
 	    case "channel":
 		iwconfig.channel = parseInt(tmp[1].trim());
-		break;
+		iwconfig.freq = channel2freq[iwconfig.channel];
+	break;
 	    case "Hardware Port":
 		if (tmp[1].trim() === "Wi-Fi")
 		    inwifiport = true;
@@ -1690,6 +1851,53 @@ function parseWifiInterface(config,output) {
 		    iwconfig.mac = tmp[1].trim();
 		break;
 	    };
+	}
+	break;
+    case "winnt":
+	for (var i = 0; i<lines.length; i++) {
+	    var tmp = lines[i].trim().split(': ');
+	    if (tmp.length!=2)
+		continue;
+
+	    switch(tmp[0].trim()) {
+	    case "Name":
+		iwconfig.name = tmp[1].trim();
+		break;
+	    case "Physical address":
+		iwconfig.mac = tmp[1].trim();
+		break;
+	    case "Radio type":
+		iwconfig.proto = tmp[1].trim();
+		break;
+	    case "State":
+		if (tmp[1].trim().toLowerCase() === 'connected')
+		    iwconfig.offline = false;
+		else
+		    iwconfig.offline = true;
+		break;
+	    case "SSID":
+		iwconfig.ssid = tmp[1].trim();
+		break;
+	    case "BSSID":
+		iwconfig.bssid = tmp[1].trim();
+		break;
+	    case "Network type":
+		iwconfig.mode = (tmp[1].trim() === 'Infrastructure' ? 'managed' : 'adhoc');
+		break;
+	    case "Channel":
+		iwconfig.channel = parseInt(tmp[1].trim());
+		iwconfig.freq = channel2freq[iwconfig.channel];
+		break;
+	    case "Receive rate (Mbps)":
+		iwconfig.rxbitrate = parseInt(tmp[1].trim());
+		break;
+	    case "Transmit rate (Mbps)":
+		iwconfig.txbitrate = parseInt(tmp[1].trim());
+		break;
+	    case "Signal":
+		iwconfig.quality = parseInt(tmp[1].trim().replace('%',''));
+		break;
+	    }
 	}
 	break;
     case "android":

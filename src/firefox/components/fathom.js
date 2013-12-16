@@ -929,38 +929,38 @@ FathomAPI.prototype = {
                           'exit /b %errorlevel%'];
       var wrappercontents = wrapperlines.join('\r\n') + '\r\n';
 
-		var dirservice = Cc["@mozilla.org/file/directory_service;1"]
-				.getService(Ci.nsIProperties); 
-			var profdir = dirservice.get("TmpD", Ci.nsIFile);
-			var wrapperfile = profdir.clone();
+      var dirservice = Cc["@mozilla.org/file/directory_service;1"]
+	  .getService(Ci.nsIProperties); 
+      var profdir = dirservice.get("TmpD", Ci.nsIFile);
+      var wrapperfile = profdir.clone();
 		
-		wrapperfile.append(wrappername);
-		var foStream = Cc["@mozilla.org/network/file-output-stream;1"].
-		    createInstance(Ci.nsIFileOutputStream);
-		// write, create, truncate
-		foStream.init(wrapperfile, 0x02 | 0x08 | 0x20, 0755, 0); 
-
-		// "if you are sure there will never ever be any non-ascii text in data you
-		// can  also call foStream.writeData directly" --- To be safe, we'll use
-		// the converter.
-		var converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"].
-		    createInstance(Components.interfaces.nsIConverterOutputStream);
-		converter.init(foStream, "UTF-8", 0, 0);
-		converter.writeString(wrappercontents);
-		converter.close(); // this also closes foStream
-
-		var wrappername = "hidecmd.js";
-		var wrapperlines = [	'var dir = WScript.ScriptFullName.replace(/[\\/\\\\]+[^\\/\\\\]*$/, "");',
-					'var Shell = WScript.CreateObject("Wscript.Shell");',
-					'Shell.CurrentDirectory = dir;',
-					'var objArgs = WScript.Arguments;',
-					'var arg = "";',
-					'for(var i = 0; i < objArgs.length; i++) {',
-					'	arg = arg + " " + objArgs(i);',
-					'}',
-					'Shell.Run("cmdwrapper.bat " + arg, 0, true);'];
-
-		var wrappercontents = wrapperlines .join('\r\n') + '\r\n';
+      wrapperfile.append(wrappername);
+      var foStream = Cc["@mozilla.org/network/file-output-stream;1"].
+	  createInstance(Ci.nsIFileOutputStream);
+      // write, create, truncate
+      foStream.init(wrapperfile, 0x02 | 0x08 | 0x20, 0755, 0); 
+      
+      // "if you are sure there will never ever be any non-ascii text in data you
+      // can  also call foStream.writeData directly" --- To be safe, we'll use
+      // the converter.
+      var converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"].
+	  createInstance(Components.interfaces.nsIConverterOutputStream);
+      converter.init(foStream, "UTF-8", 0, 0);
+      converter.writeString(wrappercontents);
+      converter.close(); // this also closes foStream
+      
+      var wrappername = "hidecmd.js";
+      var wrapperlines = [	'var dir = WScript.ScriptFullName.replace(/[\\/\\\\]+[^\\/\\\\]*$/, "");',
+				'var Shell = WScript.CreateObject("Wscript.Shell");',
+				'Shell.CurrentDirectory = dir;',
+				'var objArgs = WScript.Arguments;',
+				'var arg = "";',
+				'for(var i = 0; i < objArgs.length; i++) {',
+				'	arg = arg + " " + objArgs(i);',
+				'}',
+				'Shell.Run("cmdwrapper.bat " + arg, 0, true);'];
+      
+      var wrappercontents = wrapperlines .join('\r\n') + '\r\n';
 
     } else if (os == "Linux" || os == "Android" || os == "Darwin") {
       wrappername = "cmdwrapper.sh";
@@ -978,11 +978,11 @@ FathomAPI.prototype = {
 	/*if(os == "Android") {
 		var wrapperfile = this._getLocalFile("/storage/sdcard0/Fathom/");
 	} else*/ {
-		var dirservice = Cc["@mozilla.org/file/directory_service;1"]
-		    .getService(Ci.nsIProperties); 
-		var profdir = dirservice.get("TmpD", Ci.nsIFile);
-		var wrapperfile = profdir.clone();
-    }
+	  var dirservice = Cc["@mozilla.org/file/directory_service;1"]
+	      .getService(Ci.nsIProperties); 
+	  var profdir = dirservice.get("TmpD", Ci.nsIFile);
+	  var wrapperfile = profdir.clone();
+	}
     wrapperfile.append(wrappername);
     var foStream = Cc["@mozilla.org/network/file-output-stream;1"].
         createInstance(Ci.nsIFileOutputStream);
@@ -1009,12 +1009,10 @@ FathomAPI.prototype = {
   },
 
   _executeCommandAsync : function(callback, cmd, args, incrementalCallback) {
-    
     if (!this.securityCheck())
       return; 
     
-    var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
-    
+    var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;    
     if (!args) {
       args = []; 
     } else {
@@ -1029,7 +1027,7 @@ FathomAPI.prototype = {
 	/*if(os == "Android")
 		var tmpdir = this._getLocalFile("/storage/sdcard0/Fathom/");
 	else*/
-	    var tmpdir = this._getTempDirObj();
+    var tmpdir = this._getTempDirObj();
     var outfile = tmpdir.clone()
     outfile.append('fathom-command.' + commandid + '.out');
     var errfile = tmpdir.clone()
@@ -1052,7 +1050,13 @@ FathomAPI.prototype = {
         function handleOutfileData(outdata) {
           function handleErrfileData(errdata) {
             try {
-	      callback({exitstatus: exitstatus, stdout: outdata, stderr: errdata, __exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
+	      callback({exitstatus: exitstatus, 
+			stdout: outdata, 
+			stderr: errdata,
+			__exposedProps__: { 
+			  exitstatus: "r", 
+			  stdout: "r", 
+			  stderr: "r" }});
     	      callback = null;
     	      incrementalCallback = false;
     	    } catch(e) {
@@ -1083,65 +1087,62 @@ FathomAPI.prototype = {
         } catch(e) {
         }
       }
-    };
+    }; // observer
 
     var wrapperpath = this._getCommandWrapperPath();
     var wrapperfile = this._getLocalFile(wrapperpath);
 
     var process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
     if(os == "Android") {
-    	// get sh executable
-		var shPath = this._getLocalFile("/system/bin/");
-		var sh = shPath.clone();
-		sh.append('sh');
-		process.init(sh);
+      // get sh executable
+      var shPath = this._getLocalFile("/system/bin/");
+      var sh = shPath.clone();
+      sh.append('sh');
+      process.init(sh);
     } else
-	    process.init(wrapperfile);
+      process.init(wrapperfile);
 
     /*this.commands[commandid] = {process:process, cmd:cmd, args:args,
       outfile:outfile, errfile:errfile};*/
 
-	if(os == "Android")
-		var wrapperargs = [wrapperfile.path, outfile.path, errfile.path, cmd].concat(args);
-	else
-    	var wrapperargs = [outfile.path, errfile.path, cmd].concat(args);
+    if(os == "Android")
+      var wrapperargs = [wrapperfile.path, outfile.path, errfile.path, cmd].concat(args);
+    else
+      var wrapperargs = [outfile.path, errfile.path, cmd].concat(args);
 
     process.runAsync(wrapperargs, wrapperargs.length, observer);
 
-	/* incremental output for traceroute & ping */
-	if(incrementalCallback == true) {
-		var file = FileUtils.getFile("TmpD", [outfile.leafName]);
-	
-		var index = 0, timeout = 250, count = 120;
-		var event = {  
-		  observe: function(subject, topic, data) {  
-			index++;
-			if (index >= count || !incrementalCallback)
-			  timers.cancel();
-			try{
-				NetUtil.asyncFetch(file, function(inputStream, status) {
-				  if (!Components.isSuccessCode(status)) {  
-					// Handle error!  
-					return;  
-				  }  
-				  
-				  // The file data is contained within inputStream.  
-				  // You can read it into a string with  
-				  var outdata = NetUtil.readInputStreamToString(inputStream, inputStream.available());
-				  //dump(outdata);
-				  callback({exitstatus: null, stdout: outdata, stderr: null, __exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
-				});
-			}catch(e){
-				dump("\n" + "Error executing the NetUtil.asyncFetch callback function: " + e + "\n");
-			}
-		  }  
-		}  
-		var timers = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);  
-		const TYPE_REPEATING_PRECISE = Components.interfaces.nsITimer.TYPE_REPEATING_PRECISE;  
-	
-		timers.init(event, timeout, TYPE_REPEATING_PRECISE);
-	}
-
+    /* incremental output for traceroute & ping */
+    if(incrementalCallback == true) {
+      var file = FileUtils.getFile("TmpD", [outfile.leafName]);
+      var index = 0, timeout = 250, count = 120;
+      var event = {  
+	observe: function(subject, topic, data) {  
+	  index++;
+	  if (index >= count || !incrementalCallback)
+	    timers.cancel();
+	  try{
+	    NetUtil.asyncFetch(file, function(inputStream, status) {
+	      if (!Components.isSuccessCode(status)) {  
+		// Handle error!  
+		return;  
+	      }  
+	      
+	      // The file data is contained within inputStream.  
+	      // You can read it into a string with  
+	      var outdata = NetUtil.readInputStreamToString(inputStream, inputStream.available());
+	      //dump(outdata);
+	      callback({exitstatus: null, stdout: outdata, stderr: null, __exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
+	    });
+	  }catch(e){
+	    dump("\n" + "Error executing the NetUtil.asyncFetch callback function: " + e + "\n");
+	  }
+	}  
+      }  
+      var timers = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);  
+      const TYPE_REPEATING_PRECISE = Components.interfaces.nsITimer.TYPE_REPEATING_PRECISE;
+      timers.init(event, timeout, TYPE_REPEATING_PRECISE);
+    } // incremental output    
   },
 
   /*
@@ -3456,13 +3457,13 @@ FathomAPI.prototype = {
     getWifiInfo : function(callback) {
       var that = this;
       var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
-      var cont = false;
+      var cont = true;
       var cmd = undefined;
       var args = [];
 
       if (os == "WINNT") {
         cmd = "netsh";
-        args = ["wlan", "show", "interfaces", "mode=bssid"];
+        args = ["wlan", "show", "networks","bssid"];
 
       } else if (os == "Linux") {
         cmd = "iwlist";
@@ -3475,8 +3476,7 @@ FathomAPI.prototype = {
       } else if(os == "Android") {
 	// wpa_cli is available on some devices, trigger new scan, then request the list
         cmd = "wpa_cli";
-        args = ["scan"];	
-	cont = true;
+        args = ["scan"];
 
       } else {
 	callback({error: "getWifiInfo not available on " + os, __exposedProps__: {error: "r"}});
@@ -3489,17 +3489,26 @@ FathomAPI.prototype = {
       	  os: os,
 	  cmd : cmd + " " + args.join(" "),
       	};
-      	var data = libParse2(output, info);
-
-	if (os == "Android" && !data.error && cont) {
-	  // wpa_cli is available, request the list
+	if (cont) {
+	  // 1st time
 	  cont = false;
-          cmd = "wpa_cli";
-          args = ["scan_results"];
-	  that._executeCommandAsync(cbk, cmd, args);
+      	  var data = libParse2(output, info);
+	  if (data && !data.error) {
+	    if (os == "Android") {
+	      // android has different command to fetch the results
+              cmd = "wpa_cli";
+              args = ["scan_results"];
+	    } // on other platforms just re-fetch the updated list in a moment
+	    that._executeCommandAsync(cbk, cmd, args);
+	  } else {
+	    // some error on first call
+      	    callback(data);
+	  }
 	} else {
+	  // 2nd time - final results
+      	  var data = libParse2(output, info);
       	  callback(data);
-	}		
+	}
       };
 			
       //this._executeCommandAsync(callback, cmd, args);
@@ -3594,7 +3603,7 @@ FathomAPI.prototype = {
       var cmd = undefined;
       var args = [];
 
-      if (os == "Linux" || os == "Darwin") {
+      if (os == "Linux" || os == "Darwin" || os == "WINNT") {
         cmd = "hostname";
       } else if(os == "Android") {
 	cmd = "getprop";
@@ -3702,6 +3711,9 @@ FathomAPI.prototype = {
       } else if (os == "Android") {
 	cmd = "getprop";
 	args = ['wifi.interface'];
+      } else if (os == "WINNT") {
+	cmd = "netsh";
+	args = ['wlan','show','interfaces'];
       } else {
 	callback({error: "getActiveWifiInterface not available on " + os, __exposedProps__: {error: "r"}});
         return;

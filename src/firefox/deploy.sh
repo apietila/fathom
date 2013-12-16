@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # test machines: loca, mac, android, win PC (does not work?)
-TEST="127.0.0.1
-192.168.1.194"
+TEST="127.0.0.1"
+#192.168.1.194"
 #192.168.1.139"
 #192.168.1.210"
 
