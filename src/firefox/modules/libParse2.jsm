@@ -1,6 +1,16 @@
+/**
+ * Command line tools parser.
+ *
+ */
 var EXPORTED_SYMBOLS = ["libParse2"];
 
 Components.utils.import("resource://fathom/Logger.jsm");
+
+// supported operating systems
+const winnt = "winnt";
+const android = "android";
+const linux = "linux";
+const darwin = "darwin";
 
 //------ Parsers ---------//
 
@@ -33,8 +43,8 @@ function parseTraceroute(config, output) {
     var lines = output.split("\n");
 
     switch (config.os.toLowerCase()) {
-    case "linux":
-    case "android":
+    case linux:
+    case android:
 	for (var i = 1; i < lines.length; i++) {
 	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
 	    if (str.trim() == "") 
@@ -60,7 +70,7 @@ function parseTraceroute(config, output) {
 	    traceroute.hop.push(h);
 	}
 	break;
-    case "darwin":
+    case darwin:
         var prevhop = undefined;
 	for (var i = 0; i < lines.length; i++) {
 	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
@@ -128,7 +138,7 @@ function parseTraceroute(config, output) {
 	if (prevhop && prevhop.id==traceroute.hop.length+1)
 	    traceroute.hop.push(prevhop);
 	break;
-    case "winnt":
+    case winnt:
 	for (var i = 3; i < lines.length - 2; i++) {
 	    var str = lines[i].replace(/\s{2,}/g, ' ').replace(/\sms/g, '');
 	    if (str.trim() == "") {
@@ -242,9 +252,9 @@ function parsePing(config, output) {
     var lines = output.trim().split("\n");
 
     switch (config.os.toLowerCase()) {
-    case "linux":
-    case "android":
-    case "darwin":
+    case linux:
+    case android:
+    case darwin:
 	for (var i = 0; i < lines.length; i++) {
 	    if (lines[i].length < 2)
 		continue
@@ -315,7 +325,7 @@ function parsePing(config, output) {
 	}
 	break;
 
-    case "winnt":
+    case winnt:
 	if (lines.length > 1) {
 	    for (var i = 0; i < lines.length; i++) {
 		var line = lines[i].trim().replace(/\s{2,}/g, ' ');
@@ -414,13 +424,13 @@ function parseNameServer(config, output) {
     };
 
     switch (config.os.toLowerCase()) {
-    case "android":
+    case android:
 	// cmd: getprop net.dnsX
 	var s = output.trim();
 	nameserver.list.push(s);
 	break;
-    case "linux":
-    case "darwin":
+    case linux:
+    case darwin:
 	// cmd: cat /etc/resolf.con
 	var lines = output.trim().split("\n");
 	for (var i = 0; i < lines.length; i++) {
@@ -435,7 +445,7 @@ function parseNameServer(config, output) {
 		nameserver.list.push(s[1]);
 	}
 	break;
-    case "winnt":
+    case winnt:
 	var blocks = output.trim().split("\n\n");
 	for (var i = 0; i < blocks.length; i++) {
 	    var lines = blocks[i].split("\n");
@@ -515,7 +525,7 @@ function parseRoutingTable(config,output) {
     };
 
     switch (config.os.toLowerCase()) {
-    case "android":	
+    case android:	
 	var lines = output.trim().split('\n');
 	function ip4(val) {
 	    var addr = [];
@@ -550,7 +560,7 @@ function parseRoutingTable(config,output) {
 	    }
 	}
 	break;
-    case "linux":
+    case linux:
 	var lines = output.trim().split('\n');
 	for (var i = 2; i < lines.length; i++) {
 	    var str = lines[i].replace(/\s{2,}/g, ' ');
@@ -570,7 +580,7 @@ function parseRoutingTable(config,output) {
 	}
 	// TODO : fix for IPv6
 	break;
-    case "darwin":
+    case darwin:
 	var parts = output.trim().split("Internet");
 	var ipv4 = parts[1].split("Expire")[1];
 	var ipv6 = parts[2].split("Expire")[1];
@@ -594,7 +604,7 @@ function parseRoutingTable(config,output) {
 	}
 	// TODO : fix for IPv6
 	break;
-    case "winnt":
+    case winnt:
 	var lines = output.trim().split("Active Routes:")[1].split("Persistent Routes:")[0].trim().split('\n');
 	for (var i = 1; i < lines.length - 1; i++) {
 	    var str = lines[i].replace(/\s{2,}/g, ' ');
@@ -670,7 +680,7 @@ function parseInterface(config,output) {
     }
 
     switch (config.os.toLowerCase()) {
-    case "android":
+    case android:
 	var inter = output.trim().replace(/\s{2,}/g, ' ').split("\n");
 	var cache = {};
 	for (var i = 0; i < inter.length; i++) {
@@ -757,7 +767,7 @@ function parseInterface(config,output) {
 	}
 	break;
 	
-    case "linux":
+    case linux:
 	var inter = output.trim().split("\n\n");
 	for (var i = 0; i < inter.length; i++) {
 	    var str = inter[i].trim().replace(/\s{2,}/g, ' ');
@@ -843,7 +853,7 @@ function parseInterface(config,output) {
 	    }
 	}
 	break;
-    case "darwin":
+    case darwin:
 	var lines = output.trim().split("\n");
 	var inter = "";
 	var x = new RegExp(".+flags.+mtu.+");
@@ -911,7 +921,7 @@ function parseInterface(config,output) {
  	    }
 	}
 	break;
-    case "winnt":
+    case winnt:
 	var text = output.trim().split(":\r\n\r\n");
 	for(var i = 1; i < text.length; i++) {
 	    var intf = new Iface();
@@ -987,8 +997,8 @@ function parseMem(config, output) {
     };
 
     switch (config.os.toLowerCase()) {
-    case "android":
-    case "linux":
+    case android:
+    case linux:
 	var text = output.trim().split("\n\n");
 	var y = new RegExp("MemTotal:(.+)kB\\s+MemFree:(.+)kB\\s+Buffers");
 	var w = y.exec(text[0].trim());
@@ -1064,7 +1074,7 @@ function parseTop(config, output) {
     var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
 
     switch (config.os.toLowerCase()) {
-    case "android":
+    case android:
 	var text = output.trim().split("\n\n");
 	var x = new RegExp("User(.+)%.+System(.+)%.+IOW.+\\s+.+Idle(.+)IOW.+=(.+)");
 
@@ -1086,7 +1096,7 @@ function parseTop(config, output) {
 	    sys.memory.free = parseInt(w[2].trim());
 	}
 	break;
-    case "linux":
+    case linux:
 	for (var i = 0; i < lines.length; i++) {
 	    var row = lines[i].trim().split(' ');
 	    switch(row[0]) {
@@ -1121,7 +1131,7 @@ function parseTop(config, output) {
 	    };
 	}
 	break;
-    case "darwin":
+    case darwin:
 	for (var i = 0; i < lines.length; i++) {
 	    var row = lines[i].trim().split(' ');
 	    switch(row[0]) {
@@ -1148,7 +1158,7 @@ function parseTop(config, output) {
 	    };
 	}
 	break;
-    case "winnt":
+    case winnt:
 	// TODO:
 	var cpux = new RegExp("LoadPercentage\\s+(.+)");
 	var memoryx = new RegExp("Total Physical Memory:\\s+(.+) MB\\s+Available Physical Memory:\\s+(.+) MB\\s+Virtual Memory: Max Size");
@@ -1183,7 +1193,7 @@ function parseTop(config, output) {
 
 /* /proc/net/dev or netstat */
 function parseIfaceStats(config,output) {
-    if (config.os.toLowerCase() !== "winnt" && 
+    if (config.os.toLowerCase() !== winnt && 
 	(!config.params || config.params.length!=1)) 
     {
 	return {
@@ -1195,7 +1205,7 @@ function parseIfaceStats(config,output) {
     };
 
     // target interface
-    var dIface = (config.os.toLowerCase() !== "winnt" ? config.params[0] : undefined);
+    var dIface = (config.os.toLowerCase() !== winnt ? config.params[0] : undefined);
 
     var tx = {
 	bytes: 0,
@@ -1233,8 +1243,8 @@ function parseIfaceStats(config,output) {
     };
 	
     switch (config.os.toLowerCase()) {
-    case "linux":
-    case "android":
+    case linux:
+    case android:
 	var x = new RegExp(dIface.trim() + ":(.+)\\s*");
 	var w = x.exec(output);
 	if (w) {
@@ -1256,7 +1266,7 @@ function parseIfaceStats(config,output) {
 	    };
 	}
 	break;
-    case "darwin":
+    case darwin:
 	var found = false;
 	var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
 	for (var i = 0; i < lines.length; i++) {
@@ -1283,7 +1293,7 @@ function parseIfaceStats(config,output) {
 	    };
 	}
 	break;
-    case "winnt":
+    case winnt:
 	var x = new RegExp("Bytes\\s+(.+)\\s+(.+)\\s+Unicast packets\\s+(.+)\\s+(.+)\\s+Non-unicast packets\\s+(.+)\\s+(.+)\\s+Discards\\s+(.+)\\s+(.+)\\s+Errors\\s+(.+)\\s+(.+)\\s+");
 	var elems = x.exec(output);
 	if (elems) {
@@ -1337,7 +1347,7 @@ function parseArpCache(config,output) {
     var lines = output.trim().split('\n');
 
     switch (config.os.toLowerCase()) {
-    case "linux":
+    case linux:
 	for(var k = 0; k <lines.length; k++) {
 	    var i = lines[k];
 	    var x = i.split(' ');
@@ -1349,7 +1359,7 @@ function parseArpCache(config,output) {
 	    arpCache.push(e);
 	}
 	break;
-    case "darwin":
+    case darwin:
 	for(var k = 0; k <lines.length; k++) {
 	    var i = lines[k];
 	    var x = i.split(' ');
@@ -1361,7 +1371,7 @@ function parseArpCache(config,output) {
 	    arpCache.push(e);
 	}
 	break;
-    case "android":
+    case android:
 	for(var k = 0; k <lines.length; k++) {
 	    var i = lines[k];
 	    var x = i.split(' ');
@@ -1373,7 +1383,7 @@ function parseArpCache(config,output) {
 	    arpCache.push(e);
 	}
 	break;
-    case "winnt":
+    case winnt:
 	for(var k = 2; k <lines.length; k++) {
 	    var i = lines[k].trim().replace(/\s{2,}/g,' ');
 	    var x = i.split(' ');
@@ -1462,7 +1472,7 @@ function parseWireless(config, output) {
 	frequency: null, // MHz
 	quality: null,   // %
 	signal: null,    // signal strength dBm
-	bitrate: [],     // available bitrates
+	bitrate: null,     // available bitrates
 	encryption: null,// true | false
 	mode: null,      // managed or adhoc
 	lastBeacon: null,
@@ -1482,7 +1492,7 @@ function parseWireless(config, output) {
     };
 
     switch (config.os.toLowerCase()) {
-    case "linux":
+    case linux:
 	// split the info into cells
 	var tmpCells = output.trim().split("Cell");
 	for(var i = 1; i < tmpCells.length; i++) {
@@ -1493,6 +1503,7 @@ function parseWireless(config, output) {
 	    var w = x.exec(info);
 	    
 	    var cell = new Cell(); 
+	    cell.bitrate = new Array();
 	    cell.id = w[1];
 	    cell.mac = w[2];
 	    cell.channel = parseInt(w[3]);
@@ -1531,7 +1542,7 @@ function parseWireless(config, output) {
 	    wireless.cells.push(cell);
 	}
 	break;
-    case "darwin":
+    case darwin:
 	var tmpCells = output.trim().split("\n");
 	for(var i = 1; i < tmpCells.length; i++) {
 	    var info = tmpCells[i].trim().replace(/\s{2,}/g,' ');
@@ -1548,7 +1559,7 @@ function parseWireless(config, output) {
 	    wireless.cells.push(cell);
 	}
 	break;
-    case "android":
+    case android:
 	if (output.trim().indexOf('bssid') >= 0) {
 	    var tmpCells = output.trim().split("\n");
 	    for(var i = 2; i < tmpCells.length; i++) {
@@ -1567,57 +1578,63 @@ function parseWireless(config, output) {
 	    }
 	}
 	break;
-    case "winnt":
+    case winnt:
 	// split the info into cells
-	Logger.debug(output);
-
-	var tmpCells = output.trim().split("SSID");
+	var tmpCells = output.trim().split("\r\n\r\n");
 	for(var i = 1; i < tmpCells.length; i++) {
-	    var info = ("SSID " + tmpCells[i]).trim().split("\n");
-	    Logger.debug(tmpCells[i]);
+	    var id,ssid,mode,enc;
+	    var cell = undefined;
 
-	    var id,ssid,mode,enc,cell;
-
-	    for (var j = 1; j < info.length; j++) {
-		Logger.debug(info[j]);
+	    var info = tmpCells[i].trim().split("\n");
+	    for (var j = 0; j < info.length; j++) {
 		var w = info[j].trim().replace(/\s{2,}/g,' ').split(': ');
 		if (w.length!==2)
 		    continue;
 
 		if (w[0].indexOf('BSSID')>=0) {
-		    // Each cell can have multiple APs (bssids)
-		    if (cell !== undefined) {
+		    if (cell !== undefined) { // prev cell
 			wireless.cells.push(cell);			
 		    }
+
+		    // Each cell can have multiple APs (bssids), report
+		    // each as separate 'cell'
 		    cell = new Cell();
 		    cell.id = 'SSID'+id+':'+w[0].replace("BSSID ",'');
 		    cell.mac = w[1];
 		    cell.essid = ssid;
 		    cell.mode = mode;
-		    cell.enc = enc;
+		    cell.encryption = enc;
+		    cell.bitrate = new Array();
 
-		} else if (w[0].indexOf('SSID')>=0) {
-		    id = w[0].replace("SSID ",'');
+		} else if (w[0].trim().indexOf('SSID')>=0) {
+		    id = w[0].replace("SSID",'').trim();
 		    ssid = w[1];
-		} else if (w[0] == 'Network type') {
+
+		} else if (w[0].trim() == 'Network type') {
 		    mode = w[1];
-		} else if (w[0] == 'Authentication') {
-		    enc = (w[1] !== 'Open');
-		} else if (w[0] == 'Signal' && cell) {
+
+		} else if (w[0].trim() == 'Authentication') {
+		    enc = (w[1].trim() !== 'Open');
+
+		} else if (w[0].trim() == 'Signal' && cell!==undefined) {
 		    cell.quality = parseInt(w[1].replace('%',''));
-		} else if (w[0] == 'Channel' && cell) {
+
+		} else if (w[0].trim() == 'Channel' && cell!==undefined) {
 		    cell.channel = parseInt(w[1]);
-		    cell.freq = channel2freq[cell.channel];
-		} else if (w[0].indexOf('rates')>=0 && cell) {
+		    cell.frequency = channel2freq[cell.channel];
+
+		} else if (w[0].trim().indexOf('rates ')>=0 && cell!==undefined) {
 		    var tmp = w[1].split(' ');
 		    for (var k = 0; k < tmp.length; k++) {
-			cell.bitrate.push(parseInt(tmp[k]));
+			cell.bitrate.push(parseInt(tmp[k].trim()));
 		    }
 		}
 	    } // end for
-	    if (cell !== undefined) {
+
+	    if (cell !== undefined) { // the last cell
 		wireless.cells.push(cell);			
-	    }	    
+		cell = undefined;
+	    }
 	}
 	break;
     default:
@@ -1647,8 +1664,8 @@ function parseProcNetWireless(config, output) {
     var lines = output.trim().split("\n");
 
     switch (config.os.toLowerCase()) {
-    case "linux":
-    case "android":
+    case linux:
+    case android:
 	// just 3 lines are printed on linux
 	// less than 3 lines means no wifi adapter is present
 	if (lines.length < 3) 
@@ -1671,7 +1688,7 @@ function parseProcNetWireless(config, output) {
 	    wifi.noise = parseInt(elems[4]);
 	}
 	break;
-    case "darwin":
+    case darwin:
 	for (var i = 0; i < lines.length; i++) {
 	    var elems = lines[i].trim().replace(/\s{2,}/g, ' ').split(":");
 	    if (elems[0] == "agrCtlRSSI") 
@@ -1680,7 +1697,7 @@ function parseProcNetWireless(config, output) {
 	       wifi.noise = parseInt(elems[1].trim());
 	}
 	break;
-    case "winnt":
+    case winnt:
 	var x = new RegExp("Signal\\s+:\\s+(.+)%");
 	var elems = x.exec(output.trim());
 	if (elems) 
@@ -1737,7 +1754,7 @@ function parseWifiInterface(config,output) {
     var lines = output.trim().split("\n");
 
     switch (config.os.toLowerCase()) {
-    case "linux":
+    case linux:
 	var i;
 	for (i = 0; i<lines.length; i++) {
 	    var tmp = lines[i].split();
@@ -1799,7 +1816,7 @@ function parseWifiInterface(config,output) {
 	    }
 	}
 	break;
-    case "darwin":
+    case darwin:
 	var inwifiport = false;
 	var i;
 	for (i = 0; i<lines.length; i++) {
@@ -1853,7 +1870,7 @@ function parseWifiInterface(config,output) {
 	    };
 	}
 	break;
-    case "winnt":
+    case winnt:
 	for (var i = 0; i<lines.length; i++) {
 	    var tmp = lines[i].trim().split(': ');
 	    if (tmp.length!=2)
@@ -1900,7 +1917,7 @@ function parseWifiInterface(config,output) {
 	    }
 	}
 	break;
-    case "android":
+    case android:
 	iwconfig.name = output.trim();
 	break;
     default:

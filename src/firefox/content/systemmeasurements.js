@@ -207,6 +207,88 @@ var timerevent = {
 }
 
 var endhostinfo = {
+
+    var getEndHostInfo = function(callback) {
+	// Proxy info
+	
+	var appInfo = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo);
+	var xulruntime = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime);
+	var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+	
+	var val = {
+	    interface: {
+		current: null,
+		ip: null,
+		version: null
+	    },
+	    browser: {
+		vendor: appInfo.vendor,
+		name: appInfo.name,
+		version: appInfo.version
+	    },
+	    fathom: {
+		build: pref.getCharPref("extensions.fathom.build"),
+		version: pref.getCharPref("extensions.fathom.version"),
+		installationID: pref.getCharPref("extensions.fathom.installationID")
+	    },
+	    os: xulruntime.OS,
+	    proxy: null,
+	    dns: null,
+	    time: Date.now()
+	};
+	
+	GlobalFathomObject.system.getRoutingTable(handler);
+	
+      	function handler(outinfo) {
+	    
+	    var dIface = null;
+	    var ver = null;
+	    var ip = null;
+	    
+	    if(outinfo && outinfo.defaultEntry && outinfo.defaultEntry.length) {
+		dIface = outinfo.defaultEntry[0].interface;
+		ver = outinfo.defaultEntry[0].version;
+	    }		  
+	    
+	    GlobalFathomObject.system.getActiveInterfaces(cbkfn);
+	    
+	    function cbkfn(intfs) {
+		// an array of current interfaces
+		if(intfs.length > 0) {
+		    for(var i = 0; i < intfs.length; i++) {
+			if(val.os == winnt) {
+			    if(intfs[i].address.ipv4 == dIface) {
+				dIface = intfs[i].name;
+				ip = intfs[i].address.ipv4;
+				break;
+			    }
+			} else {
+			    if(intfs[i].name == dIface) {
+				ip = intfs[i].address.ipv4;
+				break;
+			    }
+			}
+		    }
+		}
+		
+		val.interface = {
+		    current: dIface,
+		    ip: ip,
+		    version: ver
+		};
+		
+		function cbk(info) {
+		    val.dns = info;
+		    
+		    // finally invoke the callback
+		    callback(val);
+		}
+		
+		GlobalFathomObject.system.getNameservers(cbk);
+	    }
+	}
+    },
+
   observe: function(subject, topic, data) {
 	var sysutils = handleObj.getHandleToFathom();
 	if(sysutils) {
