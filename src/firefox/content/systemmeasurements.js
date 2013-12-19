@@ -193,24 +193,10 @@ var handleObj = {
 	}
 };
 
-var timerevent = {
-  observe: function(subject, topic, data) {
-    var sysutils = handleObj.getHandleToFathom();
-    if(sysutils) {
-      sysutils.system.getLoad(saveSystemHistory);
-      sysutils.system.getWifiStats(saveWiFiHistory);
-      sysutils.system.getIfaceStats(saveNWHistory);
-      sysutils.system.getBrowserMemoryUsage(saveBrowserMemoryUsage);
-    }
-    sysutils = null;
-  }
-}
-
-var endhostinfo = {
-
-    var getEndHostInfo = function(callback) {
-	// Proxy info
-	
+ 
+var getEndHostInfo = function(callback) {
+/* FIXME
+	// Proxy info	
 	var appInfo = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo);
 	var xulruntime = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime);
 	var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
@@ -287,8 +273,24 @@ var endhostinfo = {
 		GlobalFathomObject.system.getNameservers(cbk);
 	    }
 	}
-    },
+    } */
+};
 
+
+var timerevent = {
+  observe: function(subject, topic, data) {
+    var sysutils = handleObj.getHandleToFathom();
+    if(sysutils) {
+      sysutils.system.getLoad(saveSystemHistory);
+      sysutils.system.getWifiStats(saveWiFiHistory);
+      sysutils.system.getIfaceStats(saveNWHistory);
+      sysutils.system.getBrowserMemoryUsage(saveBrowserMemoryUsage);
+    }
+    sysutils = null;
+  }
+}
+
+var endhostinfo = {
   observe: function(subject, topic, data) {
 	var sysutils = handleObj.getHandleToFathom();
 	if(sysutils) {

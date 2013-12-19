@@ -22,7 +22,7 @@ const airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions
 var System = function(ctx,methods) {
     // from extension context
     this._executeCommandAsync = ctx._executeCommandAsync;
-    this._os = ctx._os;
+    this._os = ctx.os;
     
     // exposed methods
     this.__exposedProps = {};

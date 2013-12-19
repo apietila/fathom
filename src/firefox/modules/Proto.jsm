@@ -11,7 +11,7 @@ Components.utils.import("resource://fathom/DNS/dns.jsm");
  * @param {object} ctx        extension context
  * @param {object} methods    list of requested api methods or ['*'] for all
  */
-var Socket = function(ctx,methods) {
+var Proto = function(ctx,methods) {
     // from extension context
     this._doSocketOpenRequest = ctx._doSocketOpenRequest;
     this._doSocketUsageRequest = ctx._doSocketUsageRequest;

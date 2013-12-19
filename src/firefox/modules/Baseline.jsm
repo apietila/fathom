@@ -113,6 +113,36 @@
 		}
     },
     
+    function getIP() {
+      var file = FileUtils.getFile("ProfD", ["baseline_endhost.sqlite"]);
+      var db = Services.storage.openDatabase(file);
+      
+      var data = "";
+      
+      try {
+	var q1 = "SELECT * FROM endhost ORDER BY id DESC LIMIT 1";
+	var statement = db.createStatement(q1);
+	if (statement.executeStep()) {
+	  data = statement.getString(1);
+	}
+      } catch(e) {
+	dump(e);
+      } finally {
+	statement.reset();
+      }
+
+      if (data && data.length > 0) {
+	try{
+	  // get the top most entry in the db
+	  var dataobj = JSON.parse(data);
+	  if (dataobj.interface)
+	    return dataobj.interface.ip;
+	} catch(e) {
+	}
+      }
+      return null;
+    }
+
 
     getLastKnownInterface: function() {
 	
