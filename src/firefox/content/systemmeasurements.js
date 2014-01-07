@@ -110,7 +110,7 @@ function execQuery(db, query) {
     }
     baselinefiles[metrics[i]] = initTables(metrics[i], baselineFile);
   }
-})();
+})//();
 
 /*------------------------------- Metric Helpers -----------------------------*/
 

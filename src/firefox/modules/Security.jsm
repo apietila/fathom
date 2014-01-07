@@ -21,6 +21,10 @@ const valid_apis = ['socket','proto','system','tools'];
  * @param {object} manifest The manifest of the page requesting Fathom API access
  */
 var Security = function(loc, os, manifest) {
+    Logger.debug("init security module on " + os);
+    Logger.debug(JSON.stringify(loc,null,2));
+    Logger.debug(JSON.stringify(manifest,null,2));
+
     this.os = os;
 
     // the page url and requested APIs
@@ -30,28 +34,32 @@ var Security = function(loc, os, manifest) {
     this.ischromepage = false; // TODO: check the loc
 
     // api -> list of methods or [*]
-    this.requested_apis = {};
+    var tmp = {};
     if (manifest.api) {
-	for (var api in manifest.api) {
+	for (var i = 0; i < valid_apis.length; i++)
+	    tmp[valid_apis[i]] = [];
+
+	for (var i = 0; i < manifest.api.length; i++) {
+	    var api = manifest.api[i].trim();
+
 	    var parts = api.split('.');
 	    if (parts.length<2)
-		throw "Invalid API name : " + api;
-	    if (!(parts[0] in valid_apis))
-		throw "Invalid API name : " + api;
+		throw "Invalid API defintion : " + api;
 
-	    if (!(parts[0] in this.requested_apis))
-		this.requested_apis[parts[0]] = [];
-	    this.requested_apis[parts[0]].append(api.replace(parts[0]+".",""));
+	    var apimodule = parts[0];
+	    if (tmp[apimodule] === undefined)
+		throw "Invalid API module : " + apimodule;
+
+	    var apifunc = api.replace(apimodule+".","");
+	    tmp[apimodule].append(apifunc);
 	}
     }
+    Logger.debug(JSON.stringify(tmp,null,2));
+    this.requested_apis = tmp;
+    Logger.debug(JSON.stringify(this.requested_apis,null,2));
 
     // dst -> type [range|proto|host|ipv4|ipv6]
     this.requested_destinations = {};
-    if (manifest.destinations) {
-	for (var d in manifest.destinations) {
-
-	}
-    };
 
     // checked destinations
     this.allowed_destinations = {};
@@ -74,7 +82,9 @@ var Security = function(loc, os, manifest) {
  * @description Show a dialog to ask the user to validate the manifest.
  */
 Security.prototype.askTheUser = function(cb) {
+    Logger.debug("ask user");
     if (!this.user_prompt) {
+	Logger.debug("ask user said : " + this.manifest_accepted);
 	cb(this.manifest_accepted);
 	return;
     }
@@ -184,7 +194,7 @@ Security.prototype.isDestinationAvailable = function(cb,dst) {
     var protore = /\w+:\/\//;
 
     var mok = this.ischromepage; // allow any destination from chrome pages
-    for (int i = 0; i < this.manifest.destinations.lenght && mok!==true; i++) {
+    for (var i = 0; i < this.manifest.destinations.lenght && mok!==true; i++) {
 	var d = this.manifest.destinations[i];
 	if (subipre.test(d)) {
 	    d = d.replace(".*","");

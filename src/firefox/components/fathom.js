@@ -284,7 +284,7 @@ FathomAPI.prototype = {
   commands : null,
 
   // security
-  security = null,
+  security : null,
 
   // /////////////////////////////////////////////////////////////////////////
   // Internal utilities
