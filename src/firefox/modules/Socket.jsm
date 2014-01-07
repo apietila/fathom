@@ -13,22 +13,7 @@ var Socket = function(ctx,methods) {
     this._doSocketOpenRequest = ctx._doSocketOpenRequest;
     this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest;
     this._doSocketUsageRequest = ctx._doSocketUsageRequest;
-    this._checkDestinationPermissions = ctx._checkDestinationPermissions;
-    
-    // TODO: fixme!!
-    // exposed methods
-    this.__exposedProps = {};
-    for (var p in this) {
-	if (this.hasOwnProperty(p)) {
-	    if (methods && methods.length>0 && p in methods) {
-		// asked explicitely
-		this.__exposedProps__[p] = 'r';
-	    } else if ('*' in methods) {
-		// default is to include all
-		this.__exposedProps__[p] = 'r';
-	    } // else not allowed
-	}
-    }
+    this._checkDestinationPermissions = ctx.security.isDestinationAvailable;
 };
 
 // This is the API available to the web pages via the extension

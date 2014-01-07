@@ -53,9 +53,6 @@
   var callback = args['callback'];
   var requested_apis = args['requested_apis'];
   var requested_destinations = args['requested_destinations'];
-  var api = args['api'];
-  var fullapi = args['fullapi'];
-  var allowed_destinations = args['allowed_destinations'];
 
   var apiDesc = {
   	'proto': 'APIs allow DNS, mDNS, HTTP and UPnP protocol access.',
@@ -71,11 +68,10 @@
     document.getElementById('url').textContent = url;
     //document.getElementById('url').textContent = 'http://www.example.com/foo/bar.html';
 
-    if (requested_apis.length > 0) {
+    if (requested_apis) {
       var ul = document.getElementById('requested_apis');
-      for (var i=0; i<requested_apis.length; i++) {
-        apimodule = requested_apis[i][0];
-        apifunc = requested_apis[i][1];
+      for (var apimodule in requested_apis) {
+        apifunc = requested_apis[apimodule];
         var item = document.createElement('li');
         item.textContent = apimodule + '.' + apifunc + " : " + apiDesc[apimodule];
         ul.insertBefore(item, null);
@@ -83,12 +79,9 @@
       document.getElementById('apis').style.display = "block";
     }
 
-    if (requested_destinations.length > 0) {
+    if (requested_destinations) {
       var ul = document.getElementById('requested_destinations');
-      for (var i=0; i<requested_destinations.length; i++) {
-        destination = requested_destinations[i];
-        if(destination.trim() == "")
-        	continue;
+      for (var destination in requested_destinations) {
         var item = document.createElement('li');
         item.textContent = destination;
         ul.insertBefore(item, null);
@@ -98,30 +91,20 @@
   }
 
   function permissionsGranted() {
-    for (var i=0; i<requested_apis.length; i++) {
-      // Put the modules or functions in the window's fathom object.
-      apimodule = requested_apis[i][0];
-      apifunc = requested_apis[i][1];
-      if (apifunc == '*') {
-        api[apimodule] = fullapi[apimodule];
-      } else {
-        api[apimodule][apifunc] = fullapi[apimodule][apifunc];
-      }
-    }
+    setTimeout(callback, 0, {result : 'once'});
+    window.close();
+  }
 
-    for (var i=0; i<requested_destinations.length; i++) {
-      // Add the destinations to the allowed_destinations.
-      allowed_destinations.push(requested_destinations[i]);
-    }
-
-    setTimeout(callback, 0);
+  function permissionsGrantedAlways() {
+    setTimeout(callback, 0, {result : 'always'});
     window.close();
   }
 
   function permissionsDenied() {
-    setTimeout(callback, 0, {error:"User did not grant access to Fathom APIs."});
+    setTimeout(callback, 0, {result : 'no'});
     window.close();
   }
+
 </script>
 <body onLoad="writeBody(); document.getElementById('deny').focus();">
 
@@ -147,13 +130,18 @@
   <table id="buttontable">
     <tr>
       <td>
-        <form action="javascript:permissionsGranted()">
-          <input type="submit" value="Allow" id="allow" class="button" />
+        <form action="javascript:permissionsDenied()">
+          <input type="submit" value="Deny" id="deny" class="button" />
         </form>
       </td>
       <td>
-        <form action="javascript:permissionsDenied()">
-          <input type="submit" value="Deny" id="deny" class="button" />
+        <form action="javascript:permissionsGranted()">
+          <input type="submit" value="Allow Once" id="allow" class="button" />
+        </form>
+      </td>
+      <td>
+        <form action="javascript:permissionsGrantedAlways()">
+          <input type="submit" value="Allow Always" id="allowalways" class="button" />
         </form>
       </td>
     </tr>

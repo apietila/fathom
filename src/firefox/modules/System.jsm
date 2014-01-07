@@ -9,7 +9,6 @@ const android = "android";
 const linux = "linux";
 const darwin = "darwin";
 
-// special executables
 const airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
 
 /**
@@ -23,20 +22,6 @@ var System = function(ctx,methods) {
     // from extension context
     this._executeCommandAsync = ctx._executeCommandAsync;
     this._os = ctx.os;
-    
-    // exposed methods
-    this.__exposedProps = {};
-    for (var p in this) {
-	if (this.hasOwnProperty(p)) {
-	    if (methods && methods.length>0 && p in methods) {
-		// asked explicitely
-		this.__exposedProps__[p] = 'r';
-	    } else if ('*' in methods) {
-		// default is to include all
-		this.__exposedProps__[p] = 'r';
-	    } // else not allowed
-	}
-    }
 };
 
 // This is the API available to the web pages via the extension

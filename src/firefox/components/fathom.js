@@ -12,7 +12,6 @@
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 const Ci = Components.interfaces;
 const Cc = Components.classes;
-
 const EXTENSION_ID = "fathom@icir.org";
 
 /*
@@ -190,7 +189,7 @@ FathomService.prototype = {
 
   _loadLibraries : function() {
     // javascript modules used by the extension
-    var modules = ["Logger", "utils", "security", "Tools", "Socket", "System", "Proto"];
+    var modules = ["Logger", "utils", "Security", "Tools", "Socket", "System", "Proto"];
     for (var i in modules) {
       filename = modules[i];
       try {
@@ -261,9 +260,6 @@ function FathomAPI() {
   this.scriptworkers = {};
   this.nextscriptid = 1;
   this.commands = {};
-
-  this.allowed_destinations = {};
-  this.client_policy = {};
 }
 
 FathomAPI.prototype = {
@@ -288,14 +284,14 @@ FathomAPI.prototype = {
   commands : null,
 
   // security
-  client_policy : null,
-  allowed_destinations : null,
+  security = null,
 
   // /////////////////////////////////////////////////////////////////////////
   // Internal utilities
   // /////////////////////////////////////////////////////////////////////////
 
   _initChromeWorker : function(workername, workerscript) {
+    const fathomapi = this;
     Components.utils.import("resource://gre/modules/Services.jsm");
     Components.utils.import("resource://gre/modules/ctypes.jsm");
 
@@ -308,10 +304,9 @@ FathomAPI.prototype = {
         Logger.error('Worker error: ' + msg);
       };
 
-      const fathomapi = this;
       worker.onmessage = function(event) {
-        var data = JSON.parse(event.data);
-        
+        var data = JSON.parse(event.data);        
+
         if (typeof(data.logmsg) != "undefined") {
           Logger.info("ChromeWorker: " + data.logmsg);
           return;
@@ -326,48 +321,51 @@ FathomAPI.prototype = {
           Logger.warning('Received response from worker for unknown requestid: ' + 
 			 requestid);
 	  Logger.warning('Data ' + JSON.stringify(result,null,2));
-        } else {
+	  return;
+	}
+
+        if (result) {
           // TODO: possibly make sure the worker is the one we expect (the one
           // stored in the requestinfo).
           try {
-            if(result) {
-	      // TODO: call the callback async using setTimeout.
-
-	      // Anna: recursively mark everything visible
-	      var recur = function(o) {
-		var exp = {};
-		for(var props in o) {
-		  if (!o.hasOwnProperty(props))
-		    continue;
-
-		  exp[props] = "r";
-		  if (o[props] instanceof Array) {
-		    for (var i = 0; i < o[props].length; i++) {
-		      recur(o[props][i]);
-		    }
-		  } else if (o[props] instanceof Object) {
-		    recur(o[props]);
+	    // TODO: call the callback async using setTimeout.
+	    
+	    // Anna: recursively mark everything visible
+	    var recur = function(o) {
+	      var exp = {};
+	      for(var props in o) {
+		if (!o.hasOwnProperty(props))
+		  continue;
+		
+		exp[props] = "r";
+		if (o[props] instanceof Array) {
+		  for (var i = 0; i < o[props].length; i++) {
+		    recur(o[props][i]);
 		  }
+		} else if (o[props] instanceof Object) {
+		  recur(o[props]);
 		}
-		o["__exposedProps__"] = exp;
-	      };
-	      recur(result);
-	      requestinfo['callback'](result);
-	    }
+	      }
+	      o["__exposedProps__"] = exp;
+	    };
+	    recur(result);
+	    requestinfo['callback'](result);
           } catch (e) {
             // TODO: decide on a good way to send this error back to the document.
             Logger.error('Error when calling user-provide callback: ' + e);
 	    Logger.error(e.stack);
           }
+	} else {
+          Logger.warning('Received empty response for requestid: ' + 
+			 requestid);
 	}
 
 	// one time request or multiresponse is done ?
-        if ((requestinfo && !requestinfo['multiresponse']) || 
-	    (result && result['done'])) 
-	{
+	if ((requestinfo && !requestinfo['multiresponse']) || 
+	    (result && result['done'])) {
           delete fathomapi.requests[requestid];
           Logger.info('Request done: ' + requestid);
-        }
+	}
 
 	// Anna: adding a way to clean things up inside fathom
 	// if the worker closes itself
@@ -394,7 +392,8 @@ FathomAPI.prototype = {
 
     this.chromeworkers[workername] = worker;
     return worker;
-  },
+
+  }, //_initChromeWorker
 
   _performRequest : function(worker, callback, action, args, multiresponse) {
     var requestid = this.nextrequestid++;
@@ -426,7 +425,7 @@ FathomAPI.prototype = {
     // Assume socketid will be the first argument.
     var socketid = args[0];
     if (!socketid) {
-      Logger.info("Expected socket as the first argument.");
+      Logger.error("Expected socket as the first argument.");
       callback({error:"Expected socket as the first argument.", 
 		__exposedProps__: { error: "r" }});
       return;
@@ -435,7 +434,7 @@ FathomAPI.prototype = {
     Logger.info("Looking up socket " + socketid + " for action " + action);
     var worker = this.chromeworkers['socketworker'+socketid];
     if (!worker) {
-      Logger.info("Could not find the worker for this socket.");
+      Logger.error("Could not find the worker for this socket.");
       callback({error:"Could not find the worker for this socket.", 
 		__exposedProps__: { error: "r" }});
       return;
@@ -462,7 +461,7 @@ FathomAPI.prototype = {
         Logger.info("Registered socket worker " + worker.name + " for socketid " + socketid);
         callback(socketid);
       } else {
-        Logger.info("Socket open request failed: " + worker.name);
+        Logger.error("Socket open request failed: " + worker.name);
         result["__exposedProps__"] = { error: "r" };
         callback(result);
       }
@@ -514,7 +513,7 @@ FathomAPI.prototype = {
     var observer = {
       observe: function(subject, topic, data) {
         if (topic != "process-finished" && topic != "process-failed") {
-          dump("\n" + 'Unexpected topic observed by process observer: ' + topic + "\n");
+          Logger.error('Unexpected topic observed by process observer: ' + topic);
           throw 'Unexpected topic observed by process observer: ' + topic;
         }
         
@@ -533,7 +532,7 @@ FathomAPI.prototype = {
     	      callback = null;
     	      incrementalCallback = false;
     	    } catch(e) {
-    	    	dump("\n" + "Error executing the callback function: " + e + "\n");
+    	    	Logger.error("Error executing the callback function: " + e);
     	    }
 
 	    // cleanup
@@ -591,10 +590,13 @@ FathomAPI.prototype = {
 	      // You can read it into a string with  
 	      var outdata = NetUtil.readInputStreamToString(inputStream, inputStream.available());
 	      //dump(outdata);
-	      callback({exitstatus: null, stdout: outdata, stderr: null, __exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
+	      callback({exitstatus: null, 
+			stdout: outdata, 
+			stderr: null, 
+			__exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
 	    });
-	  }catch(e){
-	    dump("\n" + "Error executing the NetUtil.asyncFetch callback function: " + e + "\n");
+	  } catch(e) {
+	    Logger.error("Error executing the NetUtil.asyncFetch callback function: " + e);
 	  }
 	}  
       }  
@@ -603,51 +605,6 @@ FathomAPI.prototype = {
       timers.init(event, timeout, TYPE_REPEATING_PRECISE);
     } // incremental output    
   },
-
-  /* Check if we are allowed to connect to the given IP */
-  _checkDestinationPermissions : function (callback, requested_destination) {
-    // already checked?
-    if (this.allowed_destination.hasOwnProperty(requested_destinations)) {
-      callback({});
-      return;
-    }
-
-    var checkServer = function() {
-      checkServerPolicy(function(allow) {
-	if (allow) {
-	  // ok to proceed
-	  this.allowed_destination[requested_destination] = {};
-	} else {
-	  this.allowed_destination[requested_destination] = 
-	      {error : "Server " + requested_destination + " denies access",
-	       __exposedProps__: { error: "r" }};	  
-          callback();
-	}
-	callback({});
-
-      }, this.allowed_destinations, requested_destination);
-    };
-
-    var src = this.window.content.location.href;
-    if (this.window.content instanceof Ci.nsIDOMWindow && 
-	(src.substring(0, 9) == "chrome://" || //src.substring(0, 7) == "file://" ||
-	 this.window.content.document.documentURI.match(/^about:neterror/) ||
-	 this.window.content.document.documentURI.match(/^about:certerror/))) 
-    {
-      // special access to any destination for chrome pages
-      checkServer();
-    } else {
-      // check that dst conforms to client policy
-      if (checkClientDstPolicy(requested_destination)) {
-	checkServer();
-      } else {
-        callback({error : "User denies access to " + requested_destination,
-		  __exposedProps__: { error: "r" }});
-
-      }
-    }
-
-  }, // _checkDestinationPermissions
 
   /*
    * We listen for "inner-window-destroyed" which means this window will never
@@ -688,7 +645,7 @@ FathomAPI.prototype = {
 	if (windowID == innerWindowID) {
 	  Logger.info("Calling shutdown()");
 	  this.shutdown("inner-window-destroyed");
-	  delete this.window;
+	  delete this.window; // Anna: ???
 	  Services.obs.removeObserver(this, "inner-window-destroyed");
 	}
       } catch(e) {
@@ -766,7 +723,6 @@ FathomAPI.prototype = {
    */
   init: function(aWindow) {
     Components.utils.import("resource://gre/modules/Services.jsm");
-
     this.window = XPCNativeWrapper.unwrap(aWindow);
 
     try {
@@ -780,11 +736,6 @@ FathomAPI.prototype = {
     } catch (e) {
       Logger.error("Failed to log init() message: " + e);
     }
-
-    var dnsService = Cc["@mozilla.org/network/dns-service;1"]
-	.createInstance(Ci.nsIDNSService);
-    var hostname = dnsService.myHostName;
-    Logger.debug(hostname);
 
     // It's possible to have init() called more than once for the same window.
     // I don't have a reliable test for this, but I was able to do it killing
@@ -805,7 +756,7 @@ FathomAPI.prototype = {
         try{
           if (aEvent.originalTarget instanceof Ci.nsIDOMHTMLDocument) {
             var doc = aEvent.originalTarget;
-            Logger.dump("page hidden:" + doc.location.href + "\n");
+            Logger.info("page hidden:" + doc.location.href + "\n");
             self.shutdown("pagehide");
           }
         } catch(e) {
@@ -819,21 +770,22 @@ FathomAPI.prototype = {
 
     var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
 
-    // Initial dummy API
+    // Initial basic Fathom API
     this.api = {
-      init : self.api_init.bind(self),
       build: pref.getCharPref("extensions.fathom.build"),
       version: pref.getCharPref("extensions.fathom.version"),
+      init : self.api_init.bind(self),
 
+      // populated by api_init
       proto: {},
       socket: {},
       system: {},
       tools: {},
 
       __exposedProps__: {
-        init: "r",
         version : "r",
         build : "r",
+        init: "r",
 	proto: "r",
 	socket: "r",
 	system: "r",
@@ -844,35 +796,9 @@ FathomAPI.prototype = {
     return this.api;
   }, // init
 
-  /* Enable the Fathom API based on the page manifest and current policies. */
+  /* Enable the Fathom API based on the page manifest and user preferences. */
   api_init : function (callback, manifest, win) {      
-    var that = this;
-
-    // helper to initialize selected API modules
-    var enableapis = function(manifest) {
-      for (var apiname in manifest.api) {
-	switch (apiname) {
-	case "socket":
-	  that.api[apiname] = new Socket(that, manifest[apiname]);
-	  break;
-	case "proto":
-	  that.api[apiname] = new Proto(that, manifest[apiname]);
-	  break;
-	case "system":
-	  that.api[apiname] = new System(that, manifest[apiname]);
-	  break;
-	case "tools":
-	  that.api[apiname] = new Tools(that, manifest[apiname]);
-	  break;
-	default:
-	  break;
-	};
-	// add all baseline apis always
-	that.api["baseline"] = new Baseline(that, ['*']);
-      }
-    };
-
-    // check if the extension is enabled
+    // check if the extension is enabled ?
     var prefFathom = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
     if (!prefFathom.getBoolPref("extensions.fathom.status")) {
       callback({'error': 'extension is disabled by the user',
@@ -880,194 +806,51 @@ FathomAPI.prototype = {
       return false;
     }
 
-    // Parse manifest to more usable format
-    manifest = parsePageManifest(manifest);
-    if (manifest.error) {
-      // something wrong with the format
-      callback(manifest);
-      return false;
-    };
+    var that = this;
 
-    // Special treatment for chrome pages:
-    // - allow all requested apis + baseline
-    // - allow any destination (unless server limited)
-    var src = win.location.href;
-    if (win instanceof Ci.nsIDOMWindow && 
-	(src == "about:blank" ||
-	 win.document.documentURI.match(/^about:neterror/) ||
-	 win.document.documentURI.match(/^about:certerror/) ||
-	 src.substring(0, 9) == "chrome://")) 
-    {
-      enableapis(manifest);
-      callback({});
-      return true;
-    }
+    // initialize the page security guard
+    this.security = new Security(win.location, this.os, manifest);
 
-    // Get the client policy for this domain (win.location.origin)
-    var client_policy = getClientPolicy(win.location);
-
-    // If the full manifest is not covered, prompt the user
-    if (!manifestCovered(manifest,client_policy)) {      
-      // TODO: ask user
-
-      // TODO: save user prefs to db
-
-      // If the full manifest is still not covered, error
-      // TODO : should we enable the subset of allowed APIs in this case ?
-      if (!manifestCovered(manifest,user_policy)) {
-	callback({'error': 'following APIs were not available : ' + [],
-		  __exposedProps__: { error: "r" }});
-	return false;	
-      }
-    }
-    
-    // passed all the checks - enable the api and return success
-    enableapis(manifest);
-    callback({});
-    return true;
-
-    var windowargs = {
-      host: this.window.content.location.host, 
-      url: this.window.content.location.href,
-      callback: callback,
-      requested_apis: requested_apis,
-      requested_destinations: requested_destinations,
-      api: this.api,
-//      fullapi: this.fullapi,
-      allowed_destinations: this.allowed_destinations,
-    };
-    windowargs.wrappedJSObject = windowargs;    
-    
-    var api_flag = true;
-
-    // check for client policy
-    (function() {      
-      var api = windowargs['api'];
-      var fullapi = windowargs['fullapi'];
-      var host = windowargs.host ? windowargs.host : windowargs.url;
-      
-      var requested_policy_apis = [];
-      for(var domain in client_policy) {
-	var str = "." + domain;
-	var re = new RegExp(str, "ig");
-	if(host.match(re)) {
-	  Logger.debug("Matched == " + host + " :: " + domain );
-	  // get the apis
-	  var policy_apis = client_policy[domain][1];
-	  for (var i = 0; i < policy_apis.length; i++) {
-	    apiname = policy_apis[i];
-	    var parts = apiname.split('.');
-	    if (parts.length != 2 || !parts[0] || !parts[1]) {
-	      callback({'error': "Invalid API format in manifest: " + apiname, __exposedProps__: { error: "r" }});
-	    }
-	    if (!fullapi[parts[0]]) {
-	      callback({'error': "Unknown API module in manifest: " + parts[0], __exposedProps__: { error: "r" }});
-	    }
-	    if(parts[1] == '*') {
-	      //this.api[parts[0]] = this.fullapi[parts[0]];
-	    } else {
-	      if (!fullapi[parts[0]][parts[1]]) {
-		callback({'error': "Unknown API function in manifest: " + apiname, __exposedProps__: { error: "r" }});
-	      }
-	      //this.api[parts[0]][parts[1]] = this.fullapi[parts[0]][parts[1]];
-	    }
-	    requested_policy_apis.push([parts[0], parts[1]]);
-	  }
-	  
-	  // fix the apis
-	  var allow = client_policy[domain][0];
-	  for (var i=0; i<requested_policy_apis.length; i++) {
-	    var apimodule = requested_policy_apis[i][0];
-	    var apifunc = requested_policy_apis[i][1];
-	    Logger.debug(apimodule + " :: " + apifunc)
-	    if (apifunc == '*') {
-	      api[apimodule] = (allow ? fullapi[apimodule] : null);
-	    } else {
-	      api[apimodule][apifunc] = (allow ? fullapi[apimodule][apifunc] : null);
-	    }
-	  }
-	}
-      }
-
-      /* if all manifest apis are covered then do nothing, else invoke the security dialog for the requested apis */
-      for(var j = 0; j < requested_apis.length; j++) {
-	var temp0 = requested_apis[j];
-	var requested_api = temp0[0] + "." + temp0[1];
-	var temp_flag = false;
-	for(var i = 0; i < requested_policy_apis.length; i++) {
-	  var temp1 = requested_policy_apis[i];
-	  var client_policy_api = temp1[0] + "." + temp1[1];
-	  if(requested_api == client_policy_api) {
-	    temp_flag = true;
+    // ask the user to accept the manifest
+    this.security.askTheUser(function(allowed) {
+      if (allowed) {
+	// initialize the fathom API
+	for (var apiname in that.security.requested_apis) {
+	  var apiobj = undefined;
+	  switch (apiname) {
+	  case "socket":
+	    apiobj = new Socket(that);
 	    break;
-	  }
-	}
-	api_flag &= temp_flag;
-      }		
-    })();
-    
-    if(!api_flag) {
-      // all apis are not covered, invoke the security dialog
-      //			dump("APIs not covered.");
-    } else {
-      // all apis are covered, do nothing
-      //			dump("APIs covered.");
-      callback({});
-      return;
-    }
-    
-    try {
-      if (os == "android") {
-        var dest = "", privs = "";
-	(function writeBody() {
-	  if (requested_apis.length > 0) {
-	    for (var i=0; i<requested_apis.length; i++) {
-	      apimodule = requested_apis[i][0];
-	      apifunc = requested_apis[i][1];
-	      privs += apimodule + '.' + apifunc + ",";
-	    }
-	  }
+	  case "proto":
+	    apiobj = new Proto(that);
+	    break;
+	  case "system":
+	    apiobj = new System(that);
+	    break;
+	  case "tools":
+	    apiobj = new Tools(that);
+	    break;
+	  default:
+	    break;
+	  };
+	  // set the allowed methods available and set the new API object available
+	  that.api[apiname] = that.security.setAvailableMethods(apiname,apiobj);
+	} // end for
 
-	  if (requested_destinations.length > 0) {
-	    for (var i=0; i<requested_destinations.length; i++) {
-	      dest += requested_destinations[i] + ",";
-	    }
-	  }
-	})();
-	
-	var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].getService(Ci.nsIPromptService);
-	var result = prompts.confirm(null, "A web page is requesting Fathom privileges.", "Url: " + windowargs.url + "\nAPIs: " + privs + "\nDestination: " + dest + "\n\nWould you like to grant access to Fathom APIs.");
-	
-	if(result) {
-	  var requested_apis = windowargs['requested_apis'];
-	  var api = windowargs['api'];
-	  var fullapi = windowargs['fullapi'];
+	// add all baseline apis always (all methods available by default)
+//	that.api["baseline"] = new Baseline(that);
 
-	  for (var i = 0; i < requested_apis.length; i++) {
-	    var apimodule = requested_apis[i][0];
-	    var apifunc = requested_apis[i][1];
-	    if (apifunc == '*') {
-	      api[apimodule] = fullapi[apimodule];
-	    } else {
-	      api[apimodule][apifunc] = fullapi[apimodule][apifunc];
-	    }
-	  }
-	  // need to check this
-	  callback({});
-	}
+	// done
+	callback({});
+
       } else {
-        var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-            .getService(Components.interfaces.nsIWindowWatcher);
-        var win = ww.openWindow(null, "chrome://fathom/content/page_permissions.html",
-                                null, "chrome,centerscreen,modal,dependent,width=600,height=400",
-                                windowargs);
+	// else user did not accept the manifest
+	callback({'error': 'user did not accept the manifest',
+		  __exposedProps__: { error: "r" }});
       }
-    } catch (e) {
-      var result = {'error': e.toString(), __exposedProps__: { error: "r" }}
-      callback(result);
-    }
+    }); // askTheUser
   }, // api_init
 
-}; //FathomAPI
+}; // FathomAPI
 
 var NSGetFactory = XPCOMUtils.generateNSGetFactory([FathomService, FathomAPI]);

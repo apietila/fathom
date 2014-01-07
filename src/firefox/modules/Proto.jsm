@@ -15,23 +15,7 @@ var Proto = function(ctx,methods) {
     // from extension context
     this._doSocketOpenRequest = ctx._doSocketOpenRequest;
     this._doSocketUsageRequest = ctx._doSocketUsageRequest;
-    this._checkDestinationPermissions = ctx._checkDestinationPermissions;
     this._executeCommandAsync = ctx._executeCommandAsync;
-    
-    // TODO: fixme!!
-    // exposed methods
-    this.__exposedProps = {};
-    for (var p in this) {
-	if (this.hasOwnProperty(p)) {
-	    if (methods && methods.length>0 && p in methods) {
-		// asked explicitely
-		this.__exposedProps__[p] = 'r';
-	    } else if ('*' in methods) {
-		// default is to include all
-		this.__exposedProps__[p] = 'r';
-	    } // else not allowed
-	}
-    }
 };
 
 // This is the API available to the web pages via the extension
