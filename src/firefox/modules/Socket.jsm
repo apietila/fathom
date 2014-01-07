@@ -6,9 +6,8 @@ var EXPORTED_SYMBOLS = ["Socket"];
  * @description This module provides the socket API.
  *
  * @param {object} ctx        extension context
- * @param {object} methods    list of requested api methods or ['*'] for all
  */
-var Socket = function(ctx,methods) {
+var Socket = function(ctx) {
     // from extension context
     this._doSocketOpenRequest = ctx._doSocketOpenRequest;
     this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest;

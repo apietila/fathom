@@ -16,9 +16,8 @@ const airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions
  * @description This module provides the system tools API.
  *
  * @param {object} ctx        extension context
- * @param {object} methods    list of requested api methods or ['*'] for all
  */
-var System = function(ctx,methods) {
+var System = function(ctx) {
     // from extension context
     this._executeCommandAsync = ctx._executeCommandAsync;
     this._os = ctx.os;

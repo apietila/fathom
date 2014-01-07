@@ -9,9 +9,8 @@ Components.utils.import("resource://fathom/DNS/dns.jsm");
  * @description This module provides the application protocol API.
  *
  * @param {object} ctx        extension context
- * @param {object} methods    list of requested api methods or ['*'] for all
  */
-var Proto = function(ctx,methods) {
+var Proto = function(ctx) {
     // from extension context
     this._doSocketOpenRequest = ctx._doSocketOpenRequest;
     this._doSocketUsageRequest = ctx._doSocketUsageRequest;

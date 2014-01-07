@@ -593,7 +593,9 @@ FathomAPI.prototype = {
 	      callback({exitstatus: null, 
 			stdout: outdata, 
 			stderr: null, 
-			__exposedProps__: { exitstatus: "r", stdout: "r", stderr: "r" }});
+			__exposedProps__: { exitstatus: "r", 
+					    stdout: "r", 
+					    stderr: "r" }});
 	    });
 	  } catch(e) {
 	    Logger.error("Error executing the NetUtil.asyncFetch callback function: " + e);
@@ -837,8 +839,9 @@ FathomAPI.prototype = {
 	  that.api[apiname] = that.security.setAvailableMethods(apiname,apiobj);
 	} // end for
 
-	// add all baseline apis always (all methods available by default)
-//	that.api["baseline"] = new Baseline(that);
+	// add all baseline apis for chrome pages
+	if (that.security.ischromepage)
+	  that.api["baseline"] = new Baseline(that);
 
 	// done
 	callback({});

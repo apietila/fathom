@@ -6,9 +6,8 @@ var EXPORTED_SYMBOLS = ["Tools"];
  * @description This module provides the build-in measurements tools API.
  *
  * @param {object} ctx        extension context
- * @param {object} methods    list of requested api methods or ['*'] for all
  */
-var Tools = function(ctx,methods) {
+var Tools = function(ctx) {
     // from extension context
     this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest;
     this._doSocketUsageRequest = ctx._doSocketUsageRequest;
