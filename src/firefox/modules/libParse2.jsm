@@ -1668,8 +1668,14 @@ function parseProcNetWireless(config, output) {
     case android:
 	// just 3 lines are printed on linux
 	// less than 3 lines means no wifi adapter is present
-	if (lines.length < 3) 
-	    return;
+	if (lines.length < 3) {
+	    return {
+		error: 'no wifi interface statistics available',
+		__exposedProps__: {
+		    error: "r",
+		}
+	    };
+	}
 
 	var line = lines[lines.length - 1];
 	var elems = line.trim().replace(/\s{2,}/g, ' ').replace(/\./g, '').split(" ");

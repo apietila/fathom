@@ -3,6 +3,9 @@ var EXPORTED_SYMBOLS = ["System"];
 
 Components.utils.import("resource://fathom/libParse2.jsm");
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 // supported operating systems
 const winnt = "winnt";
 const android = "android";
@@ -212,7 +215,7 @@ System.prototype = {
      */
     getNameservers : function(callback) {
 	var that = this;
-	var os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+	var os = this._os;
 	var cmd = undefined;
 	var args = [];
 
@@ -885,8 +888,9 @@ System.prototype = {
 	};
 	var nextproxy = null, failoverproxy = null;
 	
-	var protocolProxyService = Components.classes["@mozilla.org/network/protocol-proxy-service;1"].getService(Ci.nsIProtocolProxyService);
-	var ioService = Components.classes["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+	var protocolProxyService = Cc["@mozilla.org/network/protocol-proxy-service;1"]
+	    .getService(Ci.nsIProtocolProxyService);
+	var ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 
 	try {
 	    var uri = ioService.newURI(url, null, null);
@@ -951,7 +955,8 @@ System.prototype = {
     }, // getProxyInfo
     
     getBrowserMemoryUsage: function(callback) {
-	var mgr = Components.classes["@mozilla.org/memory-reporter-manager;1"].getService(Ci.nsIMemoryReporterManager);
+	var mgr = Cc["@mozilla.org/memory-reporter-manager;1"]
+	    .getService(Ci.nsIMemoryReporterManager);
 	var e = mgr.enumerateReporters();
 	while (e.hasMoreElements()) {
 	    var mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
