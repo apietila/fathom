@@ -188,31 +188,47 @@ Security.prototype.askTheUser = function(cb) {
  * @description Sets the allowed API methods visible using __exposedProps.
  */
 Security.prototype.setAvailableMethods = function(api,apiobj) {
+    var that = this;
     apiobj['__exposedProps__'] = {};
     Logger.info("security : api check for " + api);
 
-    if (this.manifest_accepted) {
-	if (this.requested_apis[api] && 
-	    this.requested_apis[api].length>0) {
-	    for (var p in apiobj) {
-		if (p.indexOf('_') === 0) {
-		    continue; // never expose methods starting with _
-		}
-
-		if (_contains(this.requested_apis[api],p)) {
-		    // method requested explicitely
-		    apiobj['__exposedProps__'][p] = 'r';
-		} else if (_contains(this.requested_apis[api],'*')) {
-		    // all methods requested
-		    apiobj['__exposedProps__'][p] = 'r';
-		} // else 'p' is not requested - do not set visible
+    var checknset = function(obj,subns) {
+	for (var p in obj) {
+	    if (p.indexOf('_') === 0) {
+		continue; // never expose methods starting with _
 	    }
+	    
+	    if (typeof obj.p === "function") {
+		if (subns)
+		    p = subns + "." + p;
+
+		if (_contains(that.requested_apis[api],'*')) {
+		    // all methods requested
+		    obj['__exposedProps__'][p] = 'r';
+		} else if (_contains(that.requested_apis[api],p)) {
+		    // method requested explicitely
+		    obj['__exposedProps__'][p] = 'r';
+		} // else 'p' is not requested - do not set visible
+
+	    } else if (typeof obj.p === "object") {
+		// recurse
+		var newp = p;
+		if (subns)
+		    newp = subns + "." + p;
+		obj.p['__exposedProps__'] = {};
+		obj.p = checknset(obj.p,newp);
+	    }
+	}
+	return obj;
+    };
+
+    if (this.manifest_accepted) {
+	if (this.requested_apis[api] && this.requested_apis[api].length>0) {
+	    apiobj = checknset(apiobj);
 	} else {
- 	    // else nothing requested
 	    Logger.warning("security : manifest did not request any methods for this api");
 	}
     } else {	
- 	// else manifest disallowed - allow nothing
 	Logger.warning("security : manifest not accepted by user");
     }
     return apiobj;
