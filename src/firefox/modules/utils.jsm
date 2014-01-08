@@ -10,9 +10,25 @@ Components.utils.import("resource://fathom/Logger.jsm");
  */
 var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapper","getHttpFile"];
 
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+
+const os = Cc["@mozilla.org/xre/app-info;1"]
+    .getService(Components.interfaces.nsIXULRuntime).OS.toLowerCase();
+
+// initialized upon first request
 var nspr_file = undefined;
 var nspr_libname = undefined;
 var cmd_wrapper = undefined;
+
+/**
+ * Temporary files directory.
+ */
+var getTempDir = function() {
+    var dirservice = Components.classes["@mozilla.org/file/directory_service;1"]
+	.getService(Ci.nsIProperties); 
+    return dirservice.get("TmpD", Ci.nsIFile);
+};
 
 /** Get the contents of a http file or error if not available. */
 var getHttpFile = function(callback, url) {
@@ -28,8 +44,8 @@ var getHttpFile = function(callback, url) {
         }
     }
 
-    var req = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
-        .createInstance(Components.interfaces.nsIXMLHttpRequest);
+    var req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+        .createInstance(Ci.nsIXMLHttpRequest);
     req.onreadystatechange = stateChanged;
     req.open("GET", url);
     req.send(null);
@@ -43,26 +59,26 @@ var getHttpFile = function(callback, url) {
  * Note that here we are writing the file syncronously on the main thread
  * which is something we generally shouldn't be doing.
  */
-var getCommandWrapper = function(os) {
+var getCommandWrapper = function() {
     if (cmd_wrapper !== undefined)
 	return cmd_wrapper;
 
     // write data to a file
     function write(name,data) {
-	var profdir = getTmpDir();
+	var profdir = getTempDir();
 	var tmpfile = profdir.clone();	
 	tmpfile.append(name);
 
-	var foStream = Components.classes["@mozilla.org/network/file-output-stream;1"].
-	    createInstance(Ci.nsIFileOutputStream);
+	var foStream = Cc["@mozilla.org/network/file-output-stream;1"]
+	    .createInstance(Ci.nsIFileOutputStream);
 	// write, create, truncate
 	foStream.init(tmpfile, 0x02 | 0x08 | 0x20, 0755, 0); 
 	
 	// "if you are sure there will never ever be any non-ascii text in data you
 	// can  also call foStream.writeData directly" --- To be safe, we'll use
 	// the converter.
-	var converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"].
-	    createInstance(Components.interfaces.nsIConverterOutputStream);
+	var converter = Cc["@mozilla.org/intl/converter-output-stream;1"]
+	    .createInstance(Ci.nsIConverterOutputStream);
 	converter.init(foStream, "UTF-8", 0, 0);
 	converter.writeString(data);
 	converter.close(); // this also closes foStream
@@ -108,7 +124,7 @@ var getCommandWrapper = function(os) {
 
 /* A shortcut for instantiating a local file object. */
 var getLocalFile = function(path) {
-    var file = Components.classes['@mozilla.org/file/local;1']
+    var file = Cc['@mozilla.org/file/local;1']
         .createInstance(Components.interfaces.nsILocalFile);
 
     if (path) {
@@ -123,18 +139,9 @@ var getLocalFile = function(path) {
 };
 
 /**
- * Temporary files directory.
- */
-var getTempDir = function() {
-    var dirservice = Components.classes["@mozilla.org/file/directory_service;1"]
-	.getService(Ci.nsIProperties); 
-    return dirservice.get("TmpD", Ci.nsIFile);
-};
-
-/**
  * Read contents of a given file.
  */
-var readFile = function(fileobj, datacallbacke) {
+var readFile = function(fileobj, datacallback) {
     NetUtil.asyncFetch(fileobj, function(inputStream, status) {
 	if (!Components.isSuccessCode(status)) {
             datacallback({error: 'reading file failed: ' + status, 
@@ -175,9 +182,9 @@ var deleteFile = function(fileobj) {
 /**
  * NSPR library name.
  */
-var getNsprLibName = function(os) {
+var getNsprLibName = function() {
     if (nspr_libname === undefined)
-	getNsprLibFile(os);
+	getNsprLibFile(); // populate all variables
     return nspr_libname;
 };
 
@@ -187,7 +194,7 @@ var getNsprLibName = function(os) {
  * in the XulRunner runtime directory. We try others too. In
  * Fedora 16 as of Feb'12 nspr.so sits in /lib64 or /lib.
  */
-var getNsprLibFile = function(os) {
+var getNsprLibFile = function() {
     if (nspr_file!==undefined)
 	return nspr_file;
 
@@ -202,8 +209,10 @@ var getNsprLibFile = function(os) {
     else if(os == "winnt")
 	libd = "CurProcD";
 
-    var xulAppInfo = Components.classes["@mozilla.org/xre/app-info;1"].getService(Components.interfaces.nsIXULAppInfo);
-    var versionChecker = Components.classes["@mozilla.org/xpcom/version-comparator;1"].getService(Components.interfaces.nsIVersionComparator);
+    var xulAppInfo = Cc["@mozilla.org/xre/app-info;1"]
+	.getService(Components.interfaces.nsIXULAppInfo);
+    var versionChecker = Cc["@mozilla.org/xpcom/version-comparator;1"]
+	.getService(Components.interfaces.nsIVersionComparator);
 
     Logger.info("platformversion: " + xulAppInfo.platformVersion);
     Logger.info("appversion: " + xulAppInfo.version);

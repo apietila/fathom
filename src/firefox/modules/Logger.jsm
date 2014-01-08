@@ -41,6 +41,9 @@ Logger = new function() {
 
 Logger._doLog = function(level, message) {
   if (this.enabled && level >= this.level) {
+    if (typeof message !== "string") {
+      message = JSON.stringify(message,null,2);
+    }
     var levelName = this._LEVEL_NAMES[level.toString()];
     this.printFunc("[Fathom] [" + levelName + "] " + message + "\n");
   }

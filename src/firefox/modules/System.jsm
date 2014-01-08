@@ -34,7 +34,7 @@ System.prototype = {
      * 
      * @return {string} OS information.
      */
-    os : function () {
+    getOS : function () {
       return this._os;
     },
 

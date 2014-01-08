@@ -9,7 +9,16 @@ Components.utils.import("resource://fathom/Logger.jsm");
 Components.utils.import("resource://fathom/utils.jsm");
 
 const Cc = Components.classes;
+const Ci = Components.interfaces;
 const valid_apis = ['socket','proto','system','tools'];
+
+var _contains = function(list,value) {
+    for (var i = 0; i < list.length; i++) {
+	if (list[i] === value)
+	    return true;
+    }
+    return false;
+};
 
 /**
  * @class Security
@@ -21,10 +30,6 @@ const valid_apis = ['socket','proto','system','tools'];
  * @param {object} manifest The manifest of the page requesting Fathom API access
  */
 var Security = function(loc, os, manifest) {
-    Logger.debug("init security module on " + os);
-    Logger.debug(JSON.stringify(loc,null,2));
-    Logger.debug(JSON.stringify(manifest,null,2));
-
     this.os = os;
 
     // the page url and requested APIs
@@ -33,12 +38,12 @@ var Security = function(loc, os, manifest) {
     this.manifest = manifest;
     this.ischromepage = false; // TODO: check the loc
 
-    // api -> list of methods or [*]
-    var tmp = {};
-    if (manifest.api) {
-	for (var i = 0; i < valid_apis.length; i++)
-	    tmp[valid_apis[i]] = [];
+    Logger.info("security : parsing manifest for page " + 
+		this.url + " [" + this.domain + "]");
 
+    // api -> list of methods or [*]
+    this.requested_apis = {};
+    if (manifest.api) {
 	for (var i = 0; i < manifest.api.length; i++) {
 	    var api = manifest.api[i].trim();
 
@@ -47,19 +52,46 @@ var Security = function(loc, os, manifest) {
 		throw "Invalid API defintion : " + api;
 
 	    var apimodule = parts[0];
-	    if (tmp[apimodule] === undefined)
+	    if (!_contains(valid_apis,apimodule))
 		throw "Invalid API module : " + apimodule;
 
 	    var apifunc = api.replace(apimodule+".","");
-	    tmp[apimodule].append(apifunc);
+
+	    if (!(this.requested_apis[apimodule]))
+		this.requested_apis[apimodule] = [];
+	    this.requested_apis[apimodule].push(apifunc);
 	}
     }
-    Logger.debug(JSON.stringify(tmp,null,2));
-    this.requested_apis = tmp;
-    Logger.debug(JSON.stringify(this.requested_apis,null,2));
 
-    // dst -> type [range|proto|host|ipv4|ipv6]
+    // dst -> type [range|proto|ipv4|ipv6|other]
     this.requested_destinations = {};
+
+    // acb[.xyz]+.*
+    var subipre = /\d{1,3}.*\.\*/;
+
+    // xxx://
+    var protore = /\w+:\/\//;
+
+    // ip address
+    var ipv4re = /\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}/;
+    var ipv6re = /([0-9a-f]:)+/;
+
+    if (manifest.destinations) {
+	for (var i = 0; i < manifest.destinations.length; i++) {
+	    var d = manifest.destinations[i].trim();
+	    if (subipre.test(d)) {
+		this.requested_destinations[d] = 'range';
+	    } else if (protore.test(d)) {
+		this.requested_destinations[d] = 'proto';
+	    } else if (ipv4re.test(d)) {
+		this.requested_destinations[d] = 'ipv4';
+	    } else if (ipv6re.test(d)) {
+		this.requested_destinations[d] = 'ipv6';
+	    } else {
+		this.requested_destinations[d] = 'other';
+	    }
+	}
+    }
 
     // checked destinations
     this.allowed_destinations = {};
@@ -70,10 +102,13 @@ var Security = function(loc, os, manifest) {
 
 	this.user_prompt = true; // extension should prompt user about the manifest
 	this.manifest_accepted = false;
+	Logger.info("security : manifest requires user confirmation");
+
     } else {
 	// don't ask the user on build-in chrome pages
 	this.user_prompt = false;
 	this.manifest_accepted = true;
+	Logger.info("security : manifest requires no user confirmation");
     }
 };
 
@@ -82,9 +117,9 @@ var Security = function(loc, os, manifest) {
  * @description Show a dialog to ask the user to validate the manifest.
  */
 Security.prototype.askTheUser = function(cb) {
-    Logger.debug("ask user");
+    var that = this;
+
     if (!this.user_prompt) {
-	Logger.debug("ask user said : " + this.manifest_accepted);
 	cb(this.manifest_accepted);
 	return;
     }
@@ -92,16 +127,17 @@ Security.prototype.askTheUser = function(cb) {
     // handle response from the user prompt
     var callback = function(res) {
 	if (res && res.result && res.result !== 'no')
-	    this.manifest_accepted = true;
+	    that.manifest_accepted = true;
 	else
-	    this.manifest_accepted = false;
+	    that.manifest_accepted = false;
 
 	if (res && res.result && res.result === 'always') {
 	    // TODO: store the user response to prefs/local storage if 'Allow Always'
+	    Logger.debug("ask user result : save to db [TODO]");
 	}
 
-	this.user_prompt = false;
-	cb(this.manifest_accepted);
+	that.user_prompt = false;
+	cb(that.manifest_accepted);
     }
 
     if (this.os == "android") {
@@ -137,11 +173,13 @@ Security.prototype.askTheUser = function(cb) {
 	};
 	windowargs.wrappedJSObject = windowargs;    
 
-        var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-            .getService(Components.interfaces.nsIWindowWatcher);
-        var win = ww.openWindow(null, "chrome://fathom/content/page_permissions.html",
-                                null, "chrome,centerscreen,modal,dependent,width=600,height=400",
-                                windowargs);
+        var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"]
+            .getService(Ci.nsIWindowWatcher);
+        ww.openWindow(null, 
+		      "chrome://fathom/content/page_permissions.html",
+                      null, 
+		      "chrome,centerscreen,modal,dependent,width=600,height=400",
+                      windowargs);
     }
 };
 
@@ -150,23 +188,33 @@ Security.prototype.askTheUser = function(cb) {
  * @description Sets the allowed API methods visible using __exposedProps.
  */
 Security.prototype.setAvailableMethods = function(api,apiobj) {
-    apiobj.__exposedProps = {};
-    if (this.manifest_accepted && 
-	this.requested_apis[api] && 
-	this.requested_apis[api].length>0) 
-    {
-	for (var p in apiobj) {
-	    if (apiobj.hasOwnProperty(p)) {
-		if (p in this.requested_apis[api]) {
-		    // asked explicitely
-		    apiobj.__exposedProps__[p] = 'r';
-		} else if ('*' in this.requested_apis[api]) {
-		    // default is to include all
-		    apiobj.__exposedProps__[p] = 'r';
-		} // else 'p' is not allowed
+    apiobj['__exposedProps__'] = {};
+    Logger.info("security : api check for " + api);
+
+    if (this.manifest_accepted) {
+	if (this.requested_apis[api] && 
+	    this.requested_apis[api].length>0) {
+	    for (var p in apiobj) {
+		if (p.indexOf('_') === 0) {
+		    continue; // never expose methods starting with _
+		}
+
+		if (_contains(this.requested_apis[api],p)) {
+		    // method requested explicitely
+		    apiobj['__exposedProps__'][p] = 'r';
+		} else if (_contains(this.requested_apis[api],'*')) {
+		    // all methods requested
+		    apiobj['__exposedProps__'][p] = 'r';
+		} // else 'p' is not requested - do not set visible
 	    }
+	} else {
+ 	    // else nothing requested
+	    Logger.warning("security : manifest did not request any methods for this api");
 	}
-    } // manifest disallowed or api not requested at all - allow nothing
+    } else {	
+ 	// else manifest disallowed - allow nothing
+	Logger.warning("security : manifest not accepted by user");
+    }
     return apiobj;
 };
 
@@ -177,6 +225,7 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 Security.prototype.isDestinationAvailable = function(cb,dst) {
     // User did not allow Fathom to be used in this page - allow nothing
     if (!this.manifest_accepted) {
+	Logger.warning("security : manifest not accepted by user, no allowed destinations");
 	cb(false);
 	return;
     }    
@@ -187,28 +236,8 @@ Security.prototype.isDestinationAvailable = function(cb,dst) {
 	return;
     }
 
-    // acb[.xyz]+.*
-    var subipre = /\d{1,3}.*\.\*/;
-
-    // xxx://
-    var protore = /\w+:\/\//;
-
     var mok = this.ischromepage; // allow any destination from chrome pages
-    for (var i = 0; i < this.manifest.destinations.lenght && mok!==true; i++) {
-	var d = this.manifest.destinations[i];
-	if (subipre.test(d)) {
-	    d = d.replace(".*","");
-	    // ip subrange match ?
-	    mok = (dst.find(d) == 0);
-
-	} else if (protore.test(d)) {
-	    // TODO: protocol match, how to store discovered IPs ?
-
-	} else {
-	    // exact ip/host string match ?
-	    mok = (d === dst);
-	}
-    }
+    // TODO test match
 
     if (mok) {
 	// TODO: check if the dst serverPolicy allows connection from this url or domain

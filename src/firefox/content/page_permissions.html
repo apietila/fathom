@@ -71,7 +71,7 @@
     if (requested_apis) {
       var ul = document.getElementById('requested_apis');
       for (var apimodule in requested_apis) {
-        apifunc = requested_apis[apimodule];
+        var apifunc = requested_apis[apimodule];
         var item = document.createElement('li');
         item.textContent = apimodule + '.' + apifunc + " : " + apiDesc[apimodule];
         ul.insertBefore(item, null);

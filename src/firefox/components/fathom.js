@@ -383,6 +383,8 @@ FathomAPI.prototype = {
 		 'nsprname' : getNsprLibName(),  
 		 'arch' : this.arch, 
 		 'os' : this.os};
+
+      Logger.debug(obj);
       worker.postMessage(JSON.stringify(obj));
 
     } catch (exc) {
@@ -554,7 +556,7 @@ FathomAPI.prototype = {
     }; // observer
 
     var process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
-    var wrapperfile = getCommandWrapper();
+    var wrapperfile = getCommandWrapper(this.os);
     var wrapperargs = undefined;
     if (this.os == "android") {
       // get sh executable
