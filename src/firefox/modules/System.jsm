@@ -592,10 +592,10 @@ System.prototype = {
       		var data = libParse2(output, info);
 		if (data && !data.error) {
 		    if (os == android) {
-			// android has different command to fetch the results
+			// android has a different command to fetch the results
 			cmd = "wpa_cli";
 			args = ["scan_results"];
-		    } // on other platforms just re-fetch the updated list in a moment
+		    } // on other platforms just re-fetch the updated list
 
 		    that._executeCommandAsync(cbk, cmd, args);
 

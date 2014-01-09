@@ -2,7 +2,7 @@
 #
 # This file is the central defintion of version and build number.
 #
-version=0.3
+version=0.4
 #build=`svn info | grep 'Revision:' | awk '{print $2}'`
 build=`git log -n 1 | grep commit | cut -d ' ' -f 2`
 
@@ -17,7 +17,7 @@ if [ "$1" != docbuild ]; then
 	| sed "s/@VERSION@/${version}build${build}/" \
 	| sed "s/@UPDATEKEY@/${updatekey}/" \
 	>install.rdf
-	   
+
     cat defaults/preferences/defaults.js.in \
 	| sed "s/@VERSION@/$version/" \
 	| sed "s/@BUILD@/$build/" \

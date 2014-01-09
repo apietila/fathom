@@ -332,10 +332,11 @@ function parsePing(config, output) {
 		if (i == 0) {
 		    var s = line.split(' ');
 		    ping.domain = s[1];
-		    if (s[2] === "::1:") {
-			ping.ip = '127.0.0.1'
-		    } else {
-			ping.ip = s[2].replace(/[\[\]:]/gi, '');
+		    ping.ip = s[1];
+		    if (s[2].indexOf('[')>=0) {
+			ping.ip = s[2].replace(/[\[\]]/gi, '');
+			if (ping.ip == "::1")
+			    ping.ip = "127.0.0.1"
 		    }
 
 		} else if (line.indexOf("Reply from")>=0) {
@@ -1495,6 +1496,9 @@ function parseWireless(config, output) {
     case linux:
 	// split the info into cells
 	var tmpCells = output.trim().split("Cell");
+	if (tmpCells.length<0)
+	    break;
+
 	for(var i = 1; i < tmpCells.length; i++) {
 	    var info = "Cell" + tmpCells[i];
 	    
@@ -1542,27 +1546,38 @@ function parseWireless(config, output) {
 	    wireless.cells.push(cell);
 	}
 	break;
+
     case darwin:
 	var tmpCells = output.trim().split("\n");
+	if (tmpCells.length<0)
+	    break;
+
 	for(var i = 1; i < tmpCells.length; i++) {
+	    if (tmpCells[i].indexOf(':')<0) // does not look a valid cell line
+		continue
+
 	    var info = tmpCells[i].trim().replace(/\s{2,}/g,' ');
 	    var cols = info.split(' ');
 
 	    var cell = new Cell(); 
 	    cell.id = i;
-	    cell.mac = cols[1];
-	    cell.channel = parseInt(cols[3].split(',')[0]);
-	    cell.signal = parseInt(cols[2]);
-	    cell.encryption = cols[6];
 	    cell.essid = cols[0];
+	    cell.mac = cols[1];
+	    cell.signal = parseInt(cols[2]);
+	    cell.channel = parseInt(cols[3].split(',')[0]);
+	    cell.encryption = cols[6];
 	    
 	    wireless.cells.push(cell);
 	}
 	break;
+
     case android:
 	if (output.trim().indexOf('bssid') >= 0) {
 	    var tmpCells = output.trim().split("\n");
 	    for(var i = 2; i < tmpCells.length; i++) {
+		if (tmpCells[i].indexOf(':')<0) // does not look a valid cell line
+		    continue
+
 		var info = tmpCells[i].trim().replace(/\s{2,}/g,' ');
 		var cols = info.split(' ');
 
@@ -1578,6 +1593,7 @@ function parseWireless(config, output) {
 	    }
 	}
 	break;
+
     case winnt:
 	// split the info into cells
 	var tmpCells = output.trim().split("\r\n\r\n");
@@ -1649,7 +1665,18 @@ function parseWireless(config, output) {
     return wireless;
 };
 
-function parseProcNetWireless(config, output) {
+function parseProcNetWireless(config, output) {    
+    var lines = output.trim().split("\n");
+
+    // less than 3 lines on any platform means no wifi adapter is present
+    if (lines.length < 3) {
+	return {
+	    error: 'no wifi interface statistics available',
+	    __exposedProps__: {
+		error: "r",
+	    }
+	};
+    }
     var wifi = {
 	link: null,   // quality: % or abstract quantity
 	signal: null, // dBm
@@ -1660,23 +1687,10 @@ function parseProcNetWireless(config, output) {
 	    noise: "r",
 	}
     };
-    
-    var lines = output.trim().split("\n");
 
     switch (config.os.toLowerCase()) {
     case linux:
     case android:
-	// just 3 lines are printed on linux
-	// less than 3 lines means no wifi adapter is present
-	if (lines.length < 3) {
-	    return {
-		error: 'no wifi interface statistics available',
-		__exposedProps__: {
-		    error: "r",
-		}
-	    };
-	}
-
 	var line = lines[lines.length - 1];
 	var elems = line.trim().replace(/\s{2,}/g, ' ').replace(/\./g, '').split(" ");
 

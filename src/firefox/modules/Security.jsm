@@ -10,6 +10,7 @@ Components.utils.import("resource://fathom/utils.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+
 const valid_apis = ['socket','proto','system','tools'];
 
 var _contains = function(list,value) {
@@ -189,8 +190,6 @@ Security.prototype.askTheUser = function(cb) {
  */
 Security.prototype.setAvailableMethods = function(api,apiobj) {
     var that = this;
-    apiobj['__exposedProps__'] = {};
-    Logger.info("security : api check for " + api);
 
     var checknset = function(obj,subns) {
 	for (var p in obj) {
@@ -198,7 +197,7 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 		continue; // never expose methods starting with _
 	    }
 	    
-	    if (typeof obj.p === "function") {
+	    if (typeof obj[p] === "function") {
 		if (subns)
 		    p = subns + "." + p;
 
@@ -210,18 +209,21 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 		    obj['__exposedProps__'][p] = 'r';
 		} // else 'p' is not requested - do not set visible
 
-	    } else if (typeof obj.p === "object") {
+	    } else if (typeof obj[p] === "object") {
 		// recurse
 		var newp = p;
 		if (subns)
 		    newp = subns + "." + p;
-		obj.p['__exposedProps__'] = {};
-		obj.p = checknset(obj.p,newp);
+		obj[p]['__exposedProps__'] = {};
+		obj[p] = checknset(obj[p],newp);
 	    }
 	}
 	return obj;
     };
 
+    Logger.info("security : available methods check for \'" + api + "\' namespace");
+
+    apiobj['__exposedProps__'] = {};
     if (this.manifest_accepted) {
 	if (this.requested_apis[api] && this.requested_apis[api].length>0) {
 	    apiobj = checknset(apiobj);
@@ -231,6 +233,8 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
     } else {	
 	Logger.warning("security : manifest not accepted by user");
     }
+
+    Logger.debug(apiobj['__exposedProps__']);
     return apiobj;
 };
 
