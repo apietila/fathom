@@ -1722,6 +1722,13 @@ function parseProcNetWireless(config, output) {
 	var elems = x.exec(output.trim());
 	if (elems) 
 	   wifi.link = parseInt(elems[1]);
+	else
+	    wifi = {
+		error: 'no wifi interface statistics available',
+		__exposedProps__: {
+		    error: "r",
+		}
+	    };
 	break;
     default:
 	wifi = {
