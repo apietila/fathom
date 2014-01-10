@@ -30,12 +30,12 @@ var System = function(ctx) {
 System.prototype = {
 
     /**
-     * @method os
+     * @method getOS
      * @static
      *
      * @description  This function returns client OS information.
      * 
-     * @return {string} OS information.
+     * @return {string} OS.
      */
     getOS : function () {
       return this._os;

@@ -27,8 +27,9 @@ var _contains = function(list,value) {
  * @description This module provides all the security functionality. Each page
  * initialized its own security object.
  *
- * @param {object} loc      The window location object
- * @param {object} manifest The manifest of the page requesting Fathom API access
+ * @param {object} loc       window location object
+ * @param {string} os        os string
+ * @param {object} manifest  manifest of the page requesting Fathom API access
  */
 var Security = function(loc, os, manifest) {
     this.os = os;
