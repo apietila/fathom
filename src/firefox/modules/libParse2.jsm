@@ -1791,13 +1791,15 @@ function parseWifiInterface(config,output) {
     case linux:
 	var i;
 	for (i = 0; i<lines.length; i++) {
-	    var tmp = lines[i].split();
+	    var tmp = lines[i].trim().replace(/\s{2,}/g, ' ').split(' ');
+
 	    if (lines[i].indexOf('ESSID')>=0) {
 		// wlan0     IEEE 802.11abgn  ESSID:"BISmark5-testbed"
 		iwconfig.name = tmp[0].trim();
 		iwconfig.proto = tmp[2].trim();
 		var tmp2 = tmp[3].trim().split(':');
 		iwconfig.ssid = tmp2[1].replace(/"/g,'');
+
 	    } else if (lines[i].indexOf('Mode:')>=0) {
 		// Mode:Managed  Frequency:5.18 GHz  Access Point: A0:21:B7:BB:17:54
 		var tmp2 = tmp[0].trim().split(':');
@@ -1814,6 +1816,7 @@ function parseWifiInterface(config,output) {
 		}
 
 		iwconfig.bssid = tmp[5];
+
 	    } else if (lines[i].indexOf('Bit Rate')>=0) {
 		// Bit Rate[=;]6 Mb/s   Tx-Power[=;]15 dBm
 		if (tmp[1].indexOf('=')>=0) { // fixed bitrate
@@ -1984,8 +1987,6 @@ var libParse2 = function (config, obj) {
     var err = obj.stderr;
 
     Logger.debug("libParse2: calling for " + config.name);
-    Logger.debug(out);
-    Logger.debug(err);
 
     // check first if the output exists and has no errors
     if (obj && obj["error"]) {
@@ -2049,6 +2050,8 @@ var libParse2 = function (config, obj) {
 	Logger.debug("libParse2: command failed - stop parsing");
 	return addcommon(res);
     }
+
+    Logger.debug(out);
 
     // choose the parser
     switch(config.name) {
