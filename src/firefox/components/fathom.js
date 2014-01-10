@@ -492,6 +492,8 @@ FathomAPI.prototype = {
     Components.utils.import("resource://gre/modules/FileUtils.jsm");
     Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
+    Logger.debug("_executeCommandAsync : " + cmd);
+
     if (!args) {
       args = []; 
     } else {
@@ -502,40 +504,45 @@ FathomAPI.prototype = {
     }
 
     var commandid = Math.random().toString();
+
     var tmpdir = getTempDir();
+    if (!tmpdir)
+      throw "failed to get temp directory object";
+
     var outfile = tmpdir.clone()
     outfile.append('fathom-command.' + commandid + '.out');
     var errfile = tmpdir.clone()
     errfile.append('fathom-command.' + commandid + '.err');
 
-//    Logger.debug("outfile: " + outfile.path);
-//    Logger.debug("errfile: " + errfile.path);
+    Logger.debug("outfile: " + outfile.path);
+    Logger.debug("errfile: " + errfile.path);
 
-    const fathomapi = this;
     var observer = {
       observe: function(subject, topic, data) {
         if (topic != "process-finished" && topic != "process-failed") {
-          Logger.error('Unexpected topic observed by process observer: ' + topic);
           throw 'Unexpected topic observed by process observer: ' + topic;
         }
         
         var exitstatus = subject.exitValue;
+	Logger.debug("async command " + commandid + " ready :  " + topic + " [" + exitstatus + "]");
 
         function handleOutfileData(outdata) {
-          function handleErrfileData(errdata) {
-            try {
-	      callback({exitstatus: exitstatus, 
-			stdout: outdata, 
-			stderr: errdata,
-			__exposedProps__: { 
-			  exitstatus: "r", 
-			  stdout: "r", 
-			  stderr: "r" }});
-    	      callback = null;
-    	      incrementalCallback = false;
-    	    } catch(e) {
+          function handleErrfileData(errdata) { 
+	    if (callback) { 
+              try {
+		callback({exitstatus: exitstatus, 
+			  stdout: outdata, 
+			  stderr: errdata,
+			  __exposedProps__: { 
+			    exitstatus: "r", 
+			    stdout: "r", 
+			    stderr: "r" }});
+    		callback = null;
+    		incrementalCallback = false;
+    	      } catch(e) {
     	    	Logger.error("Error executing the callback function: " + e);
-    	    }
+    	      }
+	    }
 
 	    // cleanup
             try{
@@ -545,36 +552,52 @@ FathomAPI.prototype = {
 	    } catch (e) {
       	      Logger.warning("Failed to kill process: " + e);
     	    }
+
 	    deleteFile(outfile);
 	    deleteFile(errfile);
 
           } // handleErrfile
-          readFile(errfile, handleErrfileData);	  
+          readFile(errfile, handleErrfileData);
+
         } // handleOutfile
 	readFile(outfile, handleOutfileData);
       }
     }; // observer
 
     var process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
-    var wrapperfile = getCommandWrapper(this.os);
+    var wrapperfilepath = getCommandWrapperPath(); // creates the wrapper upon first call
     var wrapperargs = undefined;
+
     if (this.os == "android") {
       // get sh executable
       var shPath = getLocalFile("/system/bin/");
+      if (shPath.error)
+	throw "failed to get localfile object : /system/bin " + shPath.error;
+
       var sh = shPath.clone();
       sh.append('sh');
       process.init(sh);
-      wrapperargs = [wrapperfile.path, outfile.path, errfile.path, cmd].concat(args);
+      wrapperargs = [wrapperfilepath, outfile.path, errfile.path, cmd].concat(args);
+
     } else {
+      var wrapperfile = getLocalFile(wrapperfilepath);
+      if (wrapperfile.error)
+	throw "failed to get localfile object : " + wrapperfilepath + " " + wrapperfile.error;
+
       process.init(wrapperfile);
       wrapperargs = [outfile.path, errfile.path, cmd].concat(args);
     }
+
+    // call the cmd
+    Logger.debug("make the async command " + commandid + ": " + wrapperargs.join(' '));
     process.runAsync(wrapperargs, wrapperargs.length, observer);
 
     /* incremental output for traceroute & ping */
     if (incrementalCallback == true) {
       var file = FileUtils.getFile("TmpD", [outfile.leafName]);
       var index = 0, timeout = 250, count = 120;
+      Logger.debug("sending incremental updates for results every 250ms");
+
       var event = {  
 	observe: function(subject, topic, data) {  
 	  index++;
@@ -603,7 +626,8 @@ FathomAPI.prototype = {
 	    Logger.error("Error executing the NetUtil.asyncFetch callback function: " + e);
 	  }
 	}  
-      }  
+      }; // event
+  
       var timers = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);  
       const TYPE_REPEATING_PRECISE = Components.interfaces.nsITimer.TYPE_REPEATING_PRECISE;
       timers.init(event, timeout, TYPE_REPEATING_PRECISE);

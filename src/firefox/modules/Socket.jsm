@@ -9,10 +9,10 @@ var EXPORTED_SYMBOLS = ["Socket"];
  */
 var Socket = function(ctx) {
     // from extension context
-    this._doSocketOpenRequest = ctx._doSocketOpenRequest;
-    this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest;
-    this._doSocketUsageRequest = ctx._doSocketUsageRequest;
-    this._checkDestinationPermissions = ctx.security.isDestinationAvailable;
+    this._doSocketOpenRequest = ctx._doSocketOpenRequest.bind(ctx);
+    this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest.bind(ctx);
+    this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
+    this._checkDestinationPermissions = ctx.security.isDestinationAvailable.bind(ctx);
 };
 
 // This is the API available to the web pages via the extension

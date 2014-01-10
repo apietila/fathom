@@ -31,7 +31,7 @@ Logger = new function() {
 
   // These can be set to change logging level, what types of messages are
   // logged, and to enable/disable logging.
-  this.level = this.LEVEL_INFO;
+  this.level = this.LEVEL_ALL;
   this.types = this.TYPE_ALL;
   this.enabled = true;
 

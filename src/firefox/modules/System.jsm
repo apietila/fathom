@@ -22,7 +22,7 @@ const airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions
  */
 var System = function(ctx) {
     // from extension context
-    this._executeCommandAsync = ctx._executeCommandAsync;
+    this._executeCommandAsync = ctx._executeCommandAsync.bind(ctx);
     this._os = ctx.os;
 };
 
@@ -218,6 +218,8 @@ System.prototype = {
 	var os = this._os;
 	var cmd = undefined;
 	var args = [];
+	var idx = 1;
+	var tmp = [];
 
 	if (os == winnt) {
             cmd = "ipconfig";
@@ -229,8 +231,6 @@ System.prototype = {
 
 	} else if (os == android) {
 	    // must request server at the time ..
-	    var tmp = [];
-	    var idx = 1;
 	    cmd = "getprop";
 	    args = ["net.dns"+idx];
 
@@ -249,12 +249,10 @@ System.prototype = {
 
       	    var data = libParse2(output, info);
 
-	    if (os == android) {
-		dump(data);
-		dump(tmp);
-		dump(idx);
-		if (!data.error && data.length > 0) { // just returns a single result at the time
-		    tmp.push(data[0]);
+	    if (os === android) {
+		if (data && !data.error && data.list.length > 0) { 
+		    // we can only get single nameserver at the time
+		    tmp.push(data.list[0]);
 		    idx += 1
 		    cmd = "getprop";
 		    args = ["net.dns"+idx];
@@ -263,6 +261,7 @@ System.prototype = {
 		} else if (data.error) {
 		    callback(data);
 		} else {
+		    // done
       		    callback(tmp);
 		}
 
@@ -293,7 +292,7 @@ System.prototype = {
 
 	if (os == linux || os == darwin || os == winnt) {
             cmd = "hostname";
-	} else if(os == android) {
+	} else if (os == android) {
 	    cmd = "getprop";
 	    args = ["net.hostname"];
 	} else {
@@ -345,7 +344,7 @@ System.prototype = {
 
 	} else if (os == android) {
 	    cmd = "ip";
-	    args ['-o','addr','show','up'];
+	    args = ['-o','addr','show','up'];
 
 	} else {
 	    callback({error: "getActiveInterfaces not available on " + os, 
@@ -359,12 +358,13 @@ System.prototype = {
       		os: os,
 		cmd : cmd + " " + args.join(" "),
       	    };
-
       	    var data = libParse2(output, info);
+
 	    if (os == android && data.error && 
 		data.error.indexOf('not found')>=0 && cmd !== 'netcfg') 
 	    {
 		// ip was not available, fallback to netcfg
+		Logger.info("\'ip\' not available, fallback to netcfg");
 		cmd = "netcfg";
 		args = [];
 		that._executeCommandAsync(cbk, cmd, args);
@@ -783,7 +783,7 @@ System.prototype = {
 
 	} else if (os == android) {
 	    cmd = "top";
-	    args = ['-n', '1'];
+	    args = ['-n', '1', '-m', '1'];
 
 	} else {
 	    callback({error: "getLoad not available on " + os, 

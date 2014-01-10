@@ -4,10 +4,11 @@
 cp dist/fathom.xpi ../../../libhomenet/test/
 
 # test machines: loca, mac, android, win PC (does not work?)
-TEST="127.0.0.1"
+TEST="127.0.0.1
+192.168.1.104"
+#192.168.1.139"
 #192.168.1.194
 #192.168.1.210"
-#192.168.1.139"
 
 for IP in $TEST
 do

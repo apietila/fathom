@@ -127,6 +127,8 @@ Security.prototype.askTheUser = function(cb) {
 
     // handle response from the user prompt
     var callback = function(res) {
+	Logger.debug(res);
+
 	if (res && res.result && res.result !== 'no')
 	    that.manifest_accepted = true;
 	else
@@ -147,14 +149,18 @@ Security.prototype.askTheUser = function(cb) {
 	    apifunc = this.requested_apis[apimodule];
 	    privs += apimodule + '.' + apifunc + ",";
 	}
-	var dest = this.requested_destinations.join(",");
+        var dest = "";
+	for (var d in this.requested_destinations) {
+	    dest += d + ", ";
+	}
+	dest = dest.substring(0,dest.length-2);	
 	
 	var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"]
 	    .getService(Ci.nsIPromptService);
 	var result = 
 	    prompts.confirm(null, 
 			    "A web page is requesting Fathom privileges.", 
-			    "Url: " + this.url + "\nAPIs: " + privs + "\nDestination: " + dest + "\n\nWould you like to grant access to Fathom APIs.");
+			    "Url: " + this.url + "\nAPI(s): " + privs + "\nDestination(s): " + dest + "\n\nWould you like to grant access to Fathom APIs.");
 
 	// TODO: have three button dialog on Android ?
 

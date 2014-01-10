@@ -12,9 +12,9 @@ Components.utils.import("resource://fathom/DNS/dns.jsm");
  */
 var Proto = function(ctx) {
     // from extension context
-    this._doSocketOpenRequest = ctx._doSocketOpenRequest;
-    this._doSocketUsageRequest = ctx._doSocketUsageRequest;
-    this._executeCommandAsync = ctx._executeCommandAsync;
+    this._doSocketOpenRequest = ctx._doSocketOpenRequest.bind(ctx);
+    this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
+    this._executeCommandAsync = ctx._executeCommandAsync.bind(ctx);
 };
 
 // This is the API available to the web pages via the extension

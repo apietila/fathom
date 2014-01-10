@@ -428,7 +428,8 @@ function parseNameServer(config, output) {
     case android:
 	// cmd: getprop net.dnsX
 	var s = output.trim();
-	nameserver.list.push(s);
+	if (s.length>0)
+	    nameserver.list.push(s);
 	break;
     case linux:
     case darwin:
@@ -715,7 +716,7 @@ function parseInterface(config,output) {
 		
 	    } else {
 		// ip link output format
-		var name = w[0].trim().replace(':','');
+		var name = w[1].trim().replace(':','');
 		var intf = cache[name] || new Iface();
 		if (!intf.name)
 		    intf.name = name;		
@@ -1076,27 +1077,22 @@ function parseTop(config, output) {
 
     switch (config.os.toLowerCase()) {
     case android:
-	var text = output.trim().split("\n\n");
-	var x = new RegExp("User(.+)%.+System(.+)%.+IOW.+\\s+.+Idle(.+)IOW.+=(.+)");
-
-	var w = x.exec(text[0].trim());
-	if (w) {
-	    sys.tasks.total = parseInt(w[4].trim());
-	    sys.tasks.running = parseInt(w[4].trim()) - parseInt(w[3].split("+")[0].trim());
-	    sys.tasks.sleeping = parseInt(w[3].split("+")[0].trim());
-
-	    sys.cpu.user = parseFloat(w[1].trim());
-	    sys.cpu.system = parseFloat(w[2].trim());
-	    sys.cpu.idle = parseFloat(w[9].trim());
-	}
-	var y = new RegExp("MemTotal:(.+)kB\\s+MemFree:(.+)kB\\s+Buffers");
-	var w = y.exec(text[0].trim());
-	if (w) {
-	    sys.memory.total = parseInt(w[10].trim());
-	    sys.memory.used = parseInt(w[1].trim()) - parseInt(w[2].trim());
-	    sys.memory.free = parseInt(w[2].trim());
+	for (var i = 0; i < lines.length; i++) {
+	    var row = lines[i].trim().split(' ');
+	    if (row[2] === 'System') {
+		// User 0%, System 0%, IOW 0%, IRQ 0%
+		sys.cpu.user = parseFloat(row[1].replace('%,',''));
+		sys.cpu.system = parseFloat(row[3].replace('%,',''));
+		sys.cpu.idle = 100.0 - (sys.cpu.user + sys.cpu.system);
+	    } else if (row[3] === 'Nice') {
+		// User 8 + Nice 1 + Sys 23 + Idle 270 + IOW 1 + IRQ 0 + SIRQ 0 = 303
+		sys.tasks.total = parseInt(row[21]);
+		sys.tasks.sleeping = parseInt(row[10]);
+		sys.tasks.running = sys.tasks.total - sys.tasks.sleeping;
+	    }
 	}
 	break;
+
     case linux:
 	for (var i = 0; i < lines.length; i++) {
 	    var row = lines[i].trim().split(' ');
@@ -1665,6 +1661,7 @@ function parseWireless(config, output) {
     return wireless;
 };
 
+// use config.params to filter results for particular interface
 function parseProcNetWireless(config, output) {    
     var lines = output.trim().split("\n");
 
@@ -1681,31 +1678,41 @@ function parseProcNetWireless(config, output) {
 	link: null,   // quality: % or abstract quantity
 	signal: null, // dBm
 	noise: null,  // dBm
+	iface: null,   // iface
 	__exposedProps__: {
 	    link: "r",
 	    signal: "r",
 	    noise: "r",
+	    iface: "r",
 	}
     };
 
     switch (config.os.toLowerCase()) {
     case linux:
     case android:
-	var line = lines[lines.length - 1];
-	var elems = line.trim().replace(/\s{2,}/g, ' ').replace(/\./g, '').split(" ");
+	for (var i = 0; i < lines.length && wifi.signal==null; i++) {
+	    var line = lines[i];
+	    if (line.indexOf('|')>=0)
+		continue; // header line
 
-	if (params && params.length==1) {
+	    var elems = line.trim().replace(/\s{2,}/g, ' ').split(" ");
 	    var iface = elems[0].replace(':','');
-	    if (params[0] === iface) {
+
+	    if (config.params && config.params.length === 1) {
+		if (config.params[0] === iface) {
+		    // found the requested interface
+		    wifi.link = parseInt(elems[2]);
+		    wifi.signal = parseInt(elems[3]);
+		    wifi.noise = parseInt(elems[4]);
+		    wifi.iface = iface;
+		}
+	    } else {
+		// just pick the first line
 		wifi.link = parseInt(elems[2]);
 		wifi.signal = parseInt(elems[3]);
 		wifi.noise = parseInt(elems[4]);
+		wifi.iface = iface;
 	    }
-	} else {
-	    // just pick the last line
-	    wifi.link = parseInt(elems[2]);
-	    wifi.signal = parseInt(elems[3]);
-	    wifi.noise = parseInt(elems[4]);
 	}
 	break;
     case darwin:
@@ -1977,9 +1984,12 @@ var libParse2 = function (config, obj) {
     var err = obj.stderr;
 
     Logger.debug("libParse2: calling for " + config.name);
+    Logger.debug(out);
+    Logger.debug(err);
 
     // check first if the output exists and has no errors
     if (obj && obj["error"]) {
+	Logger.debug(obj);
 	res = {
 	    error : obj["error"],
 	    exitstatus : null,
@@ -1989,6 +1999,7 @@ var libParse2 = function (config, obj) {
 	    }
 	};
     } else if (!out && err) {
+	Logger.debug(err);
 	var serr = err.trim() + "";
 	if (err.indexOf(':')>0) { 
 	    serr = err.substring(err.indexOf(':')+1).trim();
@@ -2002,6 +2013,7 @@ var libParse2 = function (config, obj) {
 	    }
 	};
     } else if (out && out["error"]) {
+	Logger.debug(out);
 	res = {
 	    error : obj["error"],
 	    exitstatus : obj.extistatus,
@@ -2018,13 +2030,11 @@ var libParse2 = function (config, obj) {
 	    ts : Date.now(),
 	    name : config.name,
 	    cmd : config.cmd,
-	    args : config.args,
 	    os : config.os,
 	    __exposedProps__ : {
 		ts : "r",
 		name: "r",
 		cmd : "r",	
-		args : "r",	
 		os : "r",	
 	    }
 	};
@@ -2035,7 +2045,8 @@ var libParse2 = function (config, obj) {
 	return res;
     };
 
-    if (res !== undefined) {
+    if (res !== undefined) { // there was an error
+	Logger.debug("libParse2: command failed - stop parsing");
 	return addcommon(res);
     }
 

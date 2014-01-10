@@ -3,18 +3,19 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://fathom/Logger.jsm");
 
 /**
  * Collection of utility functions.
  */
-var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapper","getHttpFile"];
+var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapperPath","getHttpFile"];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 
 const os = Cc["@mozilla.org/xre/app-info;1"]
-    .getService(Components.interfaces.nsIXULRuntime).OS.toLowerCase();
+    .getService(Ci.nsIXULRuntime).OS.toLowerCase();
 
 // initialized upon first request
 var nspr_file = undefined;
@@ -25,7 +26,7 @@ var cmd_wrapper = undefined;
  * Temporary files directory.
  */
 var getTempDir = function() {
-    var dirservice = Components.classes["@mozilla.org/file/directory_service;1"]
+    var dirservice = Cc["@mozilla.org/file/directory_service;1"]
 	.getService(Ci.nsIProperties); 
     return dirservice.get("TmpD", Ci.nsIFile);
 };
@@ -59,7 +60,7 @@ var getHttpFile = function(callback, url) {
  * Note that here we are writing the file syncronously on the main thread
  * which is something we generally shouldn't be doing.
  */
-var getCommandWrapper = function() {
+var getCommandWrapperPath = function() {
     if (cmd_wrapper !== undefined)
 	return cmd_wrapper;
 
@@ -82,7 +83,7 @@ var getCommandWrapper = function() {
 	converter.init(foStream, "UTF-8", 0, 0);
 	converter.writeString(data);
 	converter.close(); // this also closes foStream
-	return tmpfile;
+	return tmpfile.path;
     }
 
     if (os == "winnt") {
@@ -94,15 +95,15 @@ var getCommandWrapper = function() {
 	cmd_wrapper = write(wrappername,wrapperlines.join('\r\n') + '\r\n');
 
 	wrappername = "hidecmd.js";
-	wrapperlines = [	'var dir = WScript.ScriptFullName.replace(/[\\/\\\\]+[^\\/\\\\]*$/, "");',
-				'var Shell = WScript.CreateObject("Wscript.Shell");',
-				'Shell.CurrentDirectory = dir;',
-				'var objArgs = WScript.Arguments;',
-				'var arg = "";',
-				'for(var i = 0; i < objArgs.length; i++) {',
-				'	arg = arg + " " + objArgs(i);',
-				'}',
-				'Shell.Run("cmdwrapper.bat " + arg, 0, true);'];
+	wrapperlines = ['var dir = WScript.ScriptFullName.replace(/[\\/\\\\]+[^\\/\\\\]*$/, "");',
+			'var Shell = WScript.CreateObject("Wscript.Shell");',
+			'Shell.CurrentDirectory = dir;',
+			'var objArgs = WScript.Arguments;',
+			'var arg = "";',
+			'for(var i = 0; i < objArgs.length; i++) {',
+			'	arg = arg + " " + objArgs(i);',
+			'}',
+			'Shell.Run("cmdwrapper.bat " + arg, 0, true);'];
 	cmd_wrapper = write(wrappername,wrapperlines.join('\r\n') + '\r\n');
 	
     } else if (os == "linux" || os == "android" || os == "darwin") {
@@ -113,7 +114,8 @@ var getCommandWrapper = function() {
 			'shift',
 			'shift',
 			'$@ >"$OUTFILE" 2>"$ERRFILE"'];
-	cmd_wrapper = write(wrappername,wrapperlines.join('\n') + '\n');
+	var contents = wrapperlines.join('\n') + '\n';
+	cmd_wrapper = write(wrappername,contents);
 
     } else {
 	throw 'Unhandled OS: ' + os;
@@ -122,19 +124,17 @@ var getCommandWrapper = function() {
     return cmd_wrapper;
 };
 
-/* A shortcut for instantiating a local file object. */
+/* Create a local file object. */
 var getLocalFile = function(path) {
-    var file = Cc['@mozilla.org/file/local;1']
-        .createInstance(Components.interfaces.nsILocalFile);
-
+    var file = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsILocalFile);
     if (path) {
 	try {
 	    file.initWithPath(path);
 	} catch (exc) {
-	    return { error : "getLocalFile: init exception on '" + path + "': " + exc };
+	    return { error : "getLocalFile: init exception on '" + path + "': " + exc , 
+		     __exposedProps__: { error: "r" }};
 	}
     }
-
     return file;
 };
 
@@ -142,6 +142,12 @@ var getLocalFile = function(path) {
  * Read contents of a given file.
  */
 var readFile = function(fileobj, datacallback) {
+    if (!fileobj.exists()) {
+        datacallback({error: 'reading file failed: no such file ' + fileobj.path, 
+		      __exposedProps__: { error: "r" }});
+        return;
+    };
+
     NetUtil.asyncFetch(fileobj, function(inputStream, status) {
 	if (!Components.isSuccessCode(status)) {
             datacallback({error: 'reading file failed: ' + status, 
@@ -149,23 +155,18 @@ var readFile = function(fileobj, datacallback) {
             return;
 	}
 
+	var data = "";
 	try {
-            var data = NetUtil.readInputStreamToString(inputStream, inputStream.available());
+            data = NetUtil.readInputStreamToString(inputStream, inputStream.available());
 	} catch (e) {
-            if (e.name == "NS_BASE_STREAM_CLOSED") {
-		// The file is empty.
-		data = "";
-            } else {
-		Logger.error("Failed reading file " + fileobj.path + " : " + e);
+            if (e.name !== "NS_BASE_STREAM_CLOSED") {
 		datacallback({error: e, 
 			      __exposedProps__: { error: "r" }});
 		return;
-            }
+	    } // else empty file
 	}
-
-	// return data
 	datacallback(data);
-    });
+    }); // asyncFetch
 };
 
 /**
@@ -175,7 +176,6 @@ var deleteFile = function(fileobj) {
     try {
 	fileobj.remove(false);
     } catch (e) {
-	Logger.warning("Unable to delete file " + fileobj.path + " : " + e);
     }
 };
 
@@ -210,9 +210,9 @@ var getNsprLibFile = function() {
 	libd = "CurProcD";
 
     var xulAppInfo = Cc["@mozilla.org/xre/app-info;1"]
-	.getService(Components.interfaces.nsIXULAppInfo);
+	.getService(Ci.nsIXULAppInfo);
     var versionChecker = Cc["@mozilla.org/xpcom/version-comparator;1"]
-	.getService(Components.interfaces.nsIVersionComparator);
+	.getService(Ci.nsIVersionComparator);
 
     Logger.info("platformversion: " + xulAppInfo.platformVersion);
     Logger.info("appversion: " + xulAppInfo.version);
@@ -236,7 +236,7 @@ var getNsprLibFile = function() {
 	for (var i in dirs) {
 	    if (! dirs[i])
 		continue;
-	    Logger.info("nspr4 candidate dir: " + dirs[i].path);
+	    Logger.debug("nspr4 candidate dir: " + dirs[i].path);
 
 	    if (!dirs[i].exists())
 		continue;
@@ -251,11 +251,15 @@ var getNsprLibFile = function() {
     } else {
 	// FIXME: figure out how android names the apks, at least -1 and -2
 	// seen on test devices...
-	for (var j = 1; j < 3; j++) {
+	for (var j = 0; j < 3; j++) {
 	    try {
 		var tmpfile = getLocalFile();
-		tmpfile.initWithPath("/data/app/org.mozilla.firefox-"+j+".apk");
-		Logger.info("nspr4 candidate dir: " + tmpfile.path);
+		if (j == 0)
+		    tmpfile.initWithPath("/data/app/org.mozilla.firefox.apk");
+		else
+		    tmpfile.initWithPath("/data/app/org.mozilla.firefox-"+j+".apk");
+
+		Logger.debug("nspr4 candidate dir: " + tmpfile.path);
 
 		if (tmpfile.exists()) {
 		    if(versionChecker.compare(xulAppInfo.version, "24.0") >= 0) {
@@ -271,7 +275,6 @@ var getNsprLibFile = function() {
 		    }
 		}
 	    } catch (e) {
-		Logger.error(e);
 		continue;
 	    }
 	}
@@ -280,7 +283,7 @@ var getNsprLibFile = function() {
     if (!found) {
 	AddonManager.getAddonByID("fathom@icir.org", function (addon) {
 	    var uri = addon.getResourceURI("content/libs/" + os + "/libnspr4.so");
-	    if (uri instanceof Components.interfaces.nsIFileURL) {
+	    if (uri instanceof Ci.nsIFileURL) {
 		nspr_file = uri.file;
 	    }
 	});

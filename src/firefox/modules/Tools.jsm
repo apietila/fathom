@@ -9,8 +9,8 @@ var EXPORTED_SYMBOLS = ["Tools"];
  */
 var Tools = function(ctx) {
     // from extension context
-    this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest;
-    this._doSocketUsageRequest = ctx._doSocketUsageRequest;
+    this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest.bind(ctx);
+    this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
 };
 
 // This is the API available to the web pages via the extension
