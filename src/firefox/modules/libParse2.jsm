@@ -1492,13 +1492,15 @@ function parseWireless(config, output) {
     case linux:
 	// split the info into cells
 	var tmpCells = output.trim().split("Cell");
-	if (tmpCells.length<0)
+	if (!tmpCells || tmpCells.length<=0)
 	    break;
 
 	for(var i = 1; i < tmpCells.length; i++) {
 	    var info = "Cell" + tmpCells[i];
+	    info = info.replace(/\s{2,}/g, ' ');
+	    info = info.replace(/\n{1,}/g, ' ');
 	    
-	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+).+ Signal level=(.+) dBm\\s+Encryption key:(.+)\\s+ESSID:(.+)\\s+");
+	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+).+ Signal level=(.+) dBm\\s+Encryption key:(.+)\\s+ESSID:\"(.+)\"\\s+");
 	    
 	    var w = x.exec(info);
 	    
@@ -1518,8 +1520,14 @@ function parseWireless(config, output) {
 	    cell.encryption = (w[7].trim() === "on");
 	    cell.essid = w[8].replace(/"/g,'');
 	    
-	    cell.mode = /Mode:(.+)\s/.exec(info)[1];
-	    cell.lastBeacon = parseInt(/Last beacon:(\d+)ms/.exec(info)[1]);
+	    if (info.indexOf('Mode:') >= 0) {
+		var re = new RegExp(/Mode:\s*(\w+)/);
+		cell.mode = re.exec(info)[1];
+	    }
+	    if (info.indexOf('Last beacon:') >= 0) {
+		var re = new RegExp(/Last beacon:\s*(\d+)ms/);
+		cell.lastBeacon = parseInt(re.exec(info)[1]);
+	    }
 
 	    // Lines for bitrates look like this:
 	    //
@@ -1528,13 +1536,14 @@ function parseWireless(config, output) {
 
 	    var idx = info.indexOf('Bit Rates:');
 	    if (idx>=0) {
-		idx += 'Bit Rates:'.length;
-		var subinfo = info.substring(idx);
+		var subinfo = info.substring((idx+'Bit Rates:'.length));
+
+		idx = 0;
 		var idx2 = subinfo.indexOf('Mb');
-		while (idx2>=0 && idx2 - idx < 4) {
-		    cell.bitrate.push(parseInt(subinfo.substring(0,idx2-1).trim()));
-		    idx = idx2+4;
-		    subinfo = info.substring(idx);
+		while (idx2>=0 && idx2 - idx < 5) {
+		    cell.bitrate.push(parseFloat(subinfo.substring(idx,idx2-1).trim()));
+		    subinfo = subinfo.substring(idx2+5);
+		    idx = 0;
 		    idx2 = subinfo.indexOf('Mb');
 		}
 	    }
@@ -2051,7 +2060,7 @@ var libParse2 = function (config, obj) {
 	return addcommon(res);
     }
 
-    Logger.debug(out);
+//    Logger.debug(out);
 
     // choose the parser
     switch(config.name) {

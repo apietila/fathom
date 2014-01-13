@@ -2,6 +2,7 @@
 var EXPORTED_SYMBOLS = ["System"];
 
 Components.utils.import("resource://fathom/libParse2.jsm");
+Components.utils.import("resource://fathom/utils.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -551,7 +552,6 @@ System.prototype = {
     getWifiInfo : function(callback) {
 	var that = this;
 	var os = this._os;
-	var cont = true;
 	var cmd = undefined;
 	var args = [];
 
@@ -578,6 +578,10 @@ System.prototype = {
             return;
 	}
 
+
+	var timer = undefined;
+	var first = true;
+	
 	function cbk(info) {
       	    var output = {
       		name: "wifiInfo",
@@ -585,11 +589,8 @@ System.prototype = {
 		cmd : cmd + " " + args.join(" "),
       	    };
 
-	    if (cont) {
-		// 1st time
-		cont = false;
-
-      		var data = libParse2(output, info);
+      	    var data = libParse2(output, info);
+	    if (first) {
 		if (data && !data.error) {
 		    if (os == android) {
 			// android has a different command to fetch the results
@@ -597,18 +598,23 @@ System.prototype = {
 			args = ["scan_results"];
 		    } // on other platforms just re-fetch the updated list
 
-		    that._executeCommandAsync(cbk, cmd, args);
+		    // wait 10s to update the list
+		    first = false;
+		    timer = setTimeoutTimer(function() {
+			that._executeCommandAsync(cbk, cmd, args);
+		    }.bind(that), 30000);
 
 		} else {
 		    // some error on first call
       		    callback(data);
+		    first = false;
 		}
 	    } else {
 		// 2nd time - final results
-      		var data = libParse2(output, info);
       		callback(data);
+		timer = undefined;
 	    }
-	};
+	}; // cbk
 	
 	this._executeCommandAsync(cbk, cmd, args);
     }, // getWifiInfo

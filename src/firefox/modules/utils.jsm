@@ -9,7 +9,7 @@ Components.utils.import("resource://fathom/Logger.jsm");
 /**
  * Collection of utility functions.
  */
-var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapperPath","getHttpFile"];
+var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapperPath","getHttpFile","setTimeoutTimer"];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -21,6 +21,23 @@ const os = Cc["@mozilla.org/xre/app-info;1"]
 var nspr_file = undefined;
 var nspr_libname = undefined;
 var cmd_wrapper = undefined;
+
+/* nsITimer based setTimeout helper. */
+var setTimeoutTimer = function(cb,delay,args) {
+    var event = {
+	observe: function(subject, topic, data) {
+	    Logger.debug("one-shot timer: " + topic);
+	    if (args)
+		cb.apply(args);
+	    else
+		cb();
+	}
+    }
+    Logger.debug("create one-shot timer, expire in " + delay);
+    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    timer.init(event, delay, Ci.nsITimer.TYPE_ONE_SHOT);
+    return timer;
+};
 
 /**
  * Temporary files directory.

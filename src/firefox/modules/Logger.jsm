@@ -45,7 +45,9 @@ Logger._doLog = function(level, message) {
       message = JSON.stringify(message,null,2);
     }
     var levelName = this._LEVEL_NAMES[level.toString()];
-    this.printFunc("[Fathom] [" + levelName + "] " + message + "\n");
+    this.printFunc(new Date().toString() + 
+		   " [Fathom] [" + levelName + "] " + 
+		   message + "\n");
   }
 };
 
