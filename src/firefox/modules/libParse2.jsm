@@ -1500,18 +1500,17 @@ function parseWireless(config, output) {
 	    info = info.replace(/\s{2,}/g, ' ');
 	    info = info.replace(/\n{1,}/g, ' ');
 	    
-	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+).+ Signal level=(.+) dBm\\s+Encryption key:(.+)\\s+ESSID:\"(.+)\"\\s+");
+	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+)\\s+Signal level=(.+) dBm\\s+Encryption key:(.+)\\s+ESSID:\"(.+)\"\\s+");
 	    
 	    var w = x.exec(info);
 	    
 	    var cell = new Cell(); 
-	    cell.bitrate = new Array();
 	    cell.id = w[1];
 	    cell.mac = w[2];
 	    cell.channel = parseInt(w[3]);
 	    cell.frequency = ~~(parseInt(w[4])*1000); // GHz -> MHz
-	    if (w[5].indexOf('/')>=0) {
-		var tmp = w[5].split('/'); // Quality=31/70
+	    if (w[5].indexOf('\/')>=0) {
+		var tmp = w[5].split('\/'); // Quality=31/70
 		cell.quality = 100.0 * parseFloat(tmp[0]) / parseFloat(tmp[1]);
 	    } else {
 		cell.quality = w[5]; // can this happen?
@@ -1529,22 +1528,18 @@ function parseWireless(config, output) {
 		cell.lastBeacon = parseInt(re.exec(info)[1]);
 	    }
 
-	    // Lines for bitrates look like this:
-	    //
-	    //  Bit Rates:6 Mb/s; 9 Mb/s; 12 Mb/s; 18 Mb/s; 24 Mb/s
-            //            36 Mb/s; 48 Mb/s; 54 Mb/s
-
+	    //  Bit Rates:6 Mb/s; 9 Mb/s; 12 Mb/s; 18 Mb/s; 24 Mb/s 36 Mb/s; 48 Mb/s; 54 Mb/s
+	    cell.bitrate = new Array();
 	    var idx = info.indexOf('Bit Rates:');
 	    if (idx>=0) {
-		var subinfo = info.substring((idx+'Bit Rates:'.length));
-
-		idx = 0;
-		var idx2 = subinfo.indexOf('Mb');
-		while (idx2>=0 && idx2 - idx < 5) {
-		    cell.bitrate.push(parseFloat(subinfo.substring(idx,idx2-1).trim()));
-		    subinfo = subinfo.substring(idx2+5);
-		    idx = 0;
-		    idx2 = subinfo.indexOf('Mb');
+		var rates = info.substring(idx+'Bit Rates:'.length).split('Mb/s');
+		for (var j = 0; j < rates.length; j++) {
+		    var r = parseFloat(rates[j].replace(';','').trim());
+		    Logger.debug(rates[j].replace(';','').trim() + " -> " + r);
+		    if (!isNaN(r) && isFinite(r))
+			cell.bitrate.push(r);
+		    else
+			break;
 		}
 	    }
 	    
