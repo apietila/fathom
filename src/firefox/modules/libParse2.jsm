@@ -1535,7 +1535,6 @@ function parseWireless(config, output) {
 		var rates = info.substring(idx+'Bit Rates:'.length).split('Mb/s');
 		for (var j = 0; j < rates.length; j++) {
 		    var r = parseFloat(rates[j].replace(';','').trim());
-		    Logger.debug(rates[j].replace(';','').trim() + " -> " + r);
 		    if (!isNaN(r) && isFinite(r))
 			cell.bitrate.push(r);
 		    else

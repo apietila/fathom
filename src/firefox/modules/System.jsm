@@ -50,10 +50,7 @@ System.prototype = {
      * destination and, upon completion, returns the textual results.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      *
      * @param {string} host The host (name or IP address) to run a
      * traceroute to.
@@ -119,10 +116,7 @@ System.prototype = {
      * destination and, upon completion, returns the textual results.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      *
      * @param {string} host The host (name or IP address) to ping.
      * @param {integer} count The number of pings to attempt.
@@ -209,10 +203,7 @@ System.prototype = {
      * client's DNS resolver configuration.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */
     getNameservers : function(callback) {
 	var that = this;
@@ -281,10 +272,7 @@ System.prototype = {
      * @description Get hostname
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */
     getHostname : function(callback) {
 	var os = this._os;
@@ -324,10 +312,7 @@ System.prototype = {
      * clients' network interfaces.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */       
     getActiveInterfaces : function(callback) {
 	var that = this;
@@ -385,10 +370,7 @@ System.prototype = {
      * clients' wireless network interface (iwconfig and friends).
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */       
     getActiveWifiInterface : function(callback) {
 	var that = this;
@@ -452,10 +434,7 @@ System.prototype = {
      * @description This function retrieves the current contents of the ARP cache.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */       
     getArpCache : function(callback) {
 	var os = this._os;
@@ -496,10 +475,7 @@ System.prototype = {
      * @description This function retrieves the client's current routing table.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */       
     getRoutingTable : function(callback) {
 	var os = this._os;
@@ -544,16 +520,19 @@ System.prototype = {
      * @description This function gets the list of nearby wireless access points.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
+     *
+     * @param {number} timeout The delay between scan start and second call
+     * to fetch the results (on most OSs the first scan cmd invocation does not return
+     * the full list of nearby cells or as on android we need two separate calls
+     * in anycase).
      */
-    getWifiInfo : function(callback) {
+    getWifiInfo : function(callback, timeout) {
 	var that = this;
 	var os = this._os;
 	var cmd = undefined;
 	var args = [];
+	var timeout = timeout || 2500; // ms
 
 	if (os == winnt) {
             cmd = "netsh";
@@ -598,11 +577,15 @@ System.prototype = {
 			args = ["scan_results"];
 		    } // on other platforms just re-fetch the updated list
 
-		    // wait 10s to update the list
 		    first = false;
-		    timer = setTimeoutTimer(function() {
+		    if (timeout>0) {
+			// delay timeout ms to get more scanning results
+			timer = setTimeoutTimer(function() {
+			    that._executeCommandAsync(cbk, cmd, args);
+			}.bind(that), timeout);
+		    } else {
 			that._executeCommandAsync(cbk, cmd, args);
-		    }.bind(that), 30000);
+		    }
 
 		} else {
 		    // some error on first call
@@ -627,10 +610,7 @@ System.prototype = {
      * counters (bytes, packets, errors, etc).
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */       
     getIfaceStats : function(callback, iface) {
 	var os = this._os;
@@ -714,10 +694,8 @@ System.prototype = {
      * for WiFi interfaces.
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
+     *
      * @param {string} name Optional wireless inteface name if the system
      * has multiple wireless interfaces.
      */   
@@ -769,10 +747,7 @@ System.prototype = {
      * @description This function retrieves the client's current system load via "top".
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */       
     getLoad : function(callback) {
 	var os = this._os;
@@ -818,10 +793,7 @@ System.prototype = {
      * @description This function retrieves the client's current memory load via "proc".
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      */
     getMemInfo: function (callback) {
 	var os = this._os;
@@ -861,10 +833,7 @@ System.prototype = {
      * @static
      *
      * @param {function} callback The callback Fathom invokes once the
-     * call completes. If successful, the result is a dictionary with
-     * three members: "exitstatus" (the numeric exit status of the
-     * invocation), "stdout" (data rendered to standard output), and
-     * "stderr" (data rendered to standard error).
+     * call completes. On error contains "error" member.
      *
      * @param {string} url The URL for which the function looks up the
      * applicable proxy configuration.
@@ -960,6 +929,13 @@ System.prototype = {
 	callback(proxy);
     }, // getProxyInfo
     
+    /**
+     * @method getBrowserMemoryUsage
+     * @static
+     *
+     * @param {function} callback The callback Fathom invokes once the
+     * call completes. On error contains "error" member.
+     */
     getBrowserMemoryUsage: function(callback) {
 	var mgr = Cc["@mozilla.org/memory-reporter-manager;1"]
 	    .getService(Ci.nsIMemoryReporterManager);
