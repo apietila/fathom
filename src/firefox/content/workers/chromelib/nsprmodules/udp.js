@@ -140,7 +140,15 @@ function udpRecv(socketid, length, timeout) {
   for (var i = 0; i < length; i++) {
     out.push(recvbuf[i]);
   }
-  return {data: out, length: bytesreceived};
+
+  // resolve sender IP + port
+  var peerAddr = NSPR.types.PRNetAddr();
+  NSPR.sockets.PR_GetPeerName(fd, peerAddr.address());
+  var port = (peerAddr ? NSPR.util.PR_ntohs(peerAddr.port) : undefined);
+  var ip = (peerAddr ? NSPR.util.NetAddrToString(peerAddr) : undefined);
+
+  var result = {data: out, length: bytesreceived, address: ip, port: port};
+  return result;
 }
 
 function udpSendrecv(socketid, data, length) {
@@ -174,6 +182,7 @@ function udpRecvstart_helper(socketid, length, asstring) {
     var result = {done: true, error: 'Network connection is closed'};
     util.postResult(result);
     return;
+
   } else {
     var bytesreceived = rv;
     var out;
@@ -189,7 +198,14 @@ function udpRecvstart_helper(socketid, length, asstring) {
       out.push(recvbuf[i]);
     }
     }
-    var result = {data: out, length: bytesreceived};
+    
+    // resolve sender IP + port
+    var peerAddr = NSPR.types.PRNetAddr();
+    NSPR.sockets.PR_GetPeerName(fd, peerAddr.address());
+    var port = (peerAddr ? NSPR.util.PR_ntohs(peerAddr.port) : undefined);
+    var ip = (peerAddr ? NSPR.util.NetAddrToString(peerAddr) : undefined);
+
+    var result = {data: out, length: bytesreceived, address: ip, port: port};
     util.postResult(result);
   }
 
@@ -216,7 +232,7 @@ function udpRecvstop(socketid) {
     return {error: 'No multiresponse function is running (nothing to stop).'};
   }
   util.data.multiresponse_stop = true;
-  return;
+  return {ignore: true};
 }
 
 function udpRecvfrom(socketid) {
@@ -244,7 +260,7 @@ function udpRecvfrom(socketid) {
   }
   var port = NSPR.util.PR_ntohs(addr.port);
   var ip = NSPR.util.NetAddrToString(addr);
-  return {data: out, address: ip, port: port};
+  return {data: out, length: bytesreceived, address: ip, port: port};
 }
 
 function udpRecvfromstart(socketid, asstring) {
@@ -265,7 +281,6 @@ function udpRecvfromstart_helper(socketid, asstring) {
   var timeout = 100;
 
   var rv = NSPR.sockets.PR_RecvFrom(fd, recvbuf, bufsize, 0, addr.address(), timeout);
-  var date = Date.now();
   if (rv == -1) {
     // We assume for now the failure was a timeout.
   } else if (rv == 0) {
@@ -274,6 +289,7 @@ function udpRecvfromstart_helper(socketid, asstring) {
     var result = {done: true, error: 'Network connection is closed'};
     util.postResult(result);
     return;
+
   } else {
     var bytesreceived = rv;
     var out;
@@ -289,7 +305,7 @@ function udpRecvfromstart_helper(socketid, asstring) {
     }
     var port = NSPR.util.PR_ntohs(addr.port);
     var ip = NSPR.util.NetAddrToString(addr);
-    var result = {data: out, address: ip, port: port, time: date};
+    var result = {data: out, length: bytesreceived, address: ip, port: port};
     util.postResult(result);
   }
 

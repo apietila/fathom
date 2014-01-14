@@ -1,6 +1,8 @@
 // Module API
 var EXPORTED_SYMBOLS = ["Socket"];
 
+//Components.utils.import("resource://fathom/Logger.jsm");
+
 /**
  * @class Socket
  * @description This module provides the socket API.
@@ -13,6 +15,17 @@ var Socket = function(ctx) {
     this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest.bind(ctx);
     this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
     this._checkDestinationPermissions = ctx.security.isDestinationAvailable.bind(ctx);
+
+    // need to bind the sub-namespaces to 'this' object so that we can access
+    // the above helpers - a bit ugly
+    for (var subns in this) {
+	if (subns.indexOf('_')==0)
+	    continue;
+	for (var method in this[subns]) {
+	    if (typeof this[subns][method] === 'function')
+		this[subns][method] = this[subns][method].bind(this); 
+	}
+    }
 };
 
 // This is the API available to the web pages via the extension
@@ -41,7 +54,7 @@ Socket.prototype = {
 	 * occurred.
 	 */	
 	openSendSocket : function (callback) {
-	    this._doSocketOpenRequest(callback, 'broadcastOpenSendSocket', []);
+	    return this._doSocketOpenRequest(callback, 'broadcastOpenSendSocket', []);
 	},
 
 	/**
@@ -61,7 +74,7 @@ Socket.prototype = {
 	 * listen for broadcast messages.
 	 */	
 	openReceiveSocket : function (callback, port) {
-	    this._doSocketOpenRequest(callback, 'broadcastOpenReceiveSocket', [port]);
+	    return this._doSocketOpenRequest(callback, 'broadcastOpenReceiveSocket', [port]);
 	},
 
 	/**
@@ -79,7 +92,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */
 	closeSocket : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
+	    return this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
 	},
 
 	/**
@@ -105,7 +118,7 @@ Socket.prototype = {
 	 * @param {integer} port  The (UDP) port to send to.
 	 */
 	send : function (callback, socketid, msg, ip, port) {
-	    this._doSocketUsageRequest(callback, 'broadcastSend', [socketid, msg, ip, port]);
+	    return this._doSocketUsageRequest(callback, 'broadcastSend', [socketid, msg, ip, port]);
 	},
 
 	/**
@@ -125,7 +138,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */
 	receive : function (callback, socketid) {
-	    this.doSocketUsageRequest(callback, 'broadcastReceive', [socketid]);
+	    return this.doSocketUsageRequest(callback, 'broadcastReceive', [socketid]);
 	},
     }, // broadcast
     
@@ -155,7 +168,7 @@ Socket.prototype = {
 	 * "threshold" of host/network/site/etc.
 	 */
 	openSendSocket : function (callback, ttl) {
-	    this._doSocketOpenRequest(callback, 'multicastOpenSendSocket', [ttl]);
+	    return this._doSocketOpenRequest(callback, 'multicastOpenSendSocket', [ttl]);
 	},
 
 	/**
@@ -177,7 +190,7 @@ Socket.prototype = {
 	 * listen for multicast messages.
 	 */	
 	openReceiveSocket : function (callback, ip, port) {
-	    this._doSocketOpenRequest(callback, 'multicastOpenReceiveSocket', [ip, port]);
+	    return this._doSocketOpenRequest(callback, 'multicastOpenReceiveSocket', [ip, port]);
 	},
 
 	/**
@@ -195,7 +208,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */
 	closeSocket : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
+	    return this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
 	},
 
 	/**
@@ -223,7 +236,7 @@ Socket.prototype = {
 	 * @param {integer} port  The (UDP) port to send to.
 	 */
 	send : function (callback, socketid, msg, ip, port) {
-	    this._doSocketUsageRequest(callback, 'multicastSend', [socketid, msg, ip, port]);
+	    return this._doSocketUsageRequest(callback, 'multicastSend', [socketid, msg, ip, port]);
 	},
 
 	/**
@@ -243,7 +256,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */
 	receive : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'multicastReceive', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'multicastReceive', [socketid]);
 	},
 	
 	/**
@@ -266,7 +279,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */
 	receiveDetails : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'multicastReceiveDetails', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'multicastReceiveDetails', [socketid]);
 	},
     }, // multicast
 
@@ -310,7 +323,7 @@ Socket.prototype = {
 					      [destip, destport]);
 		}
 	    }
-	    this._checkDestinationPermissions(destPermCheckCompleted, destip);
+	    return this._checkDestinationPermissions(destPermCheckCompleted, destip);
 	},
 
 	/** 
@@ -331,7 +344,7 @@ Socket.prototype = {
 	 * @param {integer} port  Port to listen on.
 	 */ 
 	openReceiveSocket : function (callback, port) {
-	    this._doSocketOpenRequest(callback, 'tcpOpenReceiveSocket', [port]);
+	    return this._doSocketOpenRequest(callback, 'tcpOpenReceiveSocket', [port]);
 	},
 
 	/*
@@ -368,7 +381,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */
 	closeSocket : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
+	    return this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
 	},
 
 	/** 
@@ -389,7 +402,7 @@ Socket.prototype = {
 	 * @param {string} data  The data chunk to transmit.
 	 */ 
 	send : function (callback, socketid, msg) {
-	    this._doSocketUsageRequest(callback, 'tcpSend', [socketid, msg]);
+	    return this._doSocketUsageRequest(callback, 'tcpSend', [socketid, msg]);
 	},
 
 	/** 
@@ -411,7 +424,7 @@ Socket.prototype = {
 	    if (asstring == undefined) {
 		asstring = false;
 	    }
-	    this._doSocketUsageRequest(callback, 'tcpReceive', [socketid, asstring]);
+	    return this._doSocketUsageRequest(callback, 'tcpReceive', [socketid, asstring]);
 	},
 
 	/** 
@@ -431,7 +444,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */ 
 	getHostIP : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'tcpGetHostIP', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'tcpGetHostIP', [socketid]);
 	},
 
 	/** 
@@ -451,7 +464,7 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 */ 
 	getPeerIP : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'tcpGetPeerIP', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'tcpGetPeerIP', [socketid]);
 	},
     }, // tcp
     
@@ -478,7 +491,7 @@ Socket.prototype = {
 	 * occurred.
 	 */ 
 	open : function(callback) {
-	    this._doSocketOpenRequest(callback, 'udpOpen', []);
+	    return this._doSocketOpenRequest(callback, 'udpOpen', []);
 	},
 
 	/**
@@ -496,7 +509,7 @@ Socket.prototype = {
 	 * obtained for this UDP flow.
 	 */
 	close : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
+	    return this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
 	},
 
 	/** 
@@ -519,7 +532,7 @@ Socket.prototype = {
 	 * @param {integer} port  Port to listen on.
 	 */ 
 	bind : function(callback, socketid, addr, port) {
-	    this._doSocketUsageRequest(callback, 'udpBind', [socketid, addr, port]);
+	    return this._doSocketUsageRequest(callback, 'udpBind', [socketid, addr, port]);
 	},
 
 	/** 
@@ -542,7 +555,7 @@ Socket.prototype = {
 	 * @param {integer} port  Port to connect to.
 	 */ 
 	connect : function(callback, socketid, addr, port) {
-	    this._doSocketUsageRequest(callback, 'udpConnect', [socketid, addr, port]);
+	    return this._doSocketUsageRequest(callback, 'udpConnect', [socketid, addr, port]);
 	},
 
 	/** 
@@ -564,7 +577,7 @@ Socket.prototype = {
 	 * @param {string} data  Data to send.
 	 */ 
 	send : function(callback, socketid, data) {
-	    this._doSocketUsageRequest(callback, 'udpSend', [socketid, data]);
+	    return this._doSocketUsageRequest(callback, 'udpSend', [socketid, data]);
 	},
 
 	/** 
@@ -589,7 +602,7 @@ Socket.prototype = {
 	 * this feature, pass 0.
 	 */ 
 	recv : function(callback, socketid, length, timeout) {
-	    this._doSocketUsageRequest(callback, 'udpRecv', [socketid, length, timeout]);
+	    return this._doSocketUsageRequest(callback, 'udpRecv', [socketid, length, timeout]);
 	},
 
 	/** 
@@ -619,7 +632,7 @@ Socket.prototype = {
 	 * this feature, pass 0.
 	 */ 
 	sendrecv : function(callback, socketid, data, length) {
-	    this._doSocketUsageRequest(callback, 'udpSendrecv', [socketid, data, length]);
+	    return this._doSocketUsageRequest(callback, 'udpSendrecv', [socketid, data, length]);
 	},
 
 	/**
@@ -650,7 +663,7 @@ Socket.prototype = {
 	    if (asstring == undefined) {
 		asstring = false;
 	    }
-	    this._doSocketUsageRequest(callback, 'udpRecvstart',
+	    return this._doSocketUsageRequest(callback, 'udpRecvstart',
 				       [socketid, length, asstring], multiresponse);
 	},
 
@@ -670,7 +683,7 @@ Socket.prototype = {
 	 * obtained for this UDP flow.
 	 */     
 	recvstop : function(callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'udpRecvstop', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'udpRecvstop', [socketid]);
 	},
 
 	/** 
@@ -698,7 +711,7 @@ Socket.prototype = {
 
 	 */ 
 	sendto : function(callback, socketid, data, ip, port) {
-	    this._doSocketUsageRequest(callback, 'udpSendto', [socketid, data, ip, port]);
+	    return this._doSocketUsageRequest(callback, 'udpSendto', [socketid, data, ip, port]);
 	},
 
 	/** 
@@ -721,7 +734,7 @@ Socket.prototype = {
 	 * obtained for this UDP flow.
 	 */ 
 	recvfrom : function(callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'udpRecvfrom', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'udpRecvfrom', [socketid]);
 	},
 
 	/**
@@ -750,7 +763,7 @@ Socket.prototype = {
 	    if (asstring == undefined) {
 		asstring = false;
 	    }
-	    this._doSocketUsageRequest(callback, 'udpRecvfromstart', 
+	    return this._doSocketUsageRequest(callback, 'udpRecvfromstart', 
 				       [socketid, asstring], multiresponse);
 	},
 
@@ -770,7 +783,7 @@ Socket.prototype = {
 	 * obtained for this UDP flow.
 	 */     
 	recvfromstop : function(callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'udpRecvfromstop', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'udpRecvfromstop', [socketid]);
 	},
 
 	/**
@@ -794,7 +807,7 @@ Socket.prototype = {
 	 * requests the option, 0 clears it.
 	 */
 	setsockopt : function(callback, socketid, name, value) {
-	    this._doSocketUsageRequest(callback, 'udpSetsockopt', [socketid, name, value]);
+	    return this._doSocketUsageRequest(callback, 'udpSetsockopt', [socketid, name, value]);
 	},
 
 	/** 
@@ -814,7 +827,7 @@ Socket.prototype = {
 	 * UDP flow.
 	 */ 
 	getHostIP : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'udpGetHostIP', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'udpGetHostIP', [socketid]);
 	},
 
 	/** 
@@ -834,7 +847,7 @@ Socket.prototype = {
 	 * UDP flow.
 	 */ 
 	getPeerIP : function (callback, socketid) {
-	    this._doSocketUsageRequest(callback, 'udpGetPeerIP', [socketid]);
+	    return this._doSocketUsageRequest(callback, 'udpGetPeerIP', [socketid]);
 	},
     } // udp
 };

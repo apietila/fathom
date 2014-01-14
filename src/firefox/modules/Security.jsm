@@ -62,7 +62,10 @@ var Security = function(loc, os, manifest) {
 	    if (!(this.requested_apis[apimodule]))
 		this.requested_apis[apimodule] = [];
 	    this.requested_apis[apimodule].push(apifunc);
+	    Logger.info("security : " + apimodule + "." + apifunc + " requested");
 	}
+    } else {
+	Logger.info("security : manifest does not request any method permissions");
     }
 
     // dst -> type [range|proto|ipv4|ipv6|other]
@@ -92,10 +95,15 @@ var Security = function(loc, os, manifest) {
 	    } else {
 		this.requested_destinations[d] = 'other';
 	    }
+	    Logger.info("security : " + d + 
+			" [" + this.requested_destinations[d] + 
+			"] requested");
 	}
+    } else {
+	Logger.info("security : manifest does not request any destination permissions");
     }
 
-    // checked destinations
+    // checked destinations, filled upon first request for each destination
     this.allowed_destinations = {};
 
     if (!this.ischromepage) {
@@ -104,13 +112,13 @@ var Security = function(loc, os, manifest) {
 
 	this.user_prompt = true; // extension should prompt user about the manifest
 	this.manifest_accepted = false;
-	Logger.info("security : manifest requires user confirmation");
+	Logger.info("security : manifest requires user confirmation (web page)");
 
     } else {
 	// don't ask the user on build-in chrome pages
 	this.user_prompt = false;
 	this.manifest_accepted = true;
-	Logger.info("security : manifest requires no user confirmation");
+	Logger.info("security : manifest requires no user confirmation (chrome page)");
     }
 };
 
@@ -197,40 +205,56 @@ Security.prototype.askTheUser = function(cb) {
  */
 Security.prototype.setAvailableMethods = function(api,apiobj) {
     var that = this;
+    const probkey = '__exposedProps__';
 
     var checknset = function(obj,subns) {
+	obj[probkey] = {}; // init exposedProps
+
 	for (var p in obj) {
 	    if (p.indexOf('_') === 0) {
 		continue; // never expose methods starting with _
 	    }
-	    
+
+//	    Logger.debug("security : check member \'" + p + "\' [" + (typeof obj[p]) + 
+//			 "] in " + subns);
+
 	    if (typeof obj[p] === "function") {
-		if (subns)
-		    p = subns + "." + p;
+		// match function to the page manifest
 
 		if (_contains(that.requested_apis[api],'*')) {
 		    // all methods requested
-		    obj['__exposedProps__'][p] = 'r';
+		    obj[probkey][p] = 'r';
 		} else if (_contains(that.requested_apis[api],p)) {
 		    // method requested explicitely
-		    obj['__exposedProps__'][p] = 'r';
+		    obj[probkey][p] = 'r';
+		} else if (subns && _contains(that.requested_apis[api],subns + ".*")) {
+		    // all subns methods requested
+		    obj[probkey][p] = 'r';
+		} else if (subns && _contains(that.requested_apis[api],subns + "." + p)) {
+		    // subns method requested explicitely
+		    obj[probkey][p] = 'r';
 		} // else 'p' is not requested - do not set visible
 
 	    } else if (typeof obj[p] === "object") {
-		// recurse
-		var newp = p;
+		// recurse to object and check its members
+		var newsubns = p+"";
 		if (subns)
-		    newp = subns + "." + p;
-		obj[p]['__exposedProps__'] = {};
-		obj[p] = checknset(obj[p],newp);
-	    }
-	}
+		    newsubns = subns + "." + p;
+
+		obj[probkey][p] = 'r'; // make p object readable
+		obj[p] = checknset(obj[p],newsubns);
+
+	    } // TODO: else can we ignore all other types ?
+
+	} // end for
+
+	Logger.debug(api + (subns ? "." + subns : ""));
+	Logger.debug(obj[probkey]);
 	return obj;
     };
 
     Logger.info("security : available methods check for \'" + api + "\' namespace");
 
-    apiobj['__exposedProps__'] = {};
     if (this.manifest_accepted) {
 	if (this.requested_apis[api] && this.requested_apis[api].length>0) {
 	    apiobj = checknset(apiobj);
@@ -241,7 +265,6 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 	Logger.warning("security : manifest not accepted by user");
     }
 
-    Logger.debug(apiobj['__exposedProps__']);
     return apiobj;
 };
 

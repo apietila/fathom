@@ -297,6 +297,7 @@ FathomAPI.prototype = {
 
     var worker = new ChromeWorker("chrome://fathom/content/workers/" + workerscript + ".js");
     worker.name = workername;
+    Logger.debug("Create worker " + worker.name);
 
     try {
       worker.onerror = function(event) {
