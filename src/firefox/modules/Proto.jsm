@@ -4,6 +4,9 @@ var EXPORTED_SYMBOLS = ["Proto"];
 Components.utils.import("resource://fathom/http.jsm");
 Components.utils.import("resource://fathom/DNS/dns.jsm");
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 /**
  * @class Proto
  * @description This module provides the application protocol API.
@@ -12,9 +15,20 @@ Components.utils.import("resource://fathom/DNS/dns.jsm");
  */
 var Proto = function(ctx) {
     // from extension context
+    this._api = ctx.api; // fathom api for sockets etc.
     this._doSocketOpenRequest = ctx._doSocketOpenRequest.bind(ctx);
-    this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
-    this._executeCommandAsync = ctx._executeCommandAsync.bind(ctx);
+
+    // need to bind the sub-namespaces to 'this' object so that we can access
+    // the above helpers - a bit ugly
+    for (var subns in this) {
+	if (subns.indexOf('_')==0)
+	    continue;
+	for (var method in this[subns]) {
+	    if (typeof this[subns][method] === 'function')
+		this[subns][method] = this[subns][method].bind(this); 
+	}
+    }
+
 };
 
 // This is the API available to the web pages via the extension
@@ -36,7 +50,7 @@ Proto.prototype = {
 	 *
 	 */
     	create: function() {
-    	    return new HTTPRequest(GlobalFathomObject);
+    	    return new HTTPRequest(this._api);
     	},
     	
 	/**
@@ -92,11 +106,9 @@ Proto.prototype = {
 	 * @param {function} callback    This is a callback that is invoked when then complete certificate chain information is available. The information is available as a JSON string.
 	 */ 	
     	getCertificateChain: function(uri, callback) {
-	    const Ci = Components.interfaces;
-	    const Cc = Components.classes;
-    	    
     	    function makeURI(aURL, aOriginCharset, aBaseURI) {  
-		var ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);  
+		var ioService = Cc["@mozilla.org/network/io-service;1"]
+		    .getService(Ci.nsIIOService);  
 		return ioService.newURI(aURL, aOriginCharset, aBaseURI);  
 	    } 
 
@@ -286,7 +298,7 @@ Proto.prototype = {
 	 * @param {string} proto  Indicates the protocol to be used for communication with the resolver, i.e., either 'udp' or 'tcp'.
 	 */
 	create: function(proto) {
-      	    return new DNS(proto, GlobalFathomObject);
+      	    return new DNS(proto, this._api);
 	},
 	
 	// returns a DNS query;

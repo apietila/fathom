@@ -1,6 +1,7 @@
 // Module API
 var EXPORTED_SYMBOLS = ["System"];
 
+Components.utils.import("resource://fathom/Logger.jsm");
 Components.utils.import("resource://fathom/libParse2.jsm");
 Components.utils.import("resource://fathom/utils.jsm");
 
@@ -435,19 +436,28 @@ System.prototype = {
      *
      * @param {function} callback The callback Fathom invokes once the
      * call completes. On error contains "error" member.
+     *
+     * @param {string} hostname - Get the arp cache info only for the specified host (optional, default is all).
      */       
-    getArpCache : function(callback) {
+    getArpCache : function(callback, hostname) {
 	var os = this._os;
 	var cmd = undefined;
 	var args = [];
 
 	if (os == winnt || os == linux || os == darwin) {
             cmd = "arp";
-            args = ["-a"];
+	    if (hostname)
+		args = [hostname];
+	    else
+		args = ["-a"];
 
 	} else if (os == android) {
             cmd = "ip";
-            args = ['neigh'];
+            args = ['neigh','show'];
+	    if (hostname) {
+		args.append('to');
+		args.append(hostname);
+	    }
 
 	} else {
 	    callback({error: "getArpCache not available on " + os, 
@@ -461,8 +471,25 @@ System.prototype = {
       		os: os,
 		cmd : cmd+ " " + args.join(" "),
       	    };
+
       	    var data = libParse2(output, info);
-      	    callback(data);
+	    if (!data.error && hostname) {
+		// query was for a single host
+		var h = (data.entries.length == 1 ? data.entries[0] : undefined);
+		if (h) {
+		    h.ip = hostname;
+		    h.__exposedProps__['ip'] = 'r';
+		    h.meta = data.meta;
+		    h.__exposedProps__['meta'] = 'r';
+		    callback(h);
+		} else {
+		    callback({error: "no such host in the arp cache : " + hostname, 
+			      __exposedProps__: {error: "r"}});
+		}
+	    } else {
+		// error or requested all entries
+      		callback(data);
+	    }
 	}
       	
 	this._executeCommandAsync(cbk, cmd, args);

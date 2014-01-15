@@ -1345,15 +1345,29 @@ function parseArpCache(config,output) {
 
     switch (config.os.toLowerCase()) {
     case linux:
-	for(var k = 0; k <lines.length; k++) {
-	    var i = lines[k];
-	    var x = i.split(' ');
-	    var e = new Elem();
-	    e.host = x[0];
-	    e.ip = x[1].replace(/\(|\)/gi,'');
-	    e.mac = x[3];
-	    e.interface = x[6];
-	    arpCache.push(e);
+	if (lines[0].indexOf('Address')>=0 || lines[0].indexOf('no entry')>=0) {
+	    // arp hostname
+	    if (lines.length >= 2) {
+		var x = lines[1].replace(/\s{1,}/g,' ').split(' ');
+		var e = new Elem();
+		e.host = x[0];
+		e.mac = x[2];
+		e.interface = x[4];
+		arpCache.push(e);
+	    } // else not found
+
+	} else {
+	    // arp -a
+	    for(var k = 0; k <lines.length; k++) {
+		var i = lines[k];
+		var x = i.split(' ');
+		var e = new Elem();
+		e.host = x[0];
+		e.ip = x[1].replace(/\(|\)/gi,'');
+		e.mac = x[3];
+		e.interface = x[6];
+		arpCache.push(e);
+	    }
 	}
 	break;
     case darwin:
