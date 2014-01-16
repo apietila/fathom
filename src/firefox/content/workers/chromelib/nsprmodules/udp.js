@@ -82,6 +82,7 @@ function udpSend(socketid, data) {
 
   var timeout = NSPR.sockets.PR_INTERVAL_NO_WAIT;
   var sendBuf = newBufferFromString(data);
+
   // TODO: check retval.
   NSPR.sockets.PR_Send(fd, sendBuf, data.length, 0, timeout);
 
@@ -109,10 +110,9 @@ function udpSendto(socketid, data, ip, port) {
 
   var sendBuf = newBufferFromString(data);
   // TODO: check retval;
-  var date = Date.now();
   NSPR.sockets.PR_SendTo(fd, sendBuf, data.length, 0, addr.address(), timeout);
 
-  return {time: date};
+  return {};
 }
 
 function udpRecv(socketid, length, timeout) {
@@ -141,13 +141,7 @@ function udpRecv(socketid, length, timeout) {
     out.push(recvbuf[i]);
   }
 
-  // resolve sender IP + port
-  var peerAddr = NSPR.types.PRNetAddr();
-  NSPR.sockets.PR_GetPeerName(fd, peerAddr.address());
-  var port = (peerAddr ? NSPR.util.PR_ntohs(peerAddr.port) : undefined);
-  var ip = (peerAddr ? NSPR.util.NetAddrToString(peerAddr) : undefined);
-
-  var result = {data: out, length: bytesreceived, address: ip, port: port};
+  var result = {data: out, length: bytesreceived};
   return result;
 }
 
@@ -191,21 +185,14 @@ function udpRecvstart_helper(socketid, length, asstring) {
       recvbuf[rv] = 0; 
       out = recvbuf.readString();
     } else {
-    var curlen = length || bytesreceived;
-    curlen = Math.min(curlen, bytesreceived);
-    out = [];
-    for (var i = 0; i < curlen; i++) {
-      out.push(recvbuf[i]);
+      var curlen = length || bytesreceived;
+      curlen = Math.min(curlen, bytesreceived);
+      out = [];
+      for (var i = 0; i < curlen; i++) {
+	out.push(recvbuf[i]);
+      }
     }
-    }
-    
-    // resolve sender IP + port
-    var peerAddr = NSPR.types.PRNetAddr();
-    NSPR.sockets.PR_GetPeerName(fd, peerAddr.address());
-    var port = (peerAddr ? NSPR.util.PR_ntohs(peerAddr.port) : undefined);
-    var ip = (peerAddr ? NSPR.util.NetAddrToString(peerAddr) : undefined);
-
-    var result = {data: out, length: bytesreceived, address: ip, port: port};
+    var result = {data: out, length: bytesreceived};
     util.postResult(result);
   }
 
@@ -235,7 +222,7 @@ function udpRecvstop(socketid) {
   return {ignore: true};
 }
 
-function udpRecvfrom(socketid) {
+function udpRecvfrom(socketid, timeout, asstring) {
   var fd = util.getRegisteredSocket(socketid);
 
   // Practical limit for IPv4 UDP packet data length is 65,507 bytes.
@@ -254,10 +241,18 @@ function udpRecvfrom(socketid) {
   }
 
   var bytesreceived = rv;
-  var out = [];
-  for (var i = 0; i < bytesreceived; i++) {
-    out.push(recvbuf[i]);
+  var out = undefined;
+  if (asstring) {
+    // make sure the string terminates at correct place as buffer reused
+    recvbuf[rv] = 0; 
+    out = recvbuf.readString();
+  } else {
+    out = [];
+    for (var i = 0; i < bytesreceived; i++) {
+      out.push(recvbuf[i]);
+    }
   }
+
   var port = NSPR.util.PR_ntohs(addr.port);
   var ip = NSPR.util.NetAddrToString(addr);
   return {data: out, length: bytesreceived, address: ip, port: port};

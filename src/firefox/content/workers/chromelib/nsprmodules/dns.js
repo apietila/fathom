@@ -23,7 +23,7 @@ function dnsOpen(ip, port, ttl) {
   // Allow binding unless unless the port is actively being listened on.
   var opt = new NSPR.types.PRSocketOptionData();
   opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
-  opt.value = NSPR.sockets.PR_TRUE;
+  opt.value = NSPR.sockets.PR_TRUE; // Anna: so shouldn't this be false then ?
   NSPR.sockets.PR_SetSocketOption(fd, opt.address());
   
   var addr = new NSPR.types.PRNetAddr();

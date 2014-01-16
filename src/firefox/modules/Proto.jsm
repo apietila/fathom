@@ -220,9 +220,9 @@ Proto.prototype = {
 	// XXX This is supposed to open an mDNS listening socket.  We
 	// bumped into problems here when a host-local mDNS daemon is
 	// already listening.  Resolve?
-	open : function(callback, ip, port, ttl) {
-	    this._doSocketOpenRequest(callback, 'dnsOpen', [ip, port, ttl]);
-	},      
+//	open : function(callback, ip, port, ttl) {
+//	    this._doSocketOpenRequest(callback, 'dnsOpen', [ip, port, ttl]);
+//	},      
 
 	/**
 	 * @method lookup
@@ -348,9 +348,35 @@ Proto.prototype = {
 	 * @param {function} sendCallback    This is a callback to be invoked on a socket send operation.
 	 * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
 	 */      
-	sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback) {
-	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback);
-	}	
+	sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback, to) {
+	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback, to);
+	},
+
+	// sends a mDNS query and receives its response;
+	/**
+	 * @method mcastSendRecv
+	 * @static
+	 *
+	 * @description  This API performs low-level socket operations based on the protocol selected and sends and receives data.
+	 *
+	 * @param {object} dnsObj  This is the DNS object created using the 'create' API.
+	 * @param {string} server  This is the IP for the DNS resolver.
+	 * @param {integer} port  This the port to be used on the resolver.
+	 * @param {array} data    This is typically the return value of the query API.
+	 * @param {function} sendCallback    This is a callback to be invoked on a socket send operation.
+	 * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
+	 */      
+	mcastSendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback) {
+	    dnsObj.proto.mcastSendRecv(server, port, data, sendCallback, receiveCallback);
+	},
+
+	/** Cleanup and close any pending receive sockets 
+	 *  (created by *sendRecv -functions). 
+	 */
+	close: function(dnsObj) {
+	    dnsObj.proto.close();
+	},
+	
     }, // dns
     
     /**

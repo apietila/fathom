@@ -151,12 +151,12 @@ Socket.prototype = {
      * @namespace fathom.socket
      */
     multicast : {
+
 	/**
-	 * @method openSendSocket
+	 * @method openSocket
 	 * @static
 	 *
-	 * @description This function opens a socket suitable for
-	 * transmitting multicast messages.
+	 * @description This function opens a multicast socket.
 	 *
 	 * @param {function} callback The callback Fathom invokes once
 	 * the operation completes.  On error, its only argument is a
@@ -166,17 +166,20 @@ Socket.prototype = {
 	 * @param {integer} ttl The multicast TTL, i.e., the number of
 	 * hops the datagram can traverse, doubling as the multicast
 	 * "threshold" of host/network/site/etc.
+	 *
+	 * @param {boolean} loopback If True, this host will receive its own messages.
 	 */
-	openSendSocket : function (callback, ttl) {
-	    return this._doSocketOpenRequest(callback, 'multicastOpenSendSocket', [ttl]);
+	open : function (callback, ttl, loopback) {
+	    return this._doSocketOpenRequest(callback, 
+					     'multicastOpenSocket', [ttl,loopback]);
 	},
 
 	/**
-	 * @method openReceiveSocket
+	 * @method bind
 	 * @static
 	 *
-	 * @description This function opens a multicast socket and binds
-	 * it to the given IP address and port.
+	 * @description This function binds a multicast socket
+	 * to the given IP address (i.e. join multicast group) and port.
 	 *
 	 * @param {function} callback The callback Fathom invokes once
 	 * the operation completes.  If successful, its only argument is
@@ -184,17 +187,22 @@ Socket.prototype = {
 	 * dictionary whose member "error" describes the problem that
 	 * occurred.
 	 *
+	 * @socketid {integer} socketid  The socket handle previously
+	 * obtained from one of the opening functions.
+	 *
 	 * @param {string} ip  The IPv4 address of the multicast group to join.
 	 *
 	 * @param {integer} port The local port on which the socket will
 	 * listen for multicast messages.
 	 */	
-	openReceiveSocket : function (callback, ip, port) {
-	    return this._doSocketOpenRequest(callback, 'multicastOpenReceiveSocket', [ip, port]);
+	bind : function (callback, socketid, ip, port) {
+	    return this._doSocketUsageRequest(callback, 
+					      'multicastBind', 
+					      [socketid, ip, port]);
 	},
 
 	/**
-	 * @method closeSocket
+	 * @method close
 	 * @static
 	 *
 	 * @description This function closes a multicast socket.
@@ -207,80 +215,234 @@ Socket.prototype = {
 	 * @socketid {integer} socketid  The socket handle previously
 	 * obtained from one of the opening functions.
 	 */
-	closeSocket : function (callback, socketid) {
+	close : function (callback, socketid) {
 	    return this._doSocketUsageRequest(callback, 'closeSocket', [socketid]);	
 	},
 
-	/**
+	/** 
 	 * @method send
 	 * @static
 	 *
-	 * @description This function transmits data via UDP on a
-	 * multicast socket.
-	 *
-	 * [% INCLUDE todo.tmpl msg='This function should report the number of bytes successfully transmitted to the callback. The underlying implementation should do better error handling.' %]
+	 * @description This function sends data over a UDP socket.
 	 *
 	 * @param {function} callback The callback Fathom invokes once
 	 * the operation completes. On error, its only argument is a
 	 * dictionary whose member "error" describes the problem that
 	 * occurred.
-	 * 
-	 * @param {integer} socketid  The socket handle previously
-	 * obtained from one of the opening functions.
-	 * 
-	 * @param {string} msg  The message to transmit.
 	 *
-	 * @param {string} ip The IPv4 address of the multicast group to
-	 * send to.
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
 	 *
-	 * @param {integer} port  The (UDP) port to send to.
-	 */
-	send : function (callback, socketid, msg, ip, port) {
-	    return this._doSocketUsageRequest(callback, 'multicastSend', [socketid, msg, ip, port]);
+	 * @param {string} data  Data to send.
+	 */ 
+	send : function(callback, socketid, data) {
+	    return this._doSocketUsageRequest(callback, 'udpSend', [socketid, data]);
+	},
+
+	/** 
+	 * @method recv
+	 * @static
+	 *
+	 * @description This function receives data on a UDP socket.
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes.  If successful, the function
+	 * receives a dictionary with two members: "data" for the data
+	 * actually read, and "length" for the full length of the data
+	 * chunk received.  On error, its only argument is a dictionary
+	 * whose member "error" describes the problem that occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 *
+	 * @param {integer} length Maximum length of the data chunk to
+	 * read.  This is an optimization, for cases when you do not
+	 * care to actually process all of the data received.  To ignore
+	 * this feature, pass 0.
+	 */ 
+	recv : function(callback, socketid, length, timeout) {
+	    return this._doSocketUsageRequest(callback, 'udpRecv', [socketid, length, timeout]);
+	},
+
+	/** 
+	 * @method sendrecv
+	 * @static
+	 *
+	 * @description This function sends data on a UDP socket and
+	 * reads subsequently returned responses.  This function is an
+	 * optimization, saving one message-passing roundtrip into the
+	 * Fathom core to read the response after having sent data.
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes.  If successful, the function
+	 * receives a dictionary with two members: "data" for the data
+	 * actually read, and "length" for the full length of the data
+	 * chunk received.  On error, its only argument is a dictionary
+	 * whose member "error" describes the problem that occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 *
+	 * @param {string} data  Data to send.
+	 *
+	 * @param {integer} length Maximum length of the data chunk to
+	 * read.  This is an optimization, for cases when you do not
+	 * care to actually process all of the data received.  To ignore
+	 * this feature, pass 0.
+	 */ 
+	sendrecv : function(callback, socketid, data, length) {
+	    return this._doSocketUsageRequest(callback, 'udpSendrecv', [socketid, data, length]);
 	},
 
 	/**
-	 * @method receive
-	 * @static
-	 * 
-	 * @description On a socket created via openReceiveSocket(),
-	 * this function receives data.
+	 * @method recvstart
+	 * @static 
+	 *
+	 * @description This function establishes a callback to get
+	 * invoked automatically whenever data arrive on a given UDP
+	 * socket.  To stop receiving, call recvstop().
 	 *
 	 * @param {function} callback The callback Fathom invokes once
-	 * the operation completes.  If successful, its only argument is
-	 * a string containing the received message.  On error, its only
-	 * argument is a dictionary whose member "error" describes the
-	 * problem that occurred.
-	 * 
-	 * @param {integer} socketid  The socket handle previously
-	 * obtained from one of the opening functions.
-	 */
-	receive : function (callback, socketid) {
-	    return this._doSocketUsageRequest(callback, 'multicastReceive', [socketid]);
+	 * the operation completes.  If successful, the function
+	 * receives a dictionary with two members: "data" for the data
+	 * actually read, and "length" for the full length of the data
+	 * chunk received.  On error, its only argument is a dictionary
+	 * whose member "error" describes the problem that occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 *
+	 * @param {integer} length Maximum length of the data chunk to
+	 * read.  This is an optimization, for cases when you do not
+	 * care to actually process all of the data received.  To ignore
+	 * this feature, pass 0.
+	 */     
+	recvstart : function(callback, socketid, length, asstring) {
+	    var multiresponse = true;
+	    if (asstring == undefined) {
+		asstring = false;
+	    }
+	    return this._doSocketUsageRequest(callback, 'udpRecvstart',
+				       [socketid, length, asstring], multiresponse);
 	},
-	
+
 	/**
-	 * @method receiveDetails
-	 * @static
-	 * 
-	 * @description Like receive(), but upon success the callback
-	 * receives dictionary with the following key/val structure:
-	 * "text" contains the received data, "peer" is another
-	 * dictionary with members "ip" for the sender's IPv4 address
-	 * and "port" for the sender's port.
+	 * @method recvstop
+	 * @static 
+	 *
+	 * @description This function cancels the callbacks previously
+	 * installed via recvstart().
 	 *
 	 * @param {function} callback The callback Fathom invokes once
-	 * the operation completes.  If successful, its only argument is
-	 * a string containing the received message.  On error, its only
-	 * argument is an associative array whose member "error"
-	 * describes the problem that occurred.
-	 * 
-	 * @param {integer} socketid  The socket handle previously
-	 * obtained from one of the opening functions.
-	 */
-	receiveDetails : function (callback, socketid) {
-	    return this._doSocketUsageRequest(callback, 'multicastReceiveDetails', [socketid]);
+	 * the operation completes.  On error, its only argument is a
+	 * dictionary whose member "error" describes the problem that
+	 * occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 */     
+	recvstop : function(callback, socketid) {
+	    return this._doSocketUsageRequest(callback, 'udpRecvstop', [socketid]);
 	},
+
+	/** 
+	 * @method sendto
+	 * @static
+	 *
+	 * @description This function sends data over a UDP socket, to a
+	 * specific destination.
+	 *
+	 * [% INCLUDE todo.tmpl msg='This function should report back the number of bytes sent successfully, and also needs error semantics.' %]
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes. On error, its only argument is a
+	 * dictionary whose member "error" describes the problem that
+	 * occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 *
+	 * @param {string} data  Data to send.
+	 *
+	 * @param {string} ip  IP address to send to.
+	 *
+	 * @param {integer} port  Port to send to.
+
+	 */ 
+	sendto : function(callback, socketid, data, ip, port) {
+	    return this._doSocketUsageRequest(callback, 'udpSendto', [socketid, data, ip, port]);
+	},
+
+	/** 
+	 * @method recv
+	 * @static
+	 *
+	 * @description This function receives data on a UDP socket,
+	 * from a specific sender.
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes.  If successful, the function
+	 * receives a dictionary with two members: "data" for the data
+	 * actually read, and "length" for the full length of the data
+	 * chunk received.  On error, its only argument is a dictionary
+	 * whose member "error" describes the problem that occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 */ 
+	recvfrom : function(callback, socketid) {
+	    return this._doSocketUsageRequest(callback, 'udpRecvfrom', [socketid]);
+	},
+
+	/**
+	 * @method recvfromstart
+	 * @static 
+	 *
+	 * @description This function establishes a callback to get
+	 * invoked automatically whenever data arrive on a given UDP
+	 * socket, from a specific sender.  To stop receiving, call
+	 * recvfromstop().
+	 *
+	 * [% INCLUDE todo.tmpl msg='This function is not complete. It still needs the IP address and port we want to receive from.' %]
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes.  If successful, the function
+	 * receives a dictionary with two members: "data" for the data
+	 * actually read, and "length" for the full length of the data
+	 * chunk received.  On error, its only argument is a dictionary
+	 * whose member "error" describes the problem that occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 */     
+	recvfromstart : function(callback, socketid, asstring) {
+	    var multiresponse = true;
+	    if (asstring == undefined) {
+		asstring = false;
+	    }
+	    return this._doSocketUsageRequest(callback, 'udpRecvfromstart', 
+				       [socketid, asstring], multiresponse);
+	},
+
+	/**
+	 * @method recvfromstop
+	 * @static 
+	 *
+	 * @description This function cancels the callbacks previously
+	 * installed via recvfromstart().
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes.  On error, its only argument is a
+	 * dictionary whose member "error" describes the problem that
+	 * occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 */     
+	recvfromstop : function(callback, socketid) {
+	    return this._doSocketUsageRequest(callback, 'udpRecvfromstop', [socketid]);
+	},
+
     }, // multicast
 
     /**
