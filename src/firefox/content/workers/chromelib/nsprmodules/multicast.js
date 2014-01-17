@@ -22,13 +22,13 @@ function multicastOpenSocket(ttl, loopback) {
   var fd = NSPR.sockets.PR_OpenUDPSocket(NSPR.sockets.PR_AF_INET);
 
   // Set the TTL for the send. Default 1 (local network).
-  if (ttl && ttl>0) {
+  if (ttl!==undefined && ttl>0) {
     var opt = new NSPR.types.PRSocketOptionData();
     opt.option = NSPR.sockets.PR_SockOpt_McastTimeToLive;
     opt.value = ttl;
     if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {
       NSPR.sockets.PR_Close(fd);
-      return {error: "Failed : SetSocketOption IP_MULTICAST_TTL := " +
+      return {error: "Failed : SetSocketOption IP_MULTICAST_TTL to " + ttl + " := " +
               NSPR.errors.PR_GetError() + " :: " + 
 	      NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
     }
@@ -41,7 +41,7 @@ function multicastOpenSocket(ttl, loopback) {
     opt.value = (loopback ? 1: 0);
     if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {
       NSPR.sockets.PR_Close(fd);
-      return {error: "Failed : SetSocketOption IP_MULTICAST_LOOP := " +
+      return {error: "Failed : SetSocketOption IP_MULTICAST_LOOP to " + loopback + " := " +
               NSPR.errors.PR_GetError() + " :: " + 
 	      NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
     }

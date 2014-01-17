@@ -339,11 +339,14 @@ FathomAPI.prototype = {
 		  continue;
 		
 		exp[props] = "r";
+
 		if (o[props] instanceof Array) {
+		  // recurse into array elements
 		  for (var i = 0; i < o[props].length; i++) {
 		    recur(o[props][i]);
 		  }
 		} else if (o[props] instanceof Object) {
+		  // recurse to object
 		  recur(o[props]);
 		}
 	      }

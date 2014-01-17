@@ -49,8 +49,11 @@ function udpBind(socketid, addr, port) {
   NSPR.sockets.PR_SetNetAddr(addr, NSPR.sockets.PR_AF_INET, port, netaddr.address());
 
   if(NSPR.sockets.PR_Bind(fd, netaddr.address()) != 0) {
+    NSPR.sockets.PR_Close(fd);
+    util.unregisterSocket(socketid);
     return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
   }
+
   return {};
 }
 
