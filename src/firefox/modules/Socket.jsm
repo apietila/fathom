@@ -1,7 +1,8 @@
 // Module API
 var EXPORTED_SYMBOLS = ["Socket"];
 
-//Components.utils.import("resource://fathom/Logger.jsm");
+// Imports
+Components.utils.import("resource://fathom/Logger.jsm");
 
 /**
  * @class Socket
