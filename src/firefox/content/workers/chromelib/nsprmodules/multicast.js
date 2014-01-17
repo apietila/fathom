@@ -27,7 +27,7 @@ function multicastOpenSocket(ttl, loopback) {
     opt.option = NSPR.sockets.PR_SockOpt_McastTimeToLive;
     opt.value = ttl;
     if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {
-      Closesocket(socketid);
+      NSPR.sockets.PR_Close(fd);
       return {error: "Failed : SetSocketOption IP_MULTICAST_TTL := " +
               NSPR.errors.PR_GetError() + " :: " + 
 	      NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
@@ -40,7 +40,7 @@ function multicastOpenSocket(ttl, loopback) {
     opt.option = NSPR.sockets.PR_SockOpt_McastLoopback;
     opt.value = (loopback ? 1: 0);
     if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {
-      Closesocket(socketid);
+      NSPR.sockets.PR_Close(fd);
       return {error: "Failed : SetSocketOption IP_MULTICAST_LOOP := " +
               NSPR.errors.PR_GetError() + " :: " + 
 	      NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
@@ -66,7 +66,8 @@ function multicastBind(socketid, ip, port) {
   opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
   opt.value = NSPR.sockets.PR_TRUE;
   if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) != 0) {
-    Closesocket(socketid);
+    NSPR.sockets.PR_Close(fd);
+    util.unregisterSocket(socketid);
     return {error: "Failed : SetSocketOption IP_REUSE_ADDRESS := " +
             NSPR.errors.PR_GetError() + " :: " + 
 	    NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
@@ -77,7 +78,8 @@ function multicastBind(socketid, ip, port) {
   NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, NSPR.sockets.PR_AF_INET, 
 			     port, addr.address());
   if (NSPR.sockets.PR_Bind(fd, addr.address()) != 0) {
-    Closesocket(socketid);
+    NSPR.sockets.PR_Close(fd);
+    util.unregisterSocket(socketid);
     return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
   }
 
@@ -103,7 +105,8 @@ function multicastBind(socketid, ip, port) {
   opt.option = NSPR.sockets.PR_SockOpt_AddMember;
   opt.value = req;
   if (NSPR.sockets.PR_SetMulticastSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {
-    Closesocket(socketid);
+    NSPR.sockets.PR_Close(fd);
+    util.unregisterSocket(socketid);
     return {error: "Failed : SetSocketOption ADD MEMBERSHIP := " +
             NSPR.errors.PR_GetError() + " :: " + 
 	    NSPR.errors.PR_GetOSError() + " :: " + opt.address()};

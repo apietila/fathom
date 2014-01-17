@@ -773,6 +773,8 @@ function parseInterface(config,output) {
 	var inter = output.trim().split("\n\n");
 	for (var i = 0; i < inter.length; i++) {
 	    var str = inter[i].trim().replace(/\s{2,}/g, ' ');
+	    if (!str)
+		continue
 
 	    var x = new RegExp("(.+)\\s+Link.+HWaddr\\s(.+)\\sinet addr:(.+)\\sBcast:(.+)\\sMask:(.+)\\sinet6 addr:\\s(.+)\\sScope.+\\sMTU:(\\d+)\\sMetric.+\\sRX bytes:(\\d+)\\s.+\\sTX bytes:(\\d+)\\s.+");
 	    var w = x.exec(str);
