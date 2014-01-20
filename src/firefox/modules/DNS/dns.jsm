@@ -134,12 +134,12 @@ function DNS_UDP(fathomObj) {
 }
 
 DNS_UDP.prototype = {
-	fathom: null,
-	window: null,
+    fathom: null,
+    window: null,
 	
-	socket: null,
-	intervalid: null,
-	SEND_INTERVAL_MILLISECONDS: 250,
+    socket: null,
+    intervalid: null,
+    SEND_INTERVAL_MILLISECONDS: 250,
 
     // stop receiving any more responses from this socket
     close : function() {
@@ -159,10 +159,12 @@ DNS_UDP.prototype = {
 	var timeout = timeout || this.SEND_INTERVAL_MILLISECONDS; 
 		
 	function sendUDP() {
-	    self.fathom.socket.udp.sendto(recordUDPSend, self.socket, SEND_DATA, DEST_ADDR, DEST_PORT);
-	    self.fathom.socket.udp.recvfromstart(recordUDPReceive, self.socket);
 	    if (self.intervalid)
 		self.window.clearInterval(self.intervalid);
+
+	    self.fathom.socket.udp.sendto(recordUDPSend, self.socket, 
+					  SEND_DATA, DEST_ADDR, DEST_PORT);
+	    self.fathom.socket.udp.recvfromstart(recordUDPReceive, self.socket);
 	}
 	
 	function sendSockCreated(result) {
@@ -185,29 +187,56 @@ DNS_UDP.prototype = {
 
     // mDNS request - response
     mcastSendRecv: function(DEST_ADDR, DEST_PORT, SEND_DATA, recordUDPSend, recordUDPReceive) {
-	var self = this;	
-	self.fathom.socket.multicast.open(function(s) {
-	    if (s && s.error) {
-		recordUDPSend(
-		    { error : "failed to open multicast dns socket: " + s.error});
-		return;
-	    }	
-	    self.socket = s;    
+	var self = this;
 
-	    self.fathom.socket.multicast.bind(function(r) {
-		if (r && r.error) {
-		    recordUDPSend(
-			{ error : "failed to bind multicast dns socket: " + s.error});
-		    return;
-		}
+	if (self.socket && self.currdst === DEST_ADDR && self.currport == DEST_PORT) {
+	    // open socket for the multicast group already available, just	    
+	    // send the new multicast request
+	    self.fathom.socket.multicast.sendto(recordUDPSend, self.socket, SEND_DATA, DEST_ADDR, DEST_PORT);
+	} else {
+	    // open multicast socket and join the mcast group for receiving the responses
+	    var opens = function() {
+		self.fathom.socket.multicast.open(function(s) {
+		    if (s && s.error) {
+			recordUDPSend(
+			    { error : "failed to open multicast dns socket: " + s.error});
+			return;
+		    }	
+		    self.socket = s;    
 
-		// send the multicast request
-		self.fathom.socket.multicast.sendto(recordUDPSend, self.socket, SEND_DATA, DEST_ADDR, DEST_PORT);
+		    // store the address so we can reuse the socket
+		    self.currdst = DEST_ADDR;
+		    self.currport = DEST_PORT;
 
-		// start receiving responses until close is called
-		self.fathom.socket.multicast.recvfromstart(recordUDPReceive, self.socket);
+		    self.fathom.socket.multicast.bind(function(r) {
+			if (r && r.error) {
+			    recordUDPSend(
+				{ error : "failed to bind multicast dns socket: " + s.error});
+			    return;
+			}
 
-	    }, self.socket, DEST_ADDR, DEST_PORT); // bind
-	});
+			// send the multicast request
+			self.fathom.socket.multicast.sendto(recordUDPSend, self.socket, SEND_DATA, DEST_ADDR, DEST_PORT);
+			// start receiving responses until close is called
+			self.fathom.socket.multicast.recvfromstart(recordUDPReceive, self.socket);
+
+		    }, self.socket, DEST_ADDR, DEST_PORT); // bind any:*port and join group
+		});
+	    }; // opens
+
+	    if (self.socket) {
+		// cleanup previous socket first - for now one dns object
+		// can only handle single socket, should create a new object
+		// for other multicast destinations
+		// FIXME : could even just throw an error if this happens ?
+		self.fathom.socket.udp.recvfromstop(function() {
+		    self.fathom.socket.udp.close(function() {}, that.socket);
+		    self.socket = null;
+		    opens(); // open new socket
+		}, self.socket);
+	    } else {
+		opens();
+	    }
+
     },
 }
