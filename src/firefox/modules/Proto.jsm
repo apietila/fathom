@@ -288,7 +288,6 @@ Proto.prototype = {
 	// lower level DNS APIs which can be used to build higher functionalities
 	// create, query, response, sendRecv
 	
-	// returns a DNS object;
 	/**
 	 * @method create
 	 * @static
@@ -296,12 +295,13 @@ Proto.prototype = {
 	 * @description  This function creates and returns a DNS object.
 	 *
 	 * @param {string} proto  Indicates the protocol to be used for communication with the resolver, i.e., either 'udp' or 'tcp'.
+	 * @param {string} server  This is the IP for the DNS resolver (optional).
+	 * @param {integer} port  This the port to be used on the resolver (optional).
 	 */
-	create: function(proto) {
-      	    return new DNS(proto, this._api);
+	create: function(proto, server, port) {
+      	    return new DNS(proto, this._api, server, port);
 	},
 	
-	// returns a DNS query;
 	/**
 	 * @method query
 	 * @static
@@ -318,7 +318,6 @@ Proto.prototype = {
 	    return dnsObj.query(domain, type, recordClass, flags);
 	},
 	
-	// invokes a callback once a complete DNS response is received;
 	/**
 	 * @method response
 	 * @static
@@ -334,7 +333,6 @@ Proto.prototype = {
 	    dnsObj.response(buf, domain, callback);
 	},
 	
-	// sends a DNS query and receives its response;
 	/**
 	 * @method sendRecv
 	 * @static
@@ -348,26 +346,23 @@ Proto.prototype = {
 	 * @param {function} sendCallback    This is a callback to be invoked on a socket send operation.
 	 * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
 	 */      
-	sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback, to) {
-	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback, to);
+	sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback) {
+	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback);
 	},
 
-	// sends a mDNS query and receives its response;
 	/**
-	 * @method mcastSendRecv
+	 * @method sendRecvNew
 	 * @static
 	 *
 	 * @description  This API performs low-level socket operations based on the protocol selected and sends and receives data.
 	 *
 	 * @param {object} dnsObj  This is the DNS object created using the 'create' API.
-	 * @param {string} server  This is the IP for the DNS resolver.
-	 * @param {integer} port  This the port to be used on the resolver.
 	 * @param {array} data    This is typically the return value of the query API.
 	 * @param {function} sendCallback    This is a callback to be invoked on a socket send operation.
 	 * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
 	 */      
-	mcastSendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback) {
-	    dnsObj.proto.mcastSendRecv(server, port, data, sendCallback, receiveCallback);
+	sendRecvNew: function(dnsObj, data, sendCallback, receiveCallback) {
+	    dnsObj.proto.sendRecvNew(data, sendCallback, receiveCallback);
 	},
 
 	/** Cleanup and close any pending receive sockets 
