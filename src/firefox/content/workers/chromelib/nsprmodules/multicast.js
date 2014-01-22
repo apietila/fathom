@@ -78,7 +78,7 @@ function multicastJoin(socketid, ip) {
   var req = createIGMPRequest(ip);
 
   // Send an ADD MEMBERSHIP message via setsockopt.
-  opt = new NSPR.types.PRMulticastSocketOptionData();
+  var opt = new NSPR.types.PRMulticastSocketOptionData();
   opt.option = NSPR.sockets.PR_SockOpt_AddMember;
   opt.value = req;
   if (NSPR.sockets.PR_SetMulticastSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {

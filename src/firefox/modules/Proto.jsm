@@ -350,21 +350,6 @@ Proto.prototype = {
 	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback, timeout);
 	},
 
-	/**
-	 * @method sendRecvNew
-	 * @static
-	 *
-	 * @description  This API performs low-level socket operations based on the protocol selected and sends and receives data.
-	 *
-	 * @param {object} dnsObj  This is the DNS object created using the 'create' API.
-	 * @param {array} data    This is typically the return value of the query API.
-	 * @param {function} sendCallback    This is a callback to be invoked on a socket send operation.
-	 * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
-	 */      
-	sendRecvNew: function(dnsObj, data, sendCallback, receiveCallback) {
-	    dnsObj.proto.sendRecvNew(data, sendCallback, receiveCallback);
-	},
-
 	/** Cleanup and close any pending receive sockets 
 	 *  (created by sendRecv -functions). 
 	 *

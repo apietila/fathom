@@ -1,5 +1,5 @@
 // Module API
-var EXPORTED_SYMBOLS = ["DNS"];//, "DNS_TCP", "DNS_UDP", "DNS_MCAST"];
+var EXPORTED_SYMBOLS = ["DNS"];
 
 Components.utils.import("resource://fathom/DNS/coreDNS.jsm");
 Components.utils.import("resource://fathom/Logger.jsm");
@@ -147,10 +147,6 @@ DNS_TCP.prototype = {
 		
 	self.fathom.socket.tcp.openSendSocket(sendSocketOpened, DESC_ADDR, DESC_PORT);	
     },
-
-    sendRecvNew : function(SEND_DATA, onSend, onReceive) {
-	return sendRecv(this.destination, this.port, SEND_DATA, onSend, onReceive);
-    }, // sendRecvNew
 };
 
 function DNS_UDP(fathomObj, dst, port) {
@@ -223,11 +219,6 @@ DNS_UDP.prototype = {
 	}); // open
 	
     }, // sendRecv
-
-    sendRecvNew : function(SEND_DATA, onSend, onReceive) {
-	return sendRecv(this.destination, this.port, SEND_DATA, onSend, onReceive);
-    }, // sendRecvNew
-
 } // DNS_UDP
 
 function DNS_MCAST(fathomObj, dst, port) {
@@ -299,65 +290,6 @@ DNS_MCAST.prototype = {
 	}); // open
 	
     }, // sendRecv
-
-    sendRecvNew : function(SEND_DATA, onSend, onReceive) {
-	var self = this;
-
-	var send = function() {
-	    // use a one-time socket to send a message to the multicast group
-	    self.fathom.socket.multicast.open(function(s) {
-		if (s && s.error) {
-		    onSend({ error : "failed to open multicast dns socket: " + s.error});
-		    return;
-		}
-
-		self.fathom.socket.multicast.sendto(
-		    function(res) {
-			self.fathom.socket.multicast.close(function() {}, s);
-			onSend(res);
-		    },
-		    s, 
-		    SEND_DATA, 
-		    self.destination,
-		    self.port);
-	    }); // open
-	}; // send
-
-	if (self.socket) {
-	    // already listening, just send a new request
-	    send();
-	} else {
-	    // open the listening socket
-	    self.fathom.socket.multicast.open(function(s) {
-		if (s && s.error) {
-		    onSend({ error : "failed to open multicast dns socket: " + s.error});
-		    return;
-		}	
-		self.socket = s;    
-
-		self.fathom.socket.multicast.bind(function(r) {
-		    if (r && r.error) {
-			onSend({ error : "failed to bind multicast dns socket: " + r.error});
-			return;
-		    }
-
-		    self.fathom.socket.multicast.join(function(rr) {
-			if (rr && rr.error) {
-			    onSend({ error : "failed to join multicast dns socket: " + 
-				     rr.error});
-			    return;
-			}
-
-			self.fathom.socket.multicast.recvfromstart(onReceive, self.socket);
-			
-			// finally send the data
-			send();
-
-		    }, self.socket, self.destination); // join
-		}, self.socket, 0, self.port, true); // bind
-	    }); // open
-	}
-    },
 }
 
 
