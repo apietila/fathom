@@ -35,8 +35,20 @@ function udpOpen() {
   return {};
 }
 
-function udpBind(socketid, addr, port) {
+function udpBind(socketid, addr, port, reuse) {
   var fd = util.getRegisteredSocket(socketid);
+
+  if (reuse) {
+    // Allow reuse to allow multiple processes to listen on the same *:port
+    var opt = new NSPR.types.PRSocketOptionData();
+    opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
+    opt.value = NSPR.sockets.PR_TRUE;
+    if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) != 0) {
+      return {error: "Failed : SetSocketOption IP_REUSE_ADDRESS := " +
+              NSPR.errors.PR_GetError() + " :: " + 
+	      NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
+    }
+  }
 
   var netaddr = new NSPR.types.PRNetAddr();
   if (addr == 0) {
@@ -49,8 +61,6 @@ function udpBind(socketid, addr, port) {
   NSPR.sockets.PR_SetNetAddr(addr, NSPR.sockets.PR_AF_INET, port, netaddr.address());
 
   if(NSPR.sockets.PR_Bind(fd, netaddr.address()) != 0) {
-    NSPR.sockets.PR_Close(fd);
-    util.unregisterSocket(socketid);
     return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
   }
 
@@ -312,7 +322,7 @@ function udpRecvfromstart_helper(socketid, asstring) {
     util.data.multiresponse_stop = false;
 
     // Including "done : true" in the result indicates to fathom.js that this
-    // multiresponse request is finished and can be cleaned up.
+    // multiresponse request is finished and its callback can be cleaned up.
     var result = {done: true};
     util.postResult(result);
     return;

@@ -176,11 +176,10 @@ Socket.prototype = {
 	},
 
 	/**
-	 * @method bind
+	 * @method join
 	 * @static
 	 *
-	 * @description This function binds a multicast socket
-	 * to the given IP address (i.e. join multicast group) and port.
+	 * @description Join the given multicast group
 	 *
 	 * @param {function} callback The callback Fathom invokes once
 	 * the operation completes.  If successful, its only argument is
@@ -192,14 +191,34 @@ Socket.prototype = {
 	 * obtained from one of the opening functions.
 	 *
 	 * @param {string} ip  The IPv4 address of the multicast group to join.
-	 *
-	 * @param {integer} port The local port on which the socket will
-	 * listen for multicast messages.
 	 */	
-	bind : function (callback, socketid, ip, port) {
+	join : function (callback, socketid, ip) {
 	    return this._doSocketUsageRequest(callback, 
-					      'multicastBind', 
-					      [socketid, ip, port]);
+					      'multicastJoin', 
+					      [socketid, ip]);
+	},
+
+	/** 
+	 * @method bind
+	 * @static
+	 *
+	 * @description This function binds a multicast socket to a local IP
+	 * address and port.
+	 *
+	 * @param {function} callback The callback Fathom invokes once
+	 * the operation completes. On error, its only argument is a
+	 * dictionary whose member "error" describes the problem that
+	 * occurred.
+	 *
+	 * @param {integer} socketid The socket handle previously
+	 * obtained for this UDP flow.
+	 *
+	 * @param {string} addr  IP address to bind to (not supported yet!).
+	 *
+	 * @param {integer} port  Port to listen on.
+	 */ 
+	bind : function(callback, socketid, addr, port, reuse) {
+	    return this._doSocketUsageRequest(callback, 'udpBind', [socketid, addr, port, reuse]);
 	},
 
 	/**

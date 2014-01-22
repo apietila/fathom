@@ -10,7 +10,7 @@
  */
 
 util.registerAction('multicastOpenSocket');
-util.registerAction('multicastBind');
+util.registerAction('multicastJoin');
 
 /**
  * Create a multicast socket.
@@ -52,36 +52,13 @@ function multicastOpenSocket(ttl, loopback) {
 }
 
 /**
- * Bind a multicast socket to port and multicast group.
+ * Join multicast group.
  *
  * @param {number} socketid - The socket.
  * @param {string} ip - The multicast group IP.
- * @param {number} port - The port.
  */
-function multicastBind(socketid, ip, port) {
+function multicastJoin(socketid, ip) {
   var fd = util.getRegisteredSocket(socketid);
-
-  // Allow reuse to allow multiple processes to listen on the same group:port
-  var opt = new NSPR.types.PRSocketOptionData();
-  opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
-  opt.value = NSPR.sockets.PR_TRUE;
-  if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) != 0) {
-    NSPR.sockets.PR_Close(fd);
-    util.unregisterSocket(socketid);
-    return {error: "Failed : SetSocketOption IP_REUSE_ADDRESS := " +
-            NSPR.errors.PR_GetError() + " :: " + 
-	    NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
-  }
-
-  // Bind to *:port
-  var addr = new NSPR.types.PRNetAddr();
-  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, NSPR.sockets.PR_AF_INET, 
-			     port, addr.address());
-  if (NSPR.sockets.PR_Bind(fd, addr.address()) != 0) {
-    NSPR.sockets.PR_Close(fd);
-    util.unregisterSocket(socketid);
-    return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
-  }
 
   function createIGMPRequest(ip) {
     var maddr = new NSPR.types.PRMcastRequest();
@@ -105,8 +82,6 @@ function multicastBind(socketid, ip, port) {
   opt.option = NSPR.sockets.PR_SockOpt_AddMember;
   opt.value = req;
   if (NSPR.sockets.PR_SetMulticastSocketOption(fd, opt.address()) == NSPR.sockets.PR_FAILURE) {
-    NSPR.sockets.PR_Close(fd);
-    util.unregisterSocket(socketid);
     return {error: "Failed : SetSocketOption ADD MEMBERSHIP := " +
             NSPR.errors.PR_GetError() + " :: " + 
 	    NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
@@ -114,3 +89,4 @@ function multicastBind(socketid, ip, port) {
 
   return {};
 }
+

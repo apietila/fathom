@@ -321,7 +321,7 @@ FathomAPI.prototype = {
         if (!requestinfo) {
           Logger.warning('Received response from worker for unknown requestid: ' + 
 			 requestid);
-	  Logger.warning('Data ' + JSON.stringify(result,null,2));
+	  Logger.warning('Has data?' + (event.data.length>0));
 	  return;
 	}
 

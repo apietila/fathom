@@ -346,8 +346,8 @@ Proto.prototype = {
 	 * @param {function} sendCallback    This is a callback to be invoked on a socket send operation.
 	 * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
 	 */      
-	sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback) {
-	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback);
+	sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback, timeout) {
+	    dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback, timeout);
 	},
 
 	/**
@@ -366,12 +366,13 @@ Proto.prototype = {
 	},
 
 	/** Cleanup and close any pending receive sockets 
-	 *  (created by *sendRecv -functions). 
+	 *  (created by sendRecv -functions). 
+	 *
+	 * @param {function} cb    Callback on close (optional).
 	 */
-	close: function(dnsObj) {
-	    dnsObj.proto.close();
-	},
-	
+	close: function(dnsObj, cb) {
+	    dnsObj.proto.close(cb);
+	},	
     }, // dns
     
     /**

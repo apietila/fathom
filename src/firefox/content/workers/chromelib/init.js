@@ -42,13 +42,13 @@ var util = {
     //return socketid;
   },
 
-  getRegisteredSocket : function getRegisteredSocket() {
+  getRegisteredSocket : function getRegisteredSocket(socketid) {
 //    if (!util.data.sockets[socketid]) {
 //      throw 'No such socketid: ' + socketid;
 //    }
 //    return util.data.sockets[socketid];
     if (util.data.socketfd == null) {
-      throw 'No registered socket.';
+      throw 'No registered socket [' + socketid + "]";
     }
     return util.data.socketfd;
   },
