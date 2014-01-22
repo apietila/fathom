@@ -455,7 +455,14 @@ DNSOutgoing.prototype = {
     _additionalsAnswersBytes : null,
     
     createRequest : function(domain, type, recordClass, unique) {
-    	this.addQuestion(newQuestion(domain, type, recordClass, unique));
+	if (typeof domain === 'string') {
+    	    this.addQuestion(newQuestion(domain, type, recordClass, unique));
+	} else {
+	    // assume it's a list
+	    for (var i = 0; i<domain.length; i++) {
+    		this.addQuestion(newQuestion(domain[i], type, recordClass, unique));
+	    }
+	}
     	return this;
     },
     
