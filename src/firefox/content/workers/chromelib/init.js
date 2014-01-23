@@ -77,10 +77,11 @@ var util = {
     if (util.data.socketfd) {
       try {
         //closeSocket(socketid);
-        closeSocket();
+        //closeSocket();
+	NSPR.sockets.PR_Close(util.data.socketfd);
+	util.data.socketfd = null;
       } catch(e) {
-      	var obj = {logmsg: "Socket close error: " + e};
-        postMessage(JSON.stringify(obj));
+	util.log("Socket close error: " + e);
       }
     }
   },

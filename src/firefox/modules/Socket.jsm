@@ -13,7 +13,6 @@ Components.utils.import("resource://fathom/Logger.jsm");
 var Socket = function(ctx) {
     // from extension context
     this._doSocketOpenRequest = ctx._doSocketOpenRequest.bind(ctx);
-    this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest.bind(ctx);
     this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
     this._checkDestinationPermissions = ctx.security.isDestinationAvailable.bind(ctx);
 

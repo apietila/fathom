@@ -9,7 +9,7 @@ var EXPORTED_SYMBOLS = ["Tools"];
  */
 var Tools = function(ctx) {
     // from extension context
-    this._doSyncSocketOpenRequest = ctx._doSyncSocketOpenRequest.bind(ctx);
+    this._doSocketOpenRequest = ctx._doSocketOpenRequest.bind(ctx);
     this._doSocketUsageRequest = ctx._doSocketUsageRequest.bind(ctx);
 };
 
@@ -30,7 +30,7 @@ Tools.prototype = {
      */
     ping : function(callback, args) {
 	// create new multiresponse worker and return the id for stop calls
-	return this._doSyncSocketOpenRequest(callback, 'ping', [args], true);
+	return this._doSocketOpenRequest(callback, 'ping', [args], true);
     },
 
     /**
@@ -58,7 +58,7 @@ Tools.prototype = {
      */
     iperf : function(callback, args) {
 	// create new multiresponse worker and return the id for stop calls
-	return this._doSyncSocketOpenRequest(callback, 'iperf', [args], true);
+	return this._doSocketOpenRequest(callback, 'iperf', [args], true);
     },
 
     /**

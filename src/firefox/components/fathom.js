@@ -35,7 +35,7 @@ FathomService.prototype = {
   _xpcom_factory : {
     createInstance : function() {
       if (FathomService.instance == null) {
-	dump("created service instance\n");
+	dump("[FathomService] : created service instance\n");
         FathomService.instance = new FathomService();
       }
       return FathomService.instance;
@@ -65,12 +65,17 @@ FathomService.prototype = {
   // Utility
   // /////////////////////////////////////////////////////////////////////////
 
+  _log : function(str) {
+    dump("[FathomService] : " + str + "\n");
+  },
+
   _init : function() {
     if (this._initialized) {
       return;
     }
 
     this._initialized = true;
+    this._log("init service instance");
 
     try {
       this._loadLibraries();
@@ -80,7 +85,7 @@ FathomService.prototype = {
       // preferences may not be ready. If we tried right now, we may get the
       // default preferences.
     } catch (e) {
-      Logger.error("exception from _init(): " + e);
+      this._log("exception from _init(): " + e);
     }
   },
 
@@ -92,6 +97,7 @@ FathomService.prototype = {
   _updateLoggingSettings : function() {
     Logger.enabled = this.prefs.getBoolPref("log");
     Logger.level = this.prefs.getIntPref("log.level");
+    this._log("Logger " + (Logger.enabled ? "enabled" : "disabled") + " level=" + Logger.level);
   },
 
   _registerAddonListener : function() {
@@ -136,6 +142,9 @@ FathomService.prototype = {
   _register : function() {
     var os = Cc['@mozilla.org/observer-service;1']
         .getService(Ci.nsIObserverService);
+
+    this._log("Service register.");
+
     os.addObserver(this, "xpcom-shutdown", false);
     os.addObserver(this, "profile-after-change", false);
     os.addObserver(this, "quit-application", false);
@@ -146,11 +155,14 @@ FathomService.prototype = {
     try {
       var os = Cc['@mozilla.org/observer-service;1']
           .getService(Ci.nsIObserverService);
+      
+      this._log("Service unregister.");
+
       os.removeObserver(this, "xpcom-shutdown");
       os.removeObserver(this, "profile-after-change");
       os.removeObserver(this, "quit-application");
     } catch (e) {
-      Logger.dump(e + " while unregistering.");
+      this._log(e + " while unregistering.");
     }
   },
 
@@ -191,6 +203,7 @@ FathomService.prototype = {
     // javascript modules used by the extension
     var modules = ["Logger", "utils", "Security", "Tools", "Socket", "System", "Proto"];
     for (var i in modules) {
+      this._log("load " + modules[i]);
       filename = modules[i];
       try {
         Components.utils.import("resource://fathom/" + filename + ".jsm");
@@ -217,6 +230,8 @@ FathomService.prototype = {
   // /////////////////////////////////////////////////////////////////////////
 
   observe : function(subject, topic, data) {
+    this._log("service observed: " + subject + " on " + topic);
+
     switch (topic) {
     case "nsPref:changed":
       this._updatePref(data);
@@ -237,7 +252,7 @@ FathomService.prototype = {
       }
       break;
     default:
-      Logger.error("uknown topic observed: " + topic);
+      this._log("uknown topic observed: " + topic);
     }
   }
 }; // FathomService
@@ -260,6 +275,8 @@ function FathomAPI() {
   this.scriptworkers = {};
   this.nextscriptid = 1;
   this.commands = {};
+
+  Logger.debug("Create new FathomAPI");
 }
 
 FathomAPI.prototype = {
@@ -438,7 +455,9 @@ FathomAPI.prototype = {
     }
 
     Logger.info("Looking up socket " + socketid + " for action " + action);
+
     var worker = this.chromeworkers['socketworker'+socketid];
+
     if (!worker) {
       Logger.error("Could not find the worker for this socket.");
       callback({error:"Could not find the worker for this socket.", 
@@ -475,20 +494,6 @@ FathomAPI.prototype = {
     this._performRequest(worker, socketRegistrationCallback, action, args);
   },
 
-  /* @deprecated
-   * Same as above but return the id to the client right away without
-   * callbacks.
-   */
-  _doSyncSocketOpenRequest : function(callback, action, args, multiresponse) {    
-    var multiresponse = multiresponse || false;
-    var socketid = this.nextsocketid++;
-    var workername = 'socketworker' + socketid;
-    var workerscript = 'chromeworker';
-    var worker = this._initChromeWorker(workername, workerscript);
-    this._performRequest(worker, callback, action, args, multiresponse);
-    return socketid;
-  },
-
   /*
    * Run a cmd line program.
    */
@@ -518,8 +523,8 @@ FathomAPI.prototype = {
     var errfile = tmpdir.clone()
     errfile.append('fathom-command.' + commandid + '.err');
 
-    Logger.debug("outfile: " + outfile.path);
-    Logger.debug("errfile: " + errfile.path);
+//    Logger.debug("outfile: " + outfile.path);
+//    Logger.debug("errfile: " + errfile.path);
 
     var observer = {
       observe: function(subject, topic, data) {
@@ -545,6 +550,7 @@ FathomAPI.prototype = {
     		incrementalCallback = false;
     	      } catch(e) {
     	    	Logger.error("Error executing the callback function: " + e);
+		Logger.error(e.stack);
     	      }
 	    }
 
@@ -586,7 +592,8 @@ FathomAPI.prototype = {
     } else {
       var wrapperfile = getLocalFile(wrapperfilepath);
       if (wrapperfile.error)
-	throw "failed to get localfile object : " + wrapperfilepath + " " + wrapperfile.error;
+	throw "failed to get localfile object : " + 
+	  wrapperfilepath + " " + wrapperfile.error;
 
       process.init(wrapperfile);
       wrapperargs = [outfile.path, errfile.path, cmd].concat(args);
