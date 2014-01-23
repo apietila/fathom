@@ -648,6 +648,22 @@ FathomAPI.prototype = {
     } // incremental output    
   },
 
+  /* 
+   * Some protocols (e.g. mdns, upnp) are used to discover nearby devices. Fathom
+   * scripts can request permission to connect to these devices via special 
+   * destination url scheme such as mdns://*. 
+   * 
+   * To enable this functionality, this method should be called when 
+   * a protocol discovers a new device so that the extension can authorize
+   * later socket connections to the device based on the requested and allowed 
+   * destinations of the page manifest.
+   */
+  _addNewDiscoveredDevice : function(dobj) {
+    // FIXME : implement -> add dev to security obj allowed devices
+    // if it conforms to the accepted page manifest
+    Logger.info("New neighbour device registered " + dobj.ipv4 + " by " + dobj.proto);
+  },
+
   /*
    * We listen for "inner-window-destroyed" which means this window will never
    * be used again, even for history navigation. However, we still need to deal

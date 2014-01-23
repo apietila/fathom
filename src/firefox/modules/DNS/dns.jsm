@@ -27,7 +27,7 @@ function DNS(proto, fathomObj, dst, port) {
     }
     this.proto = obj;
     return this;
-}
+};
 
 DNS.prototype = {	
     proto: null,
@@ -272,7 +272,7 @@ DNS_MCAST.prototype = {
 	
 	self.fathom.socket.multicast.open(function(result) {
 	    if (result && result.error) {
-		recordUDPSend({ error : "failed to open multicast dns socket: " + result.error});
+		onSend({ error : "failed to open multicast dns socket: " + result.error});
 		return;
 	    }
 	    self.socket = result;

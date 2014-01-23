@@ -1,5 +1,5 @@
 
-var EXPORTED_SYMBOLS = ["DNSOutgoing", "DNSIncoming", "Response", "DNSConstants"];
+var EXPORTED_SYMBOLS = ["DNSOutgoing", "DNSIncoming", "Response", "DNSConstants", "DNSRecordType", "DNSRecordClass"];
 
 const DNSConstants = {
     FLAGS_QUERY :0x0100,

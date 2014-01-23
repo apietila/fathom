@@ -355,6 +355,32 @@ var Proto = function(ctx) {
 	 * @module fathom.mdns
 	 */
 	mdns : {
+	    /**
+	     * @method create
+	     * @static
+	     *
+	     * @description  This function creates and returns a mDNS object.
+	     */
+	    create: function() {
+      		return new mDNS(ctx);
+	    },
+
+	    /** Perform mDNS service search.
+	     *
+	     * @param {function} cb    Callback to return mDNS responses
+	     */
+	    discovery : function(mdnsObj, cb) {
+		return mdnsObj.discovery(cb);
+	    },
+
+	    /** Cleanup and close any pending receive sockets 
+	     *  (created by sendRecv -functions). 
+	     *
+	     * @param {function} cb    Callback on close (optional).
+	     */
+	    close: function(mdnsObj, cb) {
+		mdnsObj.close(cb);
+	    },
 	},
 	
 	/**
