@@ -15,7 +15,6 @@ var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTem
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
-
 const os = Cc["@mozilla.org/xre/app-info;1"]
     .getService(Ci.nsIXULRuntime).OS.toLowerCase();
 
