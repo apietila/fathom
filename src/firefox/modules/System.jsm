@@ -444,7 +444,7 @@ var System = function (ctx) {
 		if (hostname)
 		    args = [hostname];
 		else
-		    args = ["-a"];
+		    args = ["-an"];
 
 	    } else if (os == android) {
 		cmd = "ip";

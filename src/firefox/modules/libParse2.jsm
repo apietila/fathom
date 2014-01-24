@@ -1352,7 +1352,7 @@ function parseArpCache(config,output) {
 	    if (lines.length >= 2) {
 		var x = lines[1].replace(/\s{1,}/g,' ').split(' ');
 		var e = new Elem();
-		e.host = x[0];
+		e.host = (x[0].indexOf("\?")>=0 ? x[0] : null);
 		e.mac = x[2];
 		e.interface = x[4];
 		arpCache.push(e);
@@ -1364,7 +1364,7 @@ function parseArpCache(config,output) {
 		var i = lines[k];
 		var x = i.split(' ');
 		var e = new Elem();
-		e.host = x[0];
+		e.host = (x[0].indexOf("\?")>=0 ? x[0] : null);
 		e.ip = x[1].replace(/\(|\)/gi,'');
 		e.mac = x[3];
 		e.interface = x[6];
@@ -1377,7 +1377,7 @@ function parseArpCache(config,output) {
 	    var i = lines[k];
 	    var x = i.split(' ');
 	    var e = new Elem();
-	    e.host = (x[0].indexOf('?')>=0 ? null : x[0]);
+	    e.host = (x[0].indexOf("\?")>=0 ? x[0] : null);
 	    e.ip = x[1].replace(/\(|\)/gi,'');
 	    e.mac = (x[3].indexOf('incomplete')>=0 ? null : x[3]);
 	    e.interface = x[5];
