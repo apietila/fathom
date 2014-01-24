@@ -102,7 +102,7 @@ mDNS.prototype = {
 		    record.ipv4 = rhost;  
 		    cbdone[fullname] = false;
 		} else if (cbdone[fullname]) {
- 		    Logger.warn("mDNS: received more data for record already called back!?!");
+ 		    Logger.warning("mDNS: received more data for record already called back!?!");
 		    cbdone[fullname] = false;
 		};
 
@@ -141,7 +141,7 @@ mDNS.prototype = {
 		    break;
 		default:
 		    // we should not really see other types in mDNS
-		    Logger.warn('mDNS: unhandled recordType: ' + ans.recordType);
+		    Logger.warning('mDNS: unhandled recordType: ' + ans.recordType);
 		    break;
 		}
 

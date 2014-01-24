@@ -443,8 +443,12 @@ var System = function (ctx) {
 		cmd = "arp";
 		if (hostname)
 		    args = [hostname];
-		else
-		    args = ["-an"];
+		else {
+		    if (os == winnt)
+			args = ["-a"];
+		    else
+			args = ["-an"]; // add n because otherwise it can take forever..
+		}
 
 	    } else if (os == android) {
 		cmd = "ip";

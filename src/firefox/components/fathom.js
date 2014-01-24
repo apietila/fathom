@@ -15,6 +15,11 @@ const Cc = Components.classes;
 const EXTENSION_ID = "fathom@icir.org";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://fathom/utils.jsm");
+
+// Resolve these only once (methods in utils.jsm)
+var nsprfile = getNsprLibFile();
+var nsprlibname = getNsprLibName();
 
 /*
  * FathomService keeps track of preferences, loads our own modules once they
@@ -203,7 +208,7 @@ FathomService.prototype = {
 
   _loadLibraries : function() {
     // javascript modules used by the extension
-    var modules = ["Logger", "utils", "Security", "Tools", "Socket", "System", "Proto"];
+    var modules = ["Logger", "Security", "Tools", "Socket", "System", "Proto"];
     for (var i in modules) {
       this._log("load " + modules[i]);
       filename = modules[i];
@@ -403,8 +408,8 @@ FathomAPI.prototype = {
 
       // initialize the worker
       var obj = {'init' : true, 
-		 'nsprpath' : getNsprLibFile().path,
-		 'nsprname' : getNsprLibName(),  
+		 'nsprpath' : nsprfile.path,
+		 'nsprname' : nsprlibname,  
 		 'arch' : this.arch, 
 		 'os' : this.os};
 
@@ -862,6 +867,7 @@ FathomAPI.prototype = {
       }
     };
     Logger.debug("init version="+this.api.version+", build="+this.api.build);
+    Logger.debug("nsprfile="+nsprfile.path);
     return this.api;
   }, // init
 
