@@ -861,7 +861,7 @@ FathomAPI.prototype = {
 	tools: "r"
       }
     };
-
+    Logger.debug("init version="+this.api.version+", build="+this.api.build);
     return this.api;
   }, // init
 

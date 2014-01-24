@@ -152,7 +152,6 @@ mDNS.prototype = {
 	
 	var handle_ans = function(ans) {
 	    Logger.debug("mDNS: response from " + ans.address);
-
 	    var rhost = ans.address; // ipv4
 	    var buf = ans.data; // bytes
 	    var i = 0;
@@ -169,9 +168,7 @@ mDNS.prototype = {
 		var dlist = [];
 		for (var j = 0; j < robj.answers.length; j++) {
 		    var ansobj = robj.answers[j];
-		    if (ansobj.name === DNSSD_DOMAIN && 
-			ansobj.recordType === DNSRecordType.PTR)
-		    {
+		    if (ansobj.recordType === DNSRecordType.PTR) {
 			// gloabl service search response
 			dlist.push(ansobj.alias);
 		    } else {
