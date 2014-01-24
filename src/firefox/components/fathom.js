@@ -664,6 +664,11 @@ FathomAPI.prototype = {
     Logger.info("New neighbour device registered " + dobj.ipv4 + " by " + proto.name);
   },
 
+  _checkDestinationPermissions : function(cb, dstip) {
+    Logger.info("Asking permission to connect to " + dstip);
+    cb({});
+  },
+
   /*
    * We listen for "inner-window-destroyed" which means this window will never
    * be used again, even for history navigation. However, we still need to deal

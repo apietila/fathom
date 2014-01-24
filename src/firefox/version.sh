@@ -2,7 +2,7 @@
 #
 # This file is the central defintion of version and build number.
 #
-version=0.4
+version=0.5
 #build=`svn info | grep 'Revision:' | awk '{print $2}'`
 build=`git log -n 1 | grep commit | cut -d ' ' -f 2`
 
