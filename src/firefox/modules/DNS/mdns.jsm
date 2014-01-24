@@ -55,14 +55,17 @@ mDNS.prototype = {
     close : function(cb) {
 	var self = this;
 
-	// cleanup all pending mdns requests
-	for (var d in self.cleanup) {
-	    var s = self.cleanup[d];
+	var close = function(s) {
 	    if (s) {
 		self.fathom.socket.multicast.recvfromstop(function() {
 		    self.fathom.socket.multicast.close(function() {}, s);
 		}, s);
 	    }
+	}
+
+	// cleanup all pending mdns requests
+	for (var d in self.cleanup) {
+	    close(self.cleanup[d]);
 	}
 	self.cleanup = {};
 	if (cb && typeof cb === 'function')
