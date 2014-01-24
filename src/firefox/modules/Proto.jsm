@@ -3,6 +3,7 @@ var EXPORTED_SYMBOLS = ["Proto"];
 
 Components.utils.import("resource://fathom/http.jsm");
 Components.utils.import("resource://fathom/DNS/dns.jsm");
+Components.utils.import("resource://fathom/DNS/mdns.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -300,6 +301,8 @@ var Proto = function(ctx) {
 	     * @param {integer} flags    This is the DNS flag options, e.g., '0x0100' for query.
 	     */      
 	    query: function(dnsObj, domain, type, recordClass, flags) {
+		if (!dnsObj || !dnsObj.query)
+		    throw "Expected DNS object as first argument!";
 		return dnsObj.query(domain, type, recordClass, flags);
 	    },
 	    
@@ -315,6 +318,8 @@ var Proto = function(ctx) {
 	     * @param {function} callback    This is a callback to be invoked on receiveing a valid DNS response.
 	     */        
 	    response: function(dnsObj, buf, domain, callback) {
+		if (!dnsObj || !dnsObj.response)
+		    throw "Expected DNS object as first argument!";
 		dnsObj.response(buf, domain, callback);
 	    },
 	    
@@ -332,6 +337,9 @@ var Proto = function(ctx) {
 	     * @param {function} receiveCallback    This is a callback to be invoked on a socket receive operation. Typically, it should invoke the response API to parse the response into a DNS response.
 	     */      
 	    sendRecv: function(dnsObj, server, port, data, sendCallback, receiveCallback, timeout) {
+		if (!dnsObj || !dnsObj.sendRecv)
+		    throw "Expected DNS object as first argument!";
+
 		dnsObj.proto.sendRecv(server, port, data, sendCallback, receiveCallback, timeout);
 	    },
 
@@ -341,6 +349,9 @@ var Proto = function(ctx) {
 	     * @param {function} cb    Callback on close (optional).
 	     */
 	    close: function(dnsObj, cb) {
+		if (!dnsObj || !dnsObj.close)
+		    throw "Expected DNS object as first argument!";
+
 		dnsObj.proto.close(cb);
 	    },	
 	}, // dns
@@ -370,6 +381,8 @@ var Proto = function(ctx) {
 	     * @param {function} cb    Callback to return mDNS responses
 	     */
 	    discovery : function(mdnsObj, cb) {
+		if (!mdnsObj || !mdnsObj.discovery)
+		    throw "Expected mDNS object as first argument!";
 		return mdnsObj.discovery(cb);
 	    },
 
@@ -379,6 +392,8 @@ var Proto = function(ctx) {
 	     * @param {function} cb    Callback on close (optional).
 	     */
 	    close: function(mdnsObj, cb) {
+		if (!mdnsObj || !mdnsObj.close)
+		    throw "Expected mDNS object as first argument!";
 		mdnsObj.close(cb);
 	    },
 	},

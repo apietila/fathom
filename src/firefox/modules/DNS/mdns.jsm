@@ -9,6 +9,38 @@ const MDNS_DEST_ADDR = '224.0.0.251';
 const MDNS_DEST_PORT = 5353;
 const DNSSD_DOMAIN = "_services._dns-sd._udp.local.";
 
+const protoid = {
+    name : 'mdns',
+    address : MDNS_DEST_ADDR,
+    port : MDNS_DEST_PORT
+};
+
+// mDNS answer record returned by the discovery callback
+function Record() {
+    this.proto = 'mdns';
+    return this;
+};
+Record.prototype = {
+    proto : null,
+    servicename : null,
+    ipv4 : null,
+    ipv6 : null,
+    os : null,
+    text : null,
+    port : null,
+    hostname : null,
+    __exposedProps__: {
+	proto : 'r',
+	servicename : 'r',
+	ipv4 : 'r',
+	ipv6 : 'r',
+	os : 'r',
+	text : 'r',
+	port : 'r',
+	hostname : 'r',
+    }
+};
+
 function mDNS(ctx) {
     this.context = ctx;
     this.fathom = ctx.api;
@@ -17,53 +49,59 @@ function mDNS(ctx) {
 
 mDNS.prototype = {
     context : null,    
-    cleanup : null,
     fathom : null,
+    cleanup : null,
 
     close : function(cb) {
 	var self = this;
 
-	// cleanup all pending dns requests
-	_.each(cleanup, function(s) {
-	    self.fathom.socket.multicast.recvfromstop(function() {
-		self.fathom.socket.multicast.close(function() {}, s);
-		s = null;
-	    }, s);
-	});
-
-	this.cleanup = {};
+	// cleanup all pending mdns requests
+	for (var d in self.cleanup) {
+	    var s = self.cleanup[d];
+	    if (s) {
+		self.fathom.socket.multicast.recvfromstop(function() {
+		    self.fathom.socket.multicast.close(function() {}, s);
+		}, s);
+	    }
+	}
+	self.cleanup = {};
 	if (cb && typeof cb === 'function')
 	    cb();
     },
 
     discovery : function(cb) {
-	var that = this;
+	var self = this;
 
-	var cache = {};    // fullname -> mdns record
+	var idx = 0;
+	var cache = {};    // service -> mdns record
 	var ipcache = {};  // hostname -> ip address
 	var ipv6cache = {};  // hostname -> ipv6 address
+	var cbdone = {};
 	
 	var cache_update = function(ans,rhost) {
 	    var fullname = undefined;
 	    if (ans.recordType === DNSRecordType.PTR) {
 		fullname = ans.alias;
 		if (!cache[fullname]) {
-		    cache[fullname] = { proto : 'mdns',
-					servicename : fullname,
-				        ipv4 : rhost };
+		    cache[fullname] = new Record();
+		    cache[fullname].servicename = fullname;
+		    cache[fullname].ipv4 = rhost;
+		    cbdone[fullname] = false;
 		}
-		
 	    } else {
 		fullname = ans.name;
+
 		var record = cache[fullname];
+
 		if (!record) {
-		    record = {proto : 'mdns',
-			      servicename : fullname,
-			      ipv4 : rhost };		    
-		} else if (record.done) {
- 		    Logger.warn("received more data on record already called back ...");
-		    record.done = false;
-		}
+		    record = new Record();
+		    record.servicename = fullname;
+		    record.ipv4 = rhost;  
+		    cbdone[fullname] = false;
+		} else if (cbdone[fullname]) {
+ 		    Logger.warn("mDNS: received more data for record already called back!?!");
+		    cbdone[fullname] = false;
+		};
 
 		switch (ans.recordType) {
 		case DNSRecordType.A:
@@ -76,7 +114,8 @@ mDNS.prototype = {
 		    record['text'] = ans.text;
 		    // OS X leaks info this way
 		    if (fullname.indexOf('device-info')>=0 && 
-			record['text'].indexOf('Mac')>=0) {
+			record['text'].indexOf('Mac')>=0) 
+		    {
  			record['os'] = 'darwin';
 		    }
 		    break;
@@ -86,7 +125,7 @@ mDNS.prototype = {
 		    break;
 		default:
 		    // we should not really see other types in mDNS
-		    Logger.warn('Unhandled recordType: ' + ans.recordType);
+		    Logger.warn('mDNS: unhandled recordType: ' + ans.recordType);
 		    break;
 		}
 
@@ -102,119 +141,103 @@ mDNS.prototype = {
 	    return fullname;
 	};
 
-	var handle_send = function(id) {
-	    return function(r) {
-		if (r && r.error) {
-		    Logger.error("Failed to send mDNS request ["+id+"]: " + r.error);
-		    if (cleanup[id]) {
-			self.fathom.socket.multicast.close(function() {}, cleanup[id]);
-			delete cleanup[id];
-		    }
-		}
-	    }; // return
+	var handle_send = function(r) {
+	    if (r && r.error) {
+		Logger.error("mDNS: failed to send mDNS request " + r.error);
+	    }
 	};
 	
-	var handle_ans = function(id) {
-	    return function(ans) {
-		if (!cleanup[id]) { // should not happen?
-		    Logger.error("Received answer for cleaned dns object [" + id +"]?!?");
-		    return;
+	var handle_ans = function(ans) {
+	    Logger.debug("mDNS: response from " + ans.address);
+
+	    var rhost = ans.address; // ipv4
+	    var buf = ans.data; // bytes
+	    var i = 0;
+	    while (i < buf.length) {
+		var resp = new Response(buf, 'udp', i, buf.length);
+		var id = resp.readUnsignedShort();
+		var flags = resp.readUnsignedShort();		    
+		var robj = new DNSIncoming(flags, 
+					   id, 
+					   true, 
+					   resp, 
+					   undefined);
+
+		var dlist = [];
+		for (var j = 0; j < robj.answers.length; j++) {
+		    var ansobj = robj.answers[j];
+		    if (ansobj.name === DNSSD_DOMAIN && 
+			ansobj.recordType === DNSRecordType.PTR)
+		    {
+			// gloabl service search response
+			dlist.push(ansobj.alias);
+		    } else {
+			// update result cache
+			fn = cache_update(ansobj,rhost);
+		    }
 		}
-
-		var rhost = ans.address;
-
-		// handle response records
-		var buf = ans.data;
-		var i = 0;
-		while (i < buf.length) {
-		    var resp = new Response(buf, 'mcast', i, buf.length);
-		    var id = resp.readUnsignedShort();		    
-		    var robj = new DNSIncoming(flags, 
-					       id, 
-					       true, 
-					       resp, 
-					       undefined);
-
-		    var dlist = [];
-		    for (var j = 0; j < robj.answers.length; j++) {
-			var absobj = robj.answers[j];
-			if (ansobj.name === DNSSD_DOMAIN && 
-			    ansobj.recordType === DNSRecordType.PTR)
-			{
-			    // gloabl service search response
-			    dlist.push(ansobj.alias);
-			} else {
-			    // update result cache
-			    fn = cache_update(ansobj,rhost);
-			}); // each
 		    
-		    if (dlist.length>0) {
-			do_query(dlist, DNSRecordType.ANY);
-		    }
-		    i = resp.idx;
-		} // while
+		if (dlist.length>0) {
+		    // request more details on the pointers returned
+		    // by the initial service search query
+		    do_query(dlist, DNSRecordType.ANY);
+		}
+		i = resp.idx; // this is the next index to read from buf
+	    } // while
 
-		// purge new data
-		if (!_.isEmpty(cache)) {
-		    for (var fullname in cache) {
-			var e = cache[e];
-			if (!e.done) {
-			    if (!e.hostname)
-				e.hostname = e.servicename
-			    // make sure the entry has IP info
-			    if (!e.ipv4)
-				e.ipv4 = ipcache[e.hostname]
-			    if (!e.ipv6)
-				e.ipv6 = ipv6cache[e.hostname]
-
-			    if (e.ipv4) {
-				cb(e);
-				e.done = true;
-				// TODO: notify fathom ctx that we have found
-				// a new potential target through mdns
-
-			    } // else not so usefull
-			}
-		    }
-		};
-	    }; // return func
+	    for (var fullname in cache) {
+		var e = cache[fullname];
+		if (!cbdone[fullname]) {
+		    if (!e.hostname)
+			e.hostname = e.servicename
+		    if (!e.ipv4)
+			e.ipv4 = ipcache[e.hostname]
+		    if (!e.ipv6)
+			e.ipv6 = ipv6cache[e.hostname]
+		    
+		    if (e.ipv4 && e.hostname!==e.servicename) {
+			Logger.debug("mDNS: found " + e.servicename + " [" + e.ipv4 + "]");
+			
+			// register the device with the extension for security check
+			self.context._addNewDiscoveredDevice(e, protoid);
+			
+			// notify the caller
+			cb(e);
+			
+			cbdone[fullname] = true;
+		    } // else not so usefull
+		}
+	    };
 	}; // handle_ans
 
 	var do_query = function(domain, type) {
-	    var curridx = idx;
-	    var onSend = handle_send(curridx);
-	    var onReceive = handle_ans(curridx);
+	    Logger.debug('mDNS: lookup ' + domain + " type=" +type);
 
-	    Logger.debug('mdns lookup ' + domain + " type=" +type+ " [" + curridx + "]");
-
-	    idx += 1; // next
-
-	    // create and send the query
-	    var flags = DNSConstants.FLAGS_QUERY;
-	    var out = new DNSOutgoing('mcast', flags, true);
-	    out = out.createRequest(domain, type, DNSRecordClass.CLASS_IN);
-	    var query = out.getHexString();
-
-	    that.fathom.socket.multicast.open(function(s) {
+	    self.fathom.socket.multicast.open(function(s) {
 		if (s && s.error) {
-		    onSend({ error : "failed to open multicast dns socket: " + s.error});
+		    Logger.error("mDNS: failed to open mDNS socket " + r.error);
 		    return;
 		}
-		cleanup[curridx] = s; // for resp handling and cleanup
-		that.fathom.socket.multicast.sendto(onSend, 
+
+		self.cleanup[idx] = s;
+		idx += 1;
+
+		var out = new DNSOutgoing('mcast', DNSConstants.FLAGS_QUERY, true);
+		out = out.createRequest(domain, type, DNSRecordClass.CLASS_IN);
+
+		self.fathom.socket.multicast.sendto(handle_send, 
 						    s, 
-						    query, 
-						    MDNS_DST_ADDR, 
-						    MDNS_DST_PORT);
+						    out.getHexString(), 
+						    MDNS_DEST_ADDR, 
+						    MDNS_DEST_PORT);
 
-		that.fathom.socket.multicast.recvfromstart(onReceive, s);
-	    });
+		self.fathom.socket.multicast.recvfromstart(handle_ans, s);
+	    }); // open
 	}; // do_query
-
-	// make sure there's no previous requests running
-	this.close(function() {
+	
+	self.close(function() {
 	    // start with root dnssd service search
 	    do_query(DNSSD_DOMAIN, DNSRecordType.PTR);
 	});
-    };
-};
+    }, // discovery
+}; // prototype
