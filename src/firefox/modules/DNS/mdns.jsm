@@ -106,6 +106,12 @@ mDNS.prototype = {
 		    cbdone[fullname] = false;
 		};
 
+		if (fullname.indexOf('printer')>=0) {
+ 		    record['os'] = 'printer';
+		} else if (fullname.indexOf('airport')>=0) {
+ 		    record['os'] = 'airport';
+		}
+
 		switch (ans.recordType) {
 		case DNSRecordType.A:
 		    record['ipv4'] = ans.address;
@@ -125,6 +131,13 @@ mDNS.prototype = {
 		case DNSRecordType.SRV:
 		    record['port'] = ans.port;
 		    record['hostname'] = ans.target;
+		    if (ans.target.indexOf('Mac')>=0) {
+ 			record['os'] = 'darwin';
+		    } else if (ans.target.toLowerCase().indexOf('android')>=0) {
+ 			record['os'] = 'android';
+		    } else if (ans.target.toLowerCase().indexOf('linux')>=0) {
+ 			record['os'] = 'linux';
+		    }
 		    break;
 		default:
 		    // we should not really see other types in mDNS
