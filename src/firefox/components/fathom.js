@@ -664,14 +664,11 @@ FathomAPI.prototype = {
    * destinations of the page manifest.
    */
   _addNewDiscoveredDevice : function(dobj, proto) {
-    // FIXME : implement -> add dev to security obj allowed devices
-    // if it conforms to the accepted page manifest
-    Logger.info("New neighbour device registered " + dobj.ipv4 + " by " + proto.name);
+    this.security.addDiscoveredDestination(dobj,proto);
   },
 
-  _checkDestinationPermissions : function(cb, dstip) {
-    Logger.info("Asking permission to connect to " + dstip);
-    cb({});
+  _checkDestinationPermissions : function(cb, dst) {
+    this.security.checkDestinationPermissions(cb,dst);
   },
 
   /*

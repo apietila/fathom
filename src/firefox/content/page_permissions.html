@@ -55,11 +55,11 @@
   var requested_destinations = args['requested_destinations'];
 
   var apiDesc = {
-  	'proto': 'APIs allow DNS, mDNS, HTTP and UPnP protocol access.',
-  	'socket': 'APIs allow low-level socket communication.',
-  	'system': 'APIs allow access to system utilities.',
-  	'tools': 'APIs allow access to browser based delay, loss and bandwidth measurement tools.',
-//  	'util': 'APIs allow access to timer, browser APIs and metrics.'
+      'proto': 'APIs allow DNS, mDNS, HTTP and UPnP protocol access.',
+      'socket': 'APIs allow low-level socket communication.',
+      'system': 'APIs allow access to system utilities.',
+      'tools': 'APIs allow access to browser based delay, loss and bandwidth measurement tools.',
+      'baseline': 'APIs allow access to continuous baseline performance measurements collected on the background.'
   };
 
   function writeBody() {
@@ -84,7 +84,23 @@
       var ul = document.getElementById('requested_destinations');
       for (var destination in requested_destinations) {
         var item = document.createElement('li');
-        item.textContent = destination;
+
+        var desc = '';
+        if (requested_destinations[destination].mdns) {
+           desc = ' - hosts found using mDNS service discovery';
+        }
+        if (requested_destinations[destination].upnp) {
+           desc = ' - hosts found using uPnP discovery';
+        }
+        if (requested_destinations[destination].lan) {
+           desc = ' - hosts in the local network';
+        }
+        if (requested_destinations[destination].origin) {
+           destination = requested_destinations[destination].host;
+           desc = ' - the page origin';
+        }
+
+        item.textContent = destination + desc;
         ul.insertBefore(item, null);
       }
       document.getElementById('destinations').style.display = "block";
@@ -96,6 +112,7 @@
     window.close();
   }
 
+  // TODO: remove?
   function permissionsGrantedAlways() {
     setTimeout(callback, 0, {result : 'always'});
     window.close();

@@ -25,25 +25,29 @@ var _contains = function(list,value) {
  * @class Security
  *
  * @description This module provides all the security functionality. Each page
- * initialized its own security object.
+ * initialises its own security object.
  *
- * @param {object} loc       window location object
- * @param {string} os        os string
- * @param {object} manifest  manifest of the page requesting Fathom API access
+ * @param {object} loc        window location object
+ * @param {string} os         os string
+ * @param {array}  subnets    list of local network interface subnet IPs
+ * @param {object} manifest   manifest of the page requesting Fathom API access
  */
-var Security = function(loc, os, manifest) {
+var Security = function(loc, os, subnets, manifest) {
     this.os = os;
-
-    // the page url and requested APIs
+    this.subnets = subnets;
     this.url = loc.href;
-    this.domain = loc.origin;
+    this.origin = loc.origin;
     this.manifest = manifest;
-    this.ischromepage = false; // TODO: check the loc
+
+    // Built-in chrome pages have some privilegies
+    this.ischromepage = false;
+    if (this.origin.indexOf('about')==0)
+	this.ischromepage = true;
 
     Logger.info("security : parsing manifest for page " + 
-		this.url + " [" + this.domain + "]");
+		this.url + " [" + this.origin + "] chrome=" + this.ischromepage);
 
-    // api -> list of methods or [*]
+    // api -> list of requested methods or [*]
     this.requested_apis = {};
     if (manifest.api) {
 	for (var i = 0; i < manifest.api.length; i++) {
@@ -68,43 +72,123 @@ var Security = function(loc, os, manifest) {
 	Logger.info("security : manifest does not request any method permissions");
     }
 
-    // dst -> type [range|proto|ipv4|ipv6|other]
+    // dst -> parsed spec obj
     this.requested_destinations = {};
 
-    // acb[.xyz]+.*
-    var subipre = /\d{1,3}.*\.\*/;
+    // Helper to parse dst api part
+    var parseapi = function(apistr) {
+	if (!apistr || apistr === '*') {
+	    return '*';
+	}
 
-    // xxx://
-    var protore = /\w+:\/\//;
+	// socket namespace ?
+	if (apistr.indexOf('socket.*')>=0) {
+	    return 'socket.*';
+	}
+	if (apistr.indexOf('udp')>=0) {
+	    return 'socket.udp.*';
+	}
+	if (apistr.indexOf('multicast')>=0) {
+	    return 'socket.multicast.*';
+	}
+	if (apistr.indexOf('broadcast')>=0) {
+	    return 'socket.broadcast.*';
+	}
+	if (apistr.indexOf('tcp')>=0) {
+	    return 'socket.tcp.*';
+	}
 
-    // ip address
-    var ipv4re = /\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}/;
-    var ipv6re = /([0-9a-f]:)+/;
+	// proto namespace ?
+	if (apistr.indexOf('proto.*')>=0) {
+	    return 'proto.*';
+	}
+	if (apistr.indexOf('http')>=0) {
+	    return 'proto.http.*';
+	}
+	if (apistr.indexOf('dns')>=0) {
+	    return 'proto.dns.*';
+	}
+    }
+
+    // Helper to parse dst port part
+    var parseport = function(pstr) {
+	if (!pstr || pstr === '*') {
+	    return ['*'];
+	}
+	return pstr.split(',')
+    };
+
+    // Helper to parse dst IP part
+    var parsedest = function(dststr) {
+	if (!dststr || dststr === '*') {
+	    return { any : true};
+	}
+	if (dststr === '{mdns}') {
+	    return { mdns : true};
+	}
+	if (dststr === '{upnp}') {
+	    return { upnp : true};
+	}
+	if (dststr === '<localnet>') {
+	    return { lan : true};
+	}
+	if (dststr === '<origin>') {
+	    return { origin : true,
+		     host : this.origin};
+	}
+	return { host : this.dststr};
+    };
 
     if (manifest.destinations) {
 	for (var i = 0; i < manifest.destinations.length; i++) {
-	    var d = manifest.destinations[i].trim();
-	    if (subipre.test(d)) {
-		this.requested_destinations[d] = 'range';
-	    } else if (protore.test(d)) {
-		this.requested_destinations[d] = 'proto';
-	    } else if (ipv4re.test(d)) {
-		this.requested_destinations[d] = 'ipv4';
-	    } else if (ipv6re.test(d)) {
-		this.requested_destinations[d] = 'ipv6';
-	    } else {
-		this.requested_destinations[d] = 'other';
+	    // format Fathom API :// destinations : ports
+	    var dst = manifest.destinations[i].trim(); 
+	    var d = dst.split(':');	    
+	    var obj = { api : null,
+		        destination : null,
+		        ports : null
+		      };
+
+	    switch (d.length) {
+	    case 3:
+		// API :// destinations : ports
+		obj.api = parseapi(d[0]);
+		obj.destination = parsedest(d[1].substring(2));
+		obj.ports = parseport(d[2]);
+		break;
+	    case 2:
+		if (d[1].indexOf('\/\/')>=0) {
+		    // *://destination
+		    obj.api = parseapi(d[0]);
+		    obj.destination = parsedest(d[1].substring(2));
+		    obj.ports = parseport();
+		} else {
+		    // destination:port
+		    obj.api = parseapi();
+		    obj.destination = parsedest(d[0].substring(2));
+		    obj.ports = parseport(d[1]);
+		}
+		break;
+	    case 1:
+		obj.api = parseapi();
+		obj.destination = parsedest(d[0]);
+		obj.ports = parseport();
+		break;
+	    default:
+		throw "Invalid destination : " + dst;
 	    }
-	    Logger.info("security : " + d + 
-			" [" + this.requested_destinations[d] + 
-			"] requested");
+
+	    Logger.info("security : " + dst + " requested");
 	}
     } else {
-	Logger.info("security : manifest does not request any destination permissions");
+	Logger.info("security : manifest does not request any destinations");
     }
 
     // checked destinations, filled upon first request for each destination
     this.allowed_destinations = {};
+
+    // discovered destinations
+    this.discovered_destinations = [];
 
     if (!this.ischromepage) {
 	// TODO: check from prefs/local storage if user has already accepted
@@ -215,9 +299,6 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 		continue; // never expose methods starting with _
 	    }
 
-//	    Logger.debug("security : check member \'" + p + "\' [" + (typeof obj[p]) + 
-//			 "] in " + subns);
-
 	    if (typeof obj[p] === "function") {
 		// match function to the page manifest
 
@@ -269,37 +350,97 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 };
 
 /**
- * @method isDestinationAvailable
- * @description Check if we are allowed to connect to a given destination.
+ * @method addNewDiscoveredDevice
+ * @description Add a new discovered device to the list of allowed destinations depending
+ * on the security policy and user consent.
  */
-Security.prototype.isDestinationAvailable = function(cb,dst) {
-    // User did not allow Fathom to be used in this page - allow nothing
+Security.prototype.addNewDiscoveredDevice = function(dobj, proto) {
+    Logger.info("security : new device " + dobj.ipv4 + " by " + proto.name);
+
+    // check if the policy allows this discovery protocol
+    var ok = false;
+    for (var dst in this.requested_destinations) {
+	if (dst[proto.name]) {
+	    // ok found in the manifest
+	    ok = true;
+	    break;
+	}
+    }
+    if (ok)
+	this.discovered_destinations.push(dobj.ipv4);
+    return ok;
+},
+
+/**
+ * @method isDestinationAvailable
+ * @description Check if we are allowed to connect to a given destination:port using 
+*  the proto (proto and port can be undefined and allowed if '*' requested).
+ */
+Security.prototype.checkDestinationPermissions = function(cb, dst, port, proto) {
+    Logger.info("security : check permission for " + dst + " by " + proto);
+
     if (!this.manifest_accepted) {
+	// User did not allow Fathom to be used in this page - allow nothing
 	Logger.warning("security : manifest not accepted by user, no allowed destinations");
-	cb(false);
-	return;
-    }    
-
-    // Check if we already verified this dst
-    if (dst in this.allowed_destinations) {
-	cb(this.allowed_destinations[dst]);
+	cb({error : "User did not not accept the page manifest."});
 	return;
     }
 
-    var mok = this.ischromepage; // allow any destination from chrome pages
-    // TODO test match
+    // check the manifest policy
+    if (this.allowed_destinations[dst] === undefined) {
+	if (this.ischromepage) {
+	    this.allowed_destinations[dst] = true;
+	} else {
+	    var allowed = false;
+	    // now compare the required proto://dst:port to each 
+	    // requested destination in the manifest
+	    for (var dst in this.requested_destinations) {
+		var spec = this.requested_destinations[dst];
 
-    if (mok) {
-	// TODO: check if the dst serverPolicy allows connection from this url or domain
+		// protocol match?
+		var protook = false;
+		if (proto) {
+		    var re = new RegExp(spec.api);
+		    protook = re.test(proto);
+		} else {
+		    protook = (spec.api === '*');
+		}
 
-	this.allowed_destinations[dst] = true;
-	cb(this.allowed_destinations[dst]);
-	return;
+		// port match ?
+		var portok = false;
+		if (!port) port = '*';
+		portok = _contains(spec.ports,port);
+		
+		// dst match ?
+		var dstok = false;
+		if (spec.any) {
+		    dstok = true;
+		} else if ((spec.mdns || spec.upnp) && 
+			   _contains(this.discovered_destinations, dst)) {
+		    dstok = true;
+		} else if (spec.lan && this.subnets) {
+		    // dst should be in our lan subnet
+		    for (var sb in this.subnets) {
+		    }
+		} else if (spec.host) {
+		    // TODO: does not allow url wildcards.. *.google.com etc
+		    dstok = (spec.host == dst);
+		}
 
-    } else {
-	// did not check against the manifest
-	this.allowed_destinations[dst] = false;
-	cb(this.allowed_destinations[dst]);
-	return;
+		if (protook && portok && dstok) {
+		    // found a match, we're done
+		    allowed = true;
+		    break;
+		}
+	    } // for
+	    this.allowed_destinations[dst] = allowed;
+	}
     }
+    Logger.info("security : result " + this.allowed_destinations[dst]);
+    
+    if (this.allowed_destinations[dst])
+	cb({});
+    else
+	cb({error : "Connection to " + proto + "://" + dst + ":" + port + 
+	    " not allowed"});
 };

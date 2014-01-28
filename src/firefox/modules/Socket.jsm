@@ -489,7 +489,9 @@ var Socket = function(ctx) {
 						  [destip, destport]);
 		    }
 		}
-		return ctx._checkDestinationPermissions(destPermCheckCompleted, destip);
+		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
+							destip, destport, 
+							'socket.tcp.openSendSocket');
 	    },
 
 	    /** 
