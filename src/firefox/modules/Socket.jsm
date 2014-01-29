@@ -114,7 +114,7 @@ var Socket = function(ctx) {
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
 							ip, port, 
-							'socket.broadcast.send');
+							'socket.broadcast');
 	    },
 
 	    /**
@@ -200,7 +200,7 @@ var Socket = function(ctx) {
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
 							ip, port, 
-							'socket.multicast.join');
+							'socket.multicast');
 	    },
 
 	    /**
@@ -386,7 +386,7 @@ var Socket = function(ctx) {
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
 							ip, port, 
-							'socket.multicast.sendto');
+							'socket.multicast');
 	    },
 
 	    /** 
@@ -501,7 +501,7 @@ var Socket = function(ctx) {
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
 							destip, destport, 
-							'socket.tcp.openSendSocket');
+							'socket.tcp');
 	    },
 
 	    /** 
@@ -744,7 +744,7 @@ var Socket = function(ctx) {
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
 							addr, port, 
-							'socket.udp.connect');
+							'socket.udp');
 	    },
 
 	    /** 
@@ -914,7 +914,7 @@ var Socket = function(ctx) {
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
 							ip, port, 
-							'socket.udp.sendto');
+							'socket.udp');
 	    },
 
 	    /** 

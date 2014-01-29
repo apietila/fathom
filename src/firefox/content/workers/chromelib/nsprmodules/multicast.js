@@ -59,7 +59,7 @@ function multicastOpenSocket(ttl, loopback) {
  * @param {number} port - The local port to bind to (do nothign if undefined). 
  * @param {boolean} reuse - Set SO_REUSE flag.
  */
-function multicastJoin(socketid, ip, port, port, reuse) {
+function multicastJoin(socketid, ip, port, reuse) {
   var fd = util.getRegisteredSocket(socketid);
 
   if (reuse) {
