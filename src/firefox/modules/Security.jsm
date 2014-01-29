@@ -13,12 +13,65 @@ const Ci = Components.interfaces;
 
 const valid_apis = ['socket','proto','system','tools'];
 
+var _isNumber = function(input) {
+    var re = /^-{0,1}\d*\.{0,1}\d+$/;
+    return (re.test(input));
+}
 var _contains = function(list,value) {
     for (var i = 0; i < list.length; i++) {
 	if (list[i] === value)
 	    return true;
     }
     return false;
+};
+
+var _equals = function(a,b) {
+    if (!a || !b || a.length!==b.length)
+	return false;
+    
+    for (var i = 0; i<a.length; i++)
+	if (a[i] !== b[i])
+	    return false;
+    return true;
+};
+
+var _createIPv4 = function(str) {
+    if (!str)
+	return str;
+
+    var tmp = [];
+    if (str.indexOf("0x")>=0 && str.length===10) {
+	str = str.substring(2);
+	while (str.length>=2) {
+	    tmp.push(parseInt("0x"+str.substring(0,2), 16));
+	    str = str.substring(2);
+	}
+    } else if (str.indexOf('.')>=0) {
+	tmp = str.split('.');
+	if (tmp.length !== 4)
+	    return undefined;
+	for (var i = 0; i<4; i++) {
+	    if (!_isNumber(tmp[i]))
+		return undefined; // does not look like a valid IP
+	    tmp[i] = parseInt(tmp[i]);
+	}
+    } else {
+	return undefined;
+    }
+    return new Array(tmp[0],tmp[1],tmp[2],tmp[3]);
+};
+
+/**
+ * @param {Array} aNet - IP address
+ * @param {Array} aMask - IP address mask
+ * @return Subnet ID octet array
+ */
+var _subnetIPv4 = function(aNet,aMask) {
+    var a = new Array(0,0,0,0);
+    for(var i=0;i<4;i++){
+	a[i] = aNet[i] & aMask[i];
+    }
+    return a;
 };
 
 /**
@@ -29,17 +82,29 @@ var _contains = function(list,value) {
  *
  * @param {object} loc        window location object
  * @param {string} os         os string
- * @param {array}  subnets    list of local network interface subnet IPs
+ * @param {array}  ifacelist  list of local network interfaces
  * @param {object} manifest   manifest of the page requesting Fathom API access
  */
-var Security = function(loc, os, subnets, manifest) {
+var Security = function(loc, os, ifacelist, manifest) {
     this.os = os;
-    this.subnets = subnets;
     this.url = loc.href;
     this.origin = loc.origin;
     this.manifest = manifest;
 
-    // Built-in chrome pages have some privilegies
+    // use the interface list to build the list of local subnets
+    this.subnets = [];
+    this.masks = [];
+    for (var i = 0; i<ifacelist.length; i++) {
+	var iface = ifacelist[i];
+	if (iface.address.ipv4 && iface.address.mask) {
+	    var a = _createIPv4(iface.address.ipv4);
+	    var b = _createIPv4(iface.address.mask);
+	    this.subnets.push(_subnetIPv4(a,b));
+	    this.subnets.push(b);
+	}
+    }
+
+    // FIXME: Built-in chrome page?
     this.ischromepage = false;
     if (this.origin.indexOf('about')==0)
 	this.ischromepage = true;
@@ -71,9 +136,6 @@ var Security = function(loc, os, subnets, manifest) {
     } else {
 	Logger.info("security : manifest does not request any method permissions");
     }
-
-    // dst -> parsed spec obj
-    this.requested_destinations = {};
 
     // Helper to parse dst api part
     var parseapi = function(apistr) {
@@ -115,11 +177,12 @@ var Security = function(loc, os, subnets, manifest) {
 	if (!pstr || pstr === '*') {
 	    return ['*'];
 	}
-	return pstr.split(',')
+	return pstr.split(',').map(parseInt);
     };
 
     // Helper to parse dst IP part
     var parsedest = function(dststr) {
+	dststr = dststr.replace(/\//g, '')
 	if (!dststr || dststr === '*') {
 	    return { any : true};
 	}
@@ -133,11 +196,17 @@ var Security = function(loc, os, subnets, manifest) {
 	    return { lan : true};
 	}
 	if (dststr === '<origin>') {
+	    dststr = loc.origin.replace(/http:\/\//, '')
 	    return { origin : true,
-		     host : this.origin};
+		     host : dststr};
 	}
-	return { host : this.dststr};
+	return { host : dststr};
     };
+
+    // dst -> parsed spec obj
+    this.requested_destinations = {};
+    // discovered destinations by proto
+    this.discovered_destinations = {};
 
     if (manifest.destinations) {
 	for (var i = 0; i < manifest.destinations.length; i++) {
@@ -153,23 +222,23 @@ var Security = function(loc, os, subnets, manifest) {
 	    case 3:
 		// API :// destinations : ports
 		obj.api = parseapi(d[0]);
-		obj.destination = parsedest(d[1].substring(2));
+		obj.destination = parsedest(d[1]);
 		obj.ports = parseport(d[2]);
 		break;
 	    case 2:
 		if (d[1].indexOf('\/\/')>=0) {
 		    // *://destination
 		    obj.api = parseapi(d[0]);
-		    obj.destination = parsedest(d[1].substring(2));
+		    obj.destination = parsedest(d[1]);
 		    obj.ports = parseport();
 		} else {
 		    // destination:port
 		    obj.api = parseapi();
-		    obj.destination = parsedest(d[0].substring(2));
+		    obj.destination = parsedest(d[0]);
 		    obj.ports = parseport(d[1]);
 		}
 		break;
-	    case 1:
+	    case 1: // hostname or ip
 		obj.api = parseapi();
 		obj.destination = parsedest(d[0]);
 		obj.ports = parseport();
@@ -178,7 +247,18 @@ var Security = function(loc, os, subnets, manifest) {
 		throw "Invalid destination : " + dst;
 	    }
 
+	    this.requested_destinations[dst] = obj;
+
+	    // init discovery protocol lists
+	    if (obj.destination.mdns) {
+		this.discovered_destinations.mdns = {};
+	    }
+	    if (obj.destination.upnp) {
+		this.discovered_destinations.upnp = {};
+	    }
+
 	    Logger.info("security : " + dst + " requested");
+	    Logger.debug(obj);
 	}
     } else {
 	Logger.info("security : manifest does not request any destinations");
@@ -187,8 +267,6 @@ var Security = function(loc, os, subnets, manifest) {
     // checked destinations, filled upon first request for each destination
     this.allowed_destinations = {};
 
-    // discovered destinations
-    this.discovered_destinations = [];
 
     if (!this.ischromepage) {
 	// TODO: check from prefs/local storage if user has already accepted
@@ -357,19 +435,12 @@ Security.prototype.setAvailableMethods = function(api,apiobj) {
 Security.prototype.addNewDiscoveredDevice = function(dobj, proto) {
     Logger.info("security : new device " + dobj.ipv4 + " by " + proto.name);
 
-    // check if the policy allows this discovery protocol
-    var ok = false;
-    for (var dst in this.requested_destinations) {
-	if (dst[proto.name]) {
-	    // ok found in the manifest
-	    ok = true;
-	    break;
-	}
-    }
-    if (ok)
-	this.discovered_destinations.push(dobj.ipv4);
-    return ok;
-},
+    if (this.discovered_destinations[proto.name]!==undefined) {
+	this.discovered_destinations[proto.name][dobj.ipv4] = true;
+	return true;
+    } // else devices from this protocol not requested as destinations
+    return false;
+};
 
 /**
  * @method isDestinationAvailable
@@ -377,7 +448,7 @@ Security.prototype.addNewDiscoveredDevice = function(dobj, proto) {
 *  the proto (proto and port can be undefined and allowed if '*' requested).
  */
 Security.prototype.checkDestinationPermissions = function(cb, dst, port, proto) {
-    Logger.info("security : check permission for " + dst + " by " + proto);
+    Logger.info("security : check permission " + proto + "://" + dst + ":" + port);
 
     if (!this.manifest_accepted) {
 	// User did not allow Fathom to be used in this page - allow nothing
@@ -392,46 +463,78 @@ Security.prototype.checkDestinationPermissions = function(cb, dst, port, proto) 
 	    this.allowed_destinations[dst] = true;
 	} else {
 	    var allowed = false;
+
+	    // FIXME: put this data to some structure so we don't need
+	    // to loop the list everytime a new dst needs to be checked ...
+
 	    // now compare the required proto://dst:port to each 
 	    // requested destination in the manifest
-	    for (var dst in this.requested_destinations) {
-		var spec = this.requested_destinations[dst];
-
-		// protocol match?
-		var protook = false;
-		if (proto) {
-		    var re = new RegExp(spec.api);
-		    protook = re.test(proto);
-		} else {
-		    protook = (spec.api === '*');
-		}
+	    for (var d in this.requested_destinations) {
+		var spec = this.requested_destinations[d];
+		Logger.debug("security : test against " + d);
 
 		// port match ?
 		var portok = false;
 		if (!port) port = '*';
 		portok = _contains(spec.ports,port);
+		if (!portok) continue;
+		Logger.debug("security : test port " + port + " ok");
+
+		// protocol match?
+		var protook = false;
+		if (proto) {
+		    if (spec.api === '*') {
+			protook = true;
+		    } else {
+			// e.g. RegExp('socket.*').test('socket.tcp.open') -> true
+			var re = new RegExp(spec.api);
+			protook = re.test(proto);
+		    }
+		} else {
+		    protook = (spec.api === '*');
+		}
+		if (!protook) continue;
+		Logger.debug("security : test proto " + proto + " ok");
 		
 		// dst match ?
 		var dstok = false;
-		if (spec.any) {
+		if (spec.destination.any) {
+		    // match any dst
 		    dstok = true;
-		} else if ((spec.mdns || spec.upnp) && 
-			   _contains(this.discovered_destinations, dst)) {
+		} else if (spec.destination.mdns && this.discovered_destinations['mdns'][dst]) {
+		    // dst is discovered using msdn
 		    dstok = true;
-		} else if (spec.lan && this.subnets) {
-		    // dst should be in our lan subnet
-		    for (var sb in this.subnets) {
+		} else if (spec.destination.upnp && this.discovered_destinations['upnp'][dst]) {
+		    // dst is discovered using upnp
+		    dstok = true;
+		} else if (spec.destination.lan && this.subnets) {
+		    // dst is in the same lan ?
+		    var dstip = _createIPv4(dst);
+		    Logger.debug("security : check lan " + dstip);
+		    if (dstip) {
+			for (var j = 0; j < this.subnets.length && !dstok; j++) {
+			    var sa = this.subnets[j];
+			    var sb = _subnetIPv4(dstip,this.masks[j]);
+			    dstok = _equals(sa,sb);
+			}
+		    } else {
+			var tmp = dstip.split('.');
+			if (tmp[tmp.length-1] === 'local' || tmp[tmp.length-1] === 'lan') {
+			    dstok = true;
+			}
 		    }
-		} else if (spec.host) {
-		    // TODO: does not allow url wildcards.. *.google.com etc
-		    dstok = (spec.host == dst);
+		} else if (spec.destination.host) {
+		    // dst has been requested explicitely
+		    // FIXME: wildcard matching
+		    Logger.debug("security : check host " + spec.destination.host);
+		    dstok = (spec.destination.host === dst);
 		}
+		if (!dstok) continue;
+		Logger.debug("security : test dst " + dst + " ok");
 
-		if (protook && portok && dstok) {
-		    // found a match, we're done
-		    allowed = true;
-		    break;
-		}
+		// if we get here, the spec matches the requested proto://destination:port
+		allowed = true;
+		break;
 	    } // for
 	    this.allowed_destinations[dst] = allowed;
 	}

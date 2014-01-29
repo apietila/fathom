@@ -664,11 +664,15 @@ FathomAPI.prototype = {
    * destinations of the page manifest.
    */
   _addNewDiscoveredDevice : function(dobj, proto) {
-    this.security.addDiscoveredDestination(dobj,proto);
+    this.security.addNewDiscoveredDevice(dobj,proto);
   },
 
-  _checkDestinationPermissions : function(cb, dst) {
-    this.security.checkDestinationPermissions(cb,dst);
+  /*
+   * Check if given proto://destination:port is allowed (proto and port can be 
+   * undefined and map to * in manifest.
+   */
+  _checkDestinationPermissions : function(cb, dst, port, proto) {
+    this.security.checkDestinationPermissions(cb, dst, port, proto);
   },
 
   /*
@@ -875,55 +879,71 @@ FathomAPI.prototype = {
     if (!prefFathom.getBoolPref("extensions.fathom.status")) {
       callback({'error': 'extension is disabled by the user',
 		__exposedProps__: { error: "r" }});
-      return false;
+      return;
     }
 
     var that = this;
+    var sys = System(that); // preinit sys module
 
-    // initialize the page security helper
-    this.security = new Security(win.location, this.os, manifest);
+    Logger.info("API init");
 
-    // ask the user to accept the manifest
-    this.security.askTheUser(function(allowed) {
-      if (allowed) {
-	// initialize the fathom API
-	for (var apiname in that.security.requested_apis) {
-	  var apiobj = undefined;
-	  switch (apiname) {
-	  case "socket":
-	    apiobj = Socket(that);
-	    break;
-	  case "proto":
-	    apiobj = Proto(that);
-	    break;
-	  case "system":
-	    apiobj = System(that);
-	    break;
-	  case "tools":
-	    apiobj = Tools(that);
-	    break;
-	  default:
-	    break;
-	  };
+    var f = function(ifaces) {
+      // local interfaces
+      var ifacelist = ((ifaces && ifaces.interfaces) ? ifaces.interfaces : []);
 
-	  // set the allowed methods visible and replace the dummy api with the full
-	  // implementation
-	  that.api[apiname] = that.security.setAvailableMethods(apiname,apiobj);
-	} // end for
+      // initialize the page security helper
+      that.security = new Security(win.location, that.os, ifacelist, manifest);
 
-	// add all baseline apis for chrome pages
-	if (that.security.ischromepage)
-	  that.api["baseline"] = new Baseline(that);
+      // ask the user to accept the manifest
+      that.security.askTheUser(function(allowed) {
+	Logger.info("Manifest ok ? " + allowed);
 
-	// done
-	callback({});
+	if (allowed) {
+	  // initialize the fathom API
+	  for (var apiname in that.security.requested_apis) {
+	    var apiobj = undefined;
+	    switch (apiname) {
+	    case "socket":
+	      apiobj = Socket(that);
+	      break;
+	    case "proto":
+	      apiobj = Proto(that);
+	      break;
+	    case "system":
+	      apiobj = sys;
+	      break;
+	    case "tools":
+	      apiobj = Tools(that);
+	      break;
+	    default:
+	      break;
+	    };
 
-      } else {
-	// else user did not accept the manifest
-	callback({'error': 'user did not accept the manifest',
-		  __exposedProps__: { error: "r" }});
-      }
-    }); // askTheUser
+	    // set the allowed methods visible and replace the dummy api with the full
+	    // implementation
+	    that.api[apiname] = that.security.setAvailableMethods(apiname,apiobj);
+	  } // end for
+
+	  // add all baseline apis for chrome pages
+	  if (that.security.ischromepage)
+	    that.api["baseline"] = new Baseline(that);
+
+	  Logger.info("all done");
+
+	  // done
+	  callback({});
+
+	} else {
+	  // else user did not accept the manifest
+	  callback({'error': 'user did not accept the manifest',
+		    __exposedProps__: { error: "r" }});
+	}
+      }); // askTheUser
+    }; // f
+
+    // start by getting interfaces (needed for the security module)
+    sys.getActiveInterfaces(f);
+
   }, // api_init
 }; // FathomAPI
 

@@ -102,7 +102,7 @@ mDNS.prototype = {
 		    record.ipv4 = rhost;  
 		    cbdone[fullname] = false;
 		} else if (cbdone[fullname]) {
- 		    Logger.warning("mDNS: received more data for record already called back!?!");
+ 		    Logger.warning("mDNS: received more data for record already called back!?! " + fullname);
 		    cbdone[fullname] = false;
 		};
 
@@ -181,8 +181,8 @@ mDNS.prototype = {
 		var dlist = [];
 		for (var j = 0; j < robj.answers.length; j++) {
 		    var ansobj = robj.answers[j];
-		    if (ansobj.recordType === DNSRecordType.PTR) {
-			// gloabl service search response
+		    if (ansobj.recordType === DNSRecordType.PTR && !cbdone[ansobj.alias]) {
+			// previously unknown pointer record - request more info incase
 			dlist.push(ansobj.alias);
 		    } else {
 			// update result cache
@@ -219,7 +219,7 @@ mDNS.prototype = {
 			
 			cbdone[fullname] = true;
 		    } // else not so usefull
-		}
+		} // if
 	    };
 	}; // handle_ans
 
@@ -238,11 +238,24 @@ mDNS.prototype = {
 		var out = new DNSOutgoing('mcast', DNSConstants.FLAGS_QUERY, true);
 		out = out.createRequest(domain, type, DNSRecordClass.CLASS_IN);
 
-		self.fathom.socket.multicast.sendto(handle_send, 
-						    s, 
+		// HACK... FIXME could think of a nice way to allow internal modules to
+		// get around the security module...
+
+		// call socket usage directly to avoid destination permission
+		// checks - if user allowed mDNS proto, we also allow communcations
+		// to the reserver mDNS multicast group:port
+		self.context._doSocketUsageRequest(handle_send, 'udpSendto', 
+						   [s, 
 						    out.getHexString(), 
 						    MDNS_DEST_ADDR, 
-						    MDNS_DEST_PORT);
+						    MDNS_DEST_PORT]);
+//		self.fathom.socket.multicast.sendto(handle_send, 
+//						    s, 
+//						    out.getHexString(), 
+//						    MDNS_DEST_ADDR, 
+//						    MDNS_DEST_PORT);
+
+		// HACK end
 
 		self.fathom.socket.multicast.recvfromstart(handle_ans, s);
 	    }); // open

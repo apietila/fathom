@@ -56,9 +56,32 @@ function multicastOpenSocket(ttl, loopback) {
  *
  * @param {number} socketid - The socket.
  * @param {string} ip - The multicast group IP.
+ * @param {number} port - The local port to bind to (do nothign if undefined). 
+ * @param {boolean} reuse - Set SO_REUSE flag.
  */
-function multicastJoin(socketid, ip) {
+function multicastJoin(socketid, ip, port, port, reuse) {
   var fd = util.getRegisteredSocket(socketid);
+
+  if (reuse) {
+    // Allow reuse to allow multiple processes to listen on the same *:port
+    var opt = new NSPR.types.PRSocketOptionData();
+    opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
+    opt.value = NSPR.sockets.PR_TRUE;
+    if (NSPR.sockets.PR_SetSocketOption(fd, opt.address()) != 0) {
+      return {error: "Failed : SetSocketOption IP_REUSE_ADDRESS := " +
+              NSPR.errors.PR_GetError() + " :: " + 
+	      NSPR.errors.PR_GetOSError() + " :: " + opt.address()};
+    }
+  }
+
+  if (port) {
+    var netaddr = new NSPR.types.PRNetAddr();
+    var addr = NSPR.sockets.PR_IpAddrAny;
+    NSPR.sockets.PR_SetNetAddr(addr, NSPR.sockets.PR_AF_INET, port, netaddr.address());
+    if(NSPR.sockets.PR_Bind(fd, netaddr.address()) != 0) {
+      return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
+    }
+  }
 
   function createIGMPRequest(ip) {
     var maddr = new NSPR.types.PRMcastRequest();

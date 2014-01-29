@@ -103,7 +103,18 @@ var Socket = function(ctx) {
 	     * @param {integer} port  The (UDP) port to send to.
 	     */
 	    send : function (callback, socketid, msg, ip, port) {
-		return ctx._doSocketUsageRequest(callback, 'broadcastSend', [socketid, msg, ip, port]);
+		function destPermCheckCompleted(result) {
+		    if (result['error']) {
+			result["__exposedProps__"] = { error: "r" };
+			callback(result);
+		    } else {
+			ctx._doSocketUsageRequest(callback, 'broadcastSend', 
+						 [socketid, msg, ip, port]);
+		    }
+		}
+		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
+							ip, port, 
+							'socket.broadcast.send');
 	    },
 
 	    /**
@@ -176,33 +187,20 @@ var Socket = function(ctx) {
 	     *
 	     * @param {string} ip  The IPv4 address of the multicast group to join.
 	     */	
-	    join : function (callback, socketid, ip) {
-		return ctx._doSocketUsageRequest(callback, 
+	    join : function (callback, socketid, ip, port, reuse) {
+		function destPermCheckCompleted(result) {
+		    if (result['error']) {
+			result["__exposedProps__"] = { error: "r" };
+			callback(result);
+		    } else {
+			ctx._doSocketUsageRequest(callback, 
 						  'multicastJoin', 
-						  [socketid, ip]);
-	    },
-
-	    /** 
-	     * @method bind
-	     * @static
-	     *
-	     * @description This function binds a multicast socket to a local IP
-	     * address and port.
-	     *
-	     * @param {function} callback The callback Fathom invokes once
-	     * the operation completes. On error, its only argument is a
-	     * dictionary whose member "error" describes the problem that
-	     * occurred.
-	     *
-	     * @param {integer} socketid The socket handle previously
-	     * obtained for this UDP flow.
-	     *
-	     * @param {string} addr  IP address to bind to (not supported yet!).
-	     *
-	     * @param {integer} port  Port to listen on.
-	     */ 
-	    bind : function(callback, socketid, addr, port, reuse) {
-		return ctx._doSocketUsageRequest(callback, 'udpBind', [socketid, addr, port, reuse]);
+						  [socketid, ip, port, reuse]);
+		    }
+		}
+		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
+							ip, port, 
+							'socket.multicast.join');
 	    },
 
 	    /**
@@ -265,7 +263,8 @@ var Socket = function(ctx) {
 	     * this feature, pass 0.
 	     */ 
 	    recv : function(callback, socketid, length, timeout) {
-		return ctx._doSocketUsageRequest(callback, 'udpRecv', [socketid, length, timeout]);
+		return ctx._doSocketUsageRequest(callback, 'udpRecv', 
+						 [socketid, length, timeout]);
 	    },
 
 	    /** 
@@ -295,7 +294,8 @@ var Socket = function(ctx) {
 	     * this feature, pass 0.
 	     */ 
 	    sendrecv : function(callback, socketid, data, length) {
-		return ctx._doSocketUsageRequest(callback, 'udpSendrecv', [socketid, data, length]);
+		return ctx._doSocketUsageRequest(callback, 'udpSendrecv', 
+						 [socketid, data, length]);
 	    },
 
 	    /**
@@ -327,7 +327,8 @@ var Socket = function(ctx) {
 		    asstring = false;
 		}
 		return ctx._doSocketUsageRequest(callback, 'udpRecvstart',
-						  [socketid, length, asstring], multiresponse);
+						  [socketid, length, asstring], 
+						 multiresponse);
 	    },
 
 	    /**
@@ -374,7 +375,18 @@ var Socket = function(ctx) {
 
 	     */ 
 	    sendto : function(callback, socketid, data, ip, port) {
-		return ctx._doSocketUsageRequest(callback, 'udpSendto', [socketid, data, ip, port]);
+		function destPermCheckCompleted(result) {
+		    if (result['error']) {
+			result["__exposedProps__"] = { error: "r" };
+			callback(result);
+		    } else {
+			ctx._doSocketUsageRequest(callback, 'udpSendto', 
+						  [socketid, data, ip, port]);
+		    }
+		}
+		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
+							ip, port, 
+							'socket.multicast.sendto');
 	    },
 
 	    /** 
@@ -478,15 +490,13 @@ var Socket = function(ctx) {
 	     * @param {integer} destport  Port to connect to.
 	     */ 
 	    openSendSocket : function (callback, destip, destport) {
-		var self = ctx;
 		function destPermCheckCompleted(result) {
 		    if (result['error']) {
 			result["__exposedProps__"] = { error: "r" };
-			// TODO: use setTimeout instead of calling callback() directly.
 			callback(result);
 		    } else {
-			self._doSocketOpenRequest(callback, 'tcpOpenSendSocket', 
-						  [destip, destport]);
+			ctx._doSocketOpenRequest(callback, 'tcpOpenSendSocket', 
+						 [destip, destport]);
 		    }
 		}
 		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
@@ -723,7 +733,18 @@ var Socket = function(ctx) {
 	     * @param {integer} port  Port to connect to.
 	     */ 
 	    connect : function(callback, socketid, addr, port) {
-		return ctx._doSocketUsageRequest(callback, 'udpConnect', [socketid, addr, port]);
+		function destPermCheckCompleted(result) {
+		    if (result['error']) {
+			result["__exposedProps__"] = { error: "r" };
+			callback(result);
+		    } else {
+			ctx._doSocketUsageRequest(callback, 'udpConnect', 
+						  [socketid, addr, port]);
+		    }
+		}
+		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
+							addr, port, 
+							'socket.udp.connect');
 	    },
 
 	    /** 
@@ -770,7 +791,8 @@ var Socket = function(ctx) {
 	     * this feature, pass 0.
 	     */ 
 	    recv : function(callback, socketid, length, timeout) {
-		return ctx._doSocketUsageRequest(callback, 'udpRecv', [socketid, length, timeout]);
+		return ctx._doSocketUsageRequest(callback, 'udpRecv', 
+						 [socketid, length, timeout]);
 	    },
 
 	    /** 
@@ -800,7 +822,8 @@ var Socket = function(ctx) {
 	     * this feature, pass 0.
 	     */ 
 	    sendrecv : function(callback, socketid, data, length) {
-		return ctx._doSocketUsageRequest(callback, 'udpSendrecv', [socketid, data, length]);
+		return ctx._doSocketUsageRequest(callback, 'udpSendrecv', 
+						 [socketid, data, length]);
 	    },
 
 	    /**
@@ -832,7 +855,8 @@ var Socket = function(ctx) {
 		    asstring = false;
 		}
 		return ctx._doSocketUsageRequest(callback, 'udpRecvstart',
-						  [socketid, length, asstring], multiresponse);
+						  [socketid, length, asstring], 
+						 multiresponse);
 	    },
 
 	    /**
@@ -879,7 +903,18 @@ var Socket = function(ctx) {
 
 	     */ 
 	    sendto : function(callback, socketid, data, ip, port) {
-		return ctx._doSocketUsageRequest(callback, 'udpSendto', [socketid, data, ip, port]);
+		function destPermCheckCompleted(result) {
+		    if (result['error']) {
+			result["__exposedProps__"] = { error: "r" };
+			callback(result);
+		    } else {
+			ctx._doSocketUsageRequest(callback, 'udpSendto', 
+						  [socketid, data, ip, port]);
+		    }
+		}
+		return ctx._checkDestinationPermissions(destPermCheckCompleted, 
+							ip, port, 
+							'socket.udp.sendto');
 	    },
 
 	    /** 
@@ -975,7 +1010,8 @@ var Socket = function(ctx) {
 	     * requests the option, 0 clears it.
 	     */
 	    setsockopt : function(callback, socketid, name, value) {
-		return ctx._doSocketUsageRequest(callback, 'udpSetsockopt', [socketid, name, value]);
+		return ctx._doSocketUsageRequest(callback, 'udpSetsockopt', 
+						 [socketid, name, value]);
 	    },
 
 	    /** 
