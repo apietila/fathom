@@ -587,6 +587,12 @@ Security.prototype.checkDestinationPermissions = function(cb, dst, port, proto) 
 	this.allowed_destinations[key] = allowed;
     }
 
+    // TODO: Missing the server manifest check - should take place
+    // at this point (cache responses so done once per dst per page manifest)
+
+    // TODO: The old logic was: check for the manifest, if its available
+    // check that the request conforms to it, else just allow by default
+
     Logger.info("security : allowed? " + allowed);    
     if (allowed)
 	cb({});
