@@ -4,8 +4,6 @@ var EXPORTED_SYMBOLS = ["Socket"];
 // Imports
 Components.utils.import("resource://fathom/Logger.jsm");
 
-// DOES NOT WORK - DO NOT USE
-
 /**
  * @class Socket
  * @description This module provides the socket API.

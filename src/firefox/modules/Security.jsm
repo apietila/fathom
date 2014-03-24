@@ -192,7 +192,7 @@ var Security = function(loc, os, ifacelist, manifest) {
 	if (dststr === '{upnp}') {
 	    return { upnp : true};
 	}
-	if (dststr === '<localnet>') {
+	if (dststr === '{localnet}') {
 	    return { lan : true};
 	}
 	if (dststr === '<origin>') {

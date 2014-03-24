@@ -15,8 +15,8 @@ pref("extensions.fathom@icir.org.description",
 pref("extensions.fathom.log", true);
 pref("extensions.fathom.log.level", 0);
 pref("extensions.fathom.status", true);
-pref("extensions.fathom.version", "0.7");
-pref("extensions.fathom.build", "5daf3c9eaf354808df34e3c92652ee2d04d318b9");
+pref("extensions.fathom.version", "0.8");
+pref("extensions.fathom.build", "b93e5e0015df8b1c41fd0ed15b18d04623618665");
 
 pref("extensions.fathom.installationID", "");
 

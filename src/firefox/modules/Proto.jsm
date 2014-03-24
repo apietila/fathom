@@ -4,13 +4,14 @@ var EXPORTED_SYMBOLS = ["Proto"];
 Components.utils.import("resource://fathom/http.jsm");
 Components.utils.import("resource://fathom/DNS/dns.jsm");
 Components.utils.import("resource://fathom/DNS/mdns.jsm");
+Components.utils.import("resource://fathom/upnp.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 /**
  * @class Proto
- * @description This module provides the application protocol API.
+ * @description This module provides the application protocol APIs.
  *
  * @param {object} ctx        extension context
  */
@@ -200,13 +201,6 @@ var Proto = function(ctx) {
 	 * @namespace fathom.proto
 	 */
 	dns : {
-	    // XXX This is supposed to open an mDNS listening socket.  We
-	    // bumped into problems here when a host-local mDNS daemon is
-	    // already listening.  Resolve?
-	    //	open : function(callback, ip, port, ttl) {
-	    //	    ctx._doSocketOpenRequest(callback, 'dnsOpen', [ip, port, ttl]);
-	    //	},      
-
 	    /**
 	     * @method lookup
 	     * @static
@@ -353,7 +347,7 @@ var Proto = function(ctx) {
 		    throw "Expected DNS object as first argument!";
 
 		dnsObj.proto.close(cb);
-	    },	
+	    }	
 	}, // dns
 
 	/**
@@ -383,7 +377,7 @@ var Proto = function(ctx) {
 	    discovery : function(mdnsObj, cb) {
 		if (!mdnsObj || !mdnsObj.discovery)
 		    throw "Expected mDNS object as first argument!";
-		return mdnsObj.discovery(cb);
+		mdnsObj.discovery(cb);
 	    },
 
 	    /** Cleanup and close any pending receive sockets 
@@ -395,7 +389,7 @@ var Proto = function(ctx) {
 		if (!mdnsObj || !mdnsObj.close)
 		    throw "Expected mDNS object as first argument!";
 		mdnsObj.close(cb);
-	    },
+	    }
 	},
 	
 	/**
@@ -403,35 +397,39 @@ var Proto = function(ctx) {
 	 *
 	 * @description This module provides an API for the UPnP protocol.
 	 *
-	 * TODO: add full implementation 
-	 *
 	 * @module fathom.upnp
 	 */
 	upnp : {
 	    /**
-	     * @method open
+	     * @method create
 	     * @static
 	     *
-	     * @description This function opens a multicast listening socket
-	     * suitable for initiating the UPnP discovery phase.
-	     *
-	     * [% INCLUDE todo.tmpl msg='(1) Seems the IP and port should have default values.  (2) Why the argument?' %]
-	     *
-	     * @param {function} callback The callback Fathom invokes once
-	     * the operation completes.  When successful, its only argument
-	     * is a socket descriptor.  On error, its only argument is a
-	     * dictionary whose member "error" describes the problem that
-	     * occurred.
-	     *
-	     * @param {string} ip The IP address to listen on.
-	     *
-	     * @param {integer} port The port to listen on.
-	     *
-	     * @param {integer} ttl The IP TTL to set on the socket.
+	     * @description  This function creates and returns a upnp object.
 	     */
-	    open : function(callback, ip, port, ttl) {
-		ctx._doSocketOpenRequest(callback, 'upnpOpen', [ip, port, ttl]);
+	    create: function() {
+      		return new Upnp(ctx);
 	    },
-	}, // upnp
+
+	    /** Perform UPnP service discovery.
+	     *
+	     * @param {function} cb    Callback to return UPnP responses
+	     */
+	    discovery : function(upnpObj, cb) {
+		if (!upnpObj || !upnpObj.discovery)
+		    throw "Expected upnp object as first argument!";
+		upnpObj.discovery(cb);
+	    },
+
+	    /** Cleanup and close any pending receive sockets 
+	     *  (created by sendRecv -functions). 
+	     *
+	     * @param {function} cb    Callback on close (optional).
+	     */
+	    close: function(upnpObj, cb) {
+		if (!upnpObj || !upnpObj.close)
+		    throw "Expected upnp object as first argument!";
+		upnpObj.close(cb);
+	    }
+	} // upnp
     }; // API object
 }; // Proto 

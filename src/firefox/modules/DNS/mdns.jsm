@@ -41,6 +41,10 @@ Record.prototype = {
     }
 };
 
+function error(err) {
+    return { error : err, __exposedProps__: { error : 'r'} };
+};
+
 function mDNS(ctx) {
     this.context = ctx;
     this.fathom = ctx.api;
@@ -159,12 +163,16 @@ mDNS.prototype = {
 
 	var handle_send = function(r) {
 	    if (r && r.error) {
-		Logger.error("mDNS: failed to send mDNS request " + r.error);
+		cb(error("failed to send mDNS request: " + r.error));
 	    }
 	};
 	
 	var handle_ans = function(ans) {
-	    Logger.debug("mDNS: response from " + ans.address);
+	    if (ans && ans.error) {
+		Logger.warning("mDNS receive error: " + ans.error);
+		return;
+	    }
+
 	    var rhost = ans.address; // ipv4
 	    var buf = ans.data; // bytes
 	    var i = 0;
@@ -209,26 +217,21 @@ mDNS.prototype = {
 			e.ipv6 = ipv6cache[e.hostname]
 		    
 		    if (e.ipv4 && e.hostname!==e.servicename) {
-			Logger.debug("mDNS: found " + e.servicename + " [" + e.ipv4 + "]");
-			
 			// register the device with the extension for security check
 			self.context._addNewDiscoveredDevice(e, protoid);
+			cbdone[fullname] = true;
 			
 			// notify the caller
-			cb(e);
-			
-			cbdone[fullname] = true;
+			cb(e);			
 		    } // else not so usefull
 		} // if
 	    };
 	}; // handle_ans
 
 	var do_query = function(domain, type) {
-	    Logger.debug('mDNS: lookup ' + domain + " type=" +type);
-
 	    self.fathom.socket.multicast.open(function(s) {
 		if (s && s.error) {
-		    Logger.error("mDNS: failed to open mDNS socket " + r.error);
+		    cb(error("failed to open mDNS socket: " + r.error));
 		    return;
 		}
 
@@ -238,12 +241,12 @@ mDNS.prototype = {
 		var out = new DNSOutgoing('mcast', DNSConstants.FLAGS_QUERY, true);
 		out = out.createRequest(domain, type, DNSRecordClass.CLASS_IN);
 
-		// HACK... FIXME could think of a nice way to allow internal modules to
+		// FIXME could think of a nicer way to allow internal modules to
 		// get around the security module...
 
 		// call socket usage directly to avoid destination permission
-		// checks - if user allowed mDNS proto, we also allow communcations
-		// to the reserver mDNS multicast group:port
+		// checks - if user allowed mDNS proto, we also allow 
+		// communcations to the reserved mDNS multicast group:port
 		self.context._doSocketUsageRequest(handle_send, 'udpSendto', 
 						   [s, 
 						    out.getHexString(), 
@@ -255,15 +258,15 @@ mDNS.prototype = {
 //						    MDNS_DEST_ADDR, 
 //						    MDNS_DEST_PORT);
 
-		// HACK end
-
+		// start receiving data
 		self.fathom.socket.multicast.recvfromstart(handle_ans, s);
 	    }); // open
 	}; // do_query
 	
+	// make sure we have no pending requests running, and restart
 	self.close(function() {
 	    // start with root dnssd service search
 	    do_query(DNSSD_DOMAIN, DNSRecordType.PTR);
 	});
-    }, // discovery
+    } // discovery
 }; // prototype

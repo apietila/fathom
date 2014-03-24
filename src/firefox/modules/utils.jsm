@@ -11,10 +11,11 @@ Components.utils.import("resource://fathom/Logger.jsm");
 /**
  * Collection of utility functions.
  */
-var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapperPath","getHttpFile","setTimeoutTimer"];
+var EXPORTED_SYMBOLS = ["getLocalFile","getNsprLibFile","getNsprLibName","getTempDir","deleteFile","readFile","getCommandWrapperPath","getHttpFile","setTimeoutTimer","xml2json"];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
+
 const os = Cc["@mozilla.org/xre/app-info;1"]
     .getService(Ci.nsIXULRuntime).OS.toLowerCase();
 
@@ -38,6 +39,60 @@ var setTimeoutTimer = function(cb,delay,args) {
     var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     timer.init(event, delay, Ci.nsITimer.TYPE_ONE_SHOT);
     return timer;
+};
+
+/** Parse xml formatted string to a json object. */
+var xml2json = function(xmlstr) {
+    var parser = Cc["@mozilla.org/xmlextras/domparser;1"]
+	.createInstance(Ci.nsIDOMParser);
+
+    var xmlobj = parser.parseFromString(xmlstr, "application/xml"); 
+
+    var helper = function(xml) {
+	// Code below modified from:
+	// http://davidwalsh.name/convert-xml-json
+	
+	// Create the return object
+	var obj = {};
+	
+	if (xml.nodeType == 1) { // element
+	    // do attributes
+	    if (xml.attributes.length > 0) {
+		obj["@attributes"] = {};
+		for (var j = 0; j < xml.attributes.length; j++) {
+		    var attribute = xml.attributes.item(j);
+		    obj["@attributes"][attribute.nodeName] = attribute.nodeValue;
+		}
+	    }
+	} else if (xml.nodeType == 3) { // text
+	    obj = xml.nodeValue;
+	}
+	
+	// do children
+	if (xml.hasChildNodes()) {
+	    for(var i = 0; i < xml.childNodes.length; i++) {
+		var item = xml.childNodes.item(i);
+		var nodeName = item.nodeName;
+		if (typeof(obj[nodeName]) == "undefined") {
+		    if (nodeName == "#text") {
+			return item.nodeValue;
+		    } else {
+			obj[nodeName] = helper(item);
+		    }
+		} else {
+		    if (typeof(obj[nodeName].push) == "undefined") {
+			var old = obj[nodeName];
+			obj[nodeName] = [];
+			obj[nodeName].push(old);
+		    }
+		    obj[nodeName].push(helper(item));
+		}
+	    }
+	}
+	return obj;
+    };
+
+    return helper(xmlobj);
 };
 
 /**
@@ -310,3 +365,5 @@ var getNsprLibFile = function() {
     Logger.info("nspr4 location: " + nspr_file.path);
     return nspr_file;
 };
+
+

@@ -72,17 +72,12 @@ FathomService.prototype = {
   // Utility
   // /////////////////////////////////////////////////////////////////////////
 
-  _log : function(str) {
-    dump("[FathomService] : " + str + "\n");
-  },
-
   _init : function() {
     if (this._initialized) {
       return;
     }
 
     this._initialized = true;
-    this._log("init service instance");
 
     try {
       this._loadLibraries();
@@ -92,7 +87,7 @@ FathomService.prototype = {
       // preferences may not be ready. If we tried right now, we may get the
       // default preferences.
     } catch (e) {
-      this._log("exception from _init(): " + e);
+      dump("exception from FathomService._init(): " + e);
     }
   },
 
@@ -104,7 +99,6 @@ FathomService.prototype = {
   _updateLoggingSettings : function() {
     Logger.enabled = this.prefs.getBoolPref("log");
     Logger.level = this.prefs.getIntPref("log.level");
-    this._log("Logger " + (Logger.enabled ? "enabled" : "disabled") + " level=" + Logger.level);
   },
 
   _registerAddonListener : function() {
@@ -149,9 +143,6 @@ FathomService.prototype = {
   _register : function() {
     var os = Cc['@mozilla.org/observer-service;1']
         .getService(Ci.nsIObserverService);
-
-    this._log("Service register.");
-
     os.addObserver(this, "xpcom-shutdown", false);
     os.addObserver(this, "profile-after-change", false);
     os.addObserver(this, "quit-application", false);
@@ -162,14 +153,10 @@ FathomService.prototype = {
     try {
       var os = Cc['@mozilla.org/observer-service;1']
           .getService(Ci.nsIObserverService);
-      
-      this._log("Service unregister.");
-
       os.removeObserver(this, "xpcom-shutdown");
       os.removeObserver(this, "profile-after-change");
       os.removeObserver(this, "quit-application");
     } catch (e) {
-      this._log(e + " while unregistering.");
     }
   },
 
@@ -210,7 +197,6 @@ FathomService.prototype = {
     // javascript modules used by the extension
     var modules = ["Logger", "Security", "Tools", "Socket", "System", "Proto"];
     for (var i in modules) {
-      this._log("load " + modules[i]);
       filename = modules[i];
       try {
         Cu.import("resource://fathom/" + filename + ".jsm");
@@ -237,8 +223,6 @@ FathomService.prototype = {
   // /////////////////////////////////////////////////////////////////////////
 
   observe : function(subject, topic, data) {
-    this._log("service observed: " + subject + " on " + topic);
-
     switch (topic) {
     case "nsPref:changed":
       this._updatePref(data);
@@ -258,8 +242,6 @@ FathomService.prototype = {
         this._handleUninstallOrDisable();
       }
       break;
-    default:
-      this._log("uknown topic observed: " + topic);
     }
   }
 }; // FathomService
@@ -279,9 +261,6 @@ function FathomAPI() {
   this.requests = {};
   this.nextrequestid = 1;
   this.nextsocketid = 1;
-  this.scriptworkers = {};
-  this.nextscriptid = 1;
-  this.commands = {};
 
   Logger.debug("Created new FathomAPI object");
 };
@@ -305,7 +284,6 @@ FathomAPI.prototype = {
   requests : null,
   nextrequestid : null,
   nextsocketid : null,
-  commands : null,
 
   // security
   security : null,
@@ -315,37 +293,37 @@ FathomAPI.prototype = {
   // /////////////////////////////////////////////////////////////////////////
 
   _initChromeWorker : function(workername, workerscript) {
-    const fathomapi = this;
+    const that = this;
     Cu.import("resource://gre/modules/Services.jsm");
     Cu.import("resource://gre/modules/ctypes.jsm");
 
     var worker = new ChromeWorker("chrome://fathom/content/workers/" + workerscript + ".js");
     worker.name = workername;
-    Logger.debug("Create worker " + worker.name + " for window " + this.windowid);
+    Logger.debug("[" + this.windowid + "] Create worker " + worker.name);
 
     try {
       worker.onerror = function(event) {
         msg = event.message + ' [' + event.filename + ':' + event.lineno + ']';
-        Logger.error('Worker error: ' + msg);
+        Logger.error("[" + that.windowid + "] Worker error: " + msg);
       };
 
       worker.onmessage = function(event) {
         var data = JSON.parse(event.data);        
 
         if (typeof(data.logmsg) != "undefined") {
-          Logger.info("ChromeWorker: " + data.logmsg);
+          Logger.info("[" + that.windowid + "] ChromeWorker: " + data.logmsg);
           return;
         }
 
         var result = data.result;
         var requestid = data.requestid;
-        var requestinfo = fathomapi.requests[requestid];
-        Logger.info('Received response for requestid: ' + requestid);
+        var requestinfo = that.requests[requestid];
+        Logger.info("[" + that.windowid + "] Received response for requestid: " + requestid);
 
         if (!requestinfo) {
-          Logger.warning('Received response from worker for unknown requestid: ' + 
-			 requestid + ", window " + fathomapi.windowid);
-
+          Logger.warning("[" + that.windowid + "] " + 
+			 "Received response from worker for unknown requestid: "
+			 + requestid);
 	  Logger.warning('Has data? ' + (event.data.length>0));
 	  return;
 	}
@@ -381,19 +359,18 @@ FathomAPI.prototype = {
 	    requestinfo['callback'](result);
           } catch (e) {
             // TODO: decide on a good way to send this error back to the document.
-            Logger.error('Error when calling user-provide callback: ' + e);
+            Logger.error("[" + that.windowid + "] Error when calling user-provide callback: " + e);
 	    Logger.error(e.stack);
           }
 	} else {
-          Logger.warning('Received empty response for requestid: ' + 
-			 requestid);
+          Logger.warning("[" + that.windowid + "] Received empty response for requestid: " + requestid);
 	}
 
 	// one time request or multiresponse is done ?
 	if ((requestinfo && !requestinfo['multiresponse']) || 
 	    (result && result['done'])) {
-          delete fathomapi.requests[requestid];
-          Logger.info('Request done: ' + requestid);
+          delete that.requests[requestid];
+          Logger.info("[" + that.windowid + "] Request done: " + requestid);
 	}
 
 	// Anna: adding a way to clean things up inside fathom
@@ -401,8 +378,8 @@ FathomAPI.prototype = {
 	if (result && result['closed']) {
 	  // the worker has closed itself, remove any references
 	  // so this worker object gets garbage collected
-	  delete fathomapi.chromeworkers[workername];
-          Logger.info('Worker closed: ' + workername);
+	  delete that.chromeworkers[workername];
+          Logger.info("[" + that.windowid + "] Worker closed: " + workername);
 	}
       }; // onmessage
 
@@ -411,7 +388,8 @@ FathomAPI.prototype = {
 		 'nsprpath' : nsprfile.path,
 		 'nsprname' : nsprlibname,  
 		 'arch' : this.arch, 
-		 'os' : this.os};
+		 'os' : this.os,
+		 'windowid' : this.windowid};
 
       Logger.debug(obj);
       worker.postMessage(JSON.stringify(obj));
@@ -432,8 +410,9 @@ FathomAPI.prototype = {
 				callback : callback,
                                 multiresponse : multiresponse};
 
-    Logger.info('Performing request for action: ' + action + ' (requestid: ' +
-                requestid + ', worker: ' + worker.name+ ', window: ' + this.windowid + ')');
+    Logger.info("[" + this.windowid + "] Performing request for action: " + 
+		action + ' (requestid: ' +
+                requestid + ', worker: ' + worker.name+ ')');
 
     var obj = {action: action, requestid: requestid, args: args};
     worker.postMessage(JSON.stringify(obj));
@@ -456,18 +435,21 @@ FathomAPI.prototype = {
     // Assume socketid will be the first argument.
     var socketid = args[0];
     if (!socketid) {
-      Logger.error("Expected socket as the first argument.");
+      Logger.error("[" + this.windowid + 
+		   "] Expected socket as the first argument.");
       callback({error:"Expected socket as the first argument.", 
 		__exposedProps__: { error: "r" }});
       return;
     }
 
-    Logger.info("Looking up socket " + socketid + " for action " + action);
+    Logger.info("[" + this.windowid + "] Looking up socket " + 
+		socketid + " for action " + action);
 
     var worker = this.chromeworkers['socketworker'+socketid];
 
     if (!worker) {
-      Logger.error("Could not find the worker for this socket.");
+      Logger.error("[" + this.windowid + 
+		   "] Could not find the worker for this socket.");
       callback({error:"Could not find the worker for this socket.", 
 		__exposedProps__: { error: "r" }});
       return;
@@ -488,13 +470,16 @@ FathomAPI.prototype = {
     var workername = 'socketworker' + socketid;
     var workerscript = 'chromeworker';
     var worker = this._initChromeWorker(workername, workerscript);
+    var that = this;
 
     function socketRegistrationCallback(result) {
       if (result && !result['error']) {
-        Logger.info("Registered socket worker " + worker.name + " for socketid " + socketid);
+        Logger.info("[" + that.windowid + "] Registered socket worker " + 
+		    worker.name + " for socketid " + socketid);
         callback(socketid);
       } else {
-        Logger.error("Socket open request failed: " + worker.name);
+        Logger.error("[" + that.windowid + "] Socket open request failed: " + 
+		     worker.name);
         result["__exposedProps__"] = { error: "r" };
         callback(result);
       }
@@ -509,7 +494,7 @@ FathomAPI.prototype = {
     Cu.import("resource://gre/modules/FileUtils.jsm");
     Cu.import("resource://gre/modules/NetUtil.jsm");
 
-    Logger.debug("_executeCommandAsync : " + cmd + " in window " + this.windowid);
+    Logger.debug("[" + this.windowid + "] _executeCommandAsync : " + cmd);
 
     if (!args) {
       args = []; 
@@ -534,6 +519,7 @@ FathomAPI.prototype = {
 //    Logger.debug("outfile: " + outfile.path);
 //    Logger.debug("errfile: " + errfile.path);
 
+    var that = this;
     var observer = {
       observe: function(subject, topic, data) {
         if (topic != "process-finished" && topic != "process-failed") {
@@ -541,7 +527,7 @@ FathomAPI.prototype = {
         }
         
         var exitstatus = subject.exitValue;
-	Logger.debug("async command " + commandid + " ready :  " + topic + " [" + exitstatus + "]");
+	Logger.debug("[" + that.windowid + "] async command " + commandid + " ready :  " + topic + " [" + exitstatus + "]");
 
         function handleOutfileData(outdata) {
           function handleErrfileData(errdata) { 
@@ -557,7 +543,7 @@ FathomAPI.prototype = {
     		callback = null;
     		incrementalCallback = false;
     	      } catch(e) {
-    	    	Logger.error("Error executing the callback function: " + e);
+    	    	Logger.error("[" + that.windowid + "] Error executing the callback function: " + e);
 		Logger.error(e.stack);
     	      }
 	    }
@@ -568,7 +554,7 @@ FathomAPI.prototype = {
 		subject.kill();
 	      }
 	    } catch (e) {
-      	      Logger.warning("Failed to kill process: " + e);
+      	      Logger.warning("[" + that.windowid + "] Failed to kill process: " + e);
     	    }
 
 	    deleteFile(outfile);
@@ -608,14 +594,14 @@ FathomAPI.prototype = {
     }
 
     // call the cmd
-    Logger.debug("make the async command " + commandid + ": " + wrapperargs.join(' '));
+    Logger.debug("[" + this.windowid + "] make the async command " + commandid + ": " + wrapperargs.join(' '));
     process.runAsync(wrapperargs, wrapperargs.length, observer);
 
     /* incremental output for traceroute & ping */
     if (incrementalCallback == true) {
       var file = FileUtils.getFile("TmpD", [outfile.leafName]);
       var index = 0, timeout = 250, count = 120;
-      Logger.debug("sending incremental updates for results every 250ms");
+      Logger.debug("[" + this.windowid + "] sending incremental updates for results every 250ms");
 
       var event = {  
 	observe: function(subject, topic, data) {  
@@ -642,7 +628,7 @@ FathomAPI.prototype = {
 					    stderr: "r" }});
 	    });
 	  } catch(e) {
-	    Logger.error("Error executing the NetUtil.asyncFetch callback function: " + e);
+	    Logger.error("[" + this.windowid + "] Error executing the NetUtil.asyncFetch callback function: " + e);
 	  }
 	}  
       }; // event
@@ -712,17 +698,17 @@ FathomAPI.prototype = {
 	var innerWindowID = this.window.QueryInterface(Ci.nsIInterfaceRequestor).
 	    getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
 	if (windowID == innerWindowID) {
-	  Logger.info("Calling shutdown()");
+	  Logger.info("[" + this.windowid + "] Calling shutdown()");
 	  this.shutdown("inner-window-destroyed");
 	  delete this.window; // Anna: ???
 	  Services.obs.removeObserver(this, "inner-window-destroyed");
 	}
       } catch(e) {
-	Logger.error("Inner-window-destroyed: " + e);
+	Logger.error("[" + this.windowid + "] Inner-window-destroyed: " + e);
       }
       break;
     default:
-      Logger.error("unknown topic observed: " + topic);
+      Logger.error("[" + this.windowid + "] unknown topic observed: " + topic);
     }
   },
 
@@ -736,15 +722,6 @@ FathomAPI.prototype = {
    * fathom to work the same as if the page had first loaded.
    */
   shutdown : function(cause) {
-    try {
-      var util = this.window.QueryInterface(Ci.nsIInterfaceRequestor).
-          getInterface(Ci.nsIDOMWindowUtils);
-      var windowid = util.currentInnerWindowID;
-      Logger.debug(cause + " :: shutdown() called for window: " + windowid);
-    } catch (e) {
-      Logger.error("Failed to log shutdown() message: " + e);
-    }
-
     var jsonobj = JSON.stringify({action: 'shutdown'});
 
     // With the requests object reset, from this moment on we will not call the
@@ -752,39 +729,13 @@ FathomAPI.prototype = {
     this.requests = {};	
 
     for (var name in this.chromeworkers) {
-      Logger.info("[shutdown] Sending shutdown message to chromeworker: " + name);
+      Logger.info("[" + this.windowid + "] [shutdown] Sending shutdown message to chromeworker: " + name);
       this.chromeworkers[name].postMessage(jsonobj);
       delete this.chromeworkers[name];
     }
-
-    for (var name in this.commands) {
-      // TODO: may want to do process killing and file deletion async.
-      if (this.commands[name].process.isRunning) {
-        Logger.info("[shutdown] Killing command process: " + name + " (" +
-		    this.commands[name].cmd + " " + this.commands[name].args + ")");
-        try {
-          // TODO: This is only killing the wrapper process, not the process
-          // started by the wrapper (which is really what we want to kill).
-          this.commands[name].process.kill();
-        } catch (e) {
-          Logger.warning("Failed to kill process: " + e);
-          continue;
-        }
-      }
-      if (this.commands[name].outfile.exists()) {
-        this._deleteFile(this.commands[name].outfile);
-      }
-      if (this.commands[name].errfile.exists()) {
-        this._deleteFile(this.commands[name].errfile);
-      }
-      delete this.commands[name];
-    }
-
     this.chromeworkers = {};
-    this.commands = {};
-    this.scriptworkers = {};
 
-    Logger.debug("shutdown ready");
+    Logger.debug("[" + this.windowid + "] shutdown ready");
   },
 
   // /////////////////////////////////////////////////////////////////////////
@@ -831,21 +782,23 @@ FathomAPI.prototype = {
         try{
           if (aEvent.originalTarget instanceof Ci.nsIDOMHTMLDocument) {
             var doc = aEvent.originalTarget;
-            Logger.info("page hidden:" + doc.location.href + "\n");
+            Logger.info("[" + self.windowid + "] page hidden:" + 
+			doc.location.href + "\n");
             self.shutdown("pagehide");
           }
         } catch(e) {
-          Logger.error("PAGEHIDE: " + e);
+          Logger.error("[" + self.windowid + "] PAGEHIDE: " + e);
         }
       }
       this.window.addEventListener("pagehide", onPageHide, false);
     } else {
-      Logger.debug("init() called on window that has already been initialized");
+      Logger.debug("[" + this.windowid + "] init() called on window that has already been initialized");
     }
 
-    var pref = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-
     // Initial dummy Fathom API
+    var pref = Cc["@mozilla.org/preferences-service;1"]
+	.getService(Ci.nsIPrefBranch);
+
     this.api = {
       build: pref.getCharPref("extensions.fathom.build"),
       version: pref.getCharPref("extensions.fathom.version"),
@@ -867,26 +820,28 @@ FathomAPI.prototype = {
 	tools: "r"
       }
     };
-    Logger.debug("init version="+this.api.version+", build="+this.api.build);
-    Logger.debug("nsprfile="+nsprfile.path);
+
+    Logger.debug("[" + this.windowid + "] init version="+
+		 this.api.version+", build="+this.api.build+ 
+		 ", nsprfile="+nsprfile.path);
     return this.api;
   }, // init
 
   /* Enable the Fathom API based on the page manifest and user preferences. */
   api_init : function (callback, manifest, win) {      
     // check if the extension is enabled ?
-    var prefFathom = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+    var prefFathom = Cc["@mozilla.org/preferences-service;1"]
+	.getService(Ci.nsIPrefBranch);
+
     if (!prefFathom.getBoolPref("extensions.fathom.status")) {
       callback({'error': 'extension is disabled by the user',
 		__exposedProps__: { error: "r" }});
       return;
     }
+    Logger.info("[" + this.windowid + "] API init");
 
     var that = this;
     var sys = System(that); // preinit sys module
-
-    Logger.info("API init");
-
     var f = function(ifaces) {
       // local interfaces
       var ifacelist = ((ifaces && ifaces.interfaces) ? ifaces.interfaces : []);
@@ -896,7 +851,7 @@ FathomAPI.prototype = {
 
       // ask the user to accept the manifest
       that.security.askTheUser(function(allowed) {
-	Logger.info("Manifest ok ? " + allowed);
+	Logger.info("[" + that.windowid + "] Manifest ok ? " + allowed);
 
 	if (allowed) {
 	  // initialize the fathom API
@@ -919,8 +874,6 @@ FathomAPI.prototype = {
 	      break;
 	    };
 
-	    // set the allowed methods visible and replace the dummy api with the full
-	    // implementation
 	    that.api[apiname] = that.security.setAvailableMethods(apiname,apiobj);
 	  } // end for
 
@@ -928,7 +881,7 @@ FathomAPI.prototype = {
 	  if (that.security.ischromepage)
 	    that.api["baseline"] = new Baseline(that);
 
-	  Logger.info("all done");
+	  Logger.info("[" + that.windowid + "] all done");
 
 	  // done
 	  callback({});
