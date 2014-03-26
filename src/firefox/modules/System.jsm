@@ -34,7 +34,6 @@ var System = function (ctx) {
 	 * @return {string} OS.
 	 */
 	getOS : function () {
-	    Logger.debug("getOS in window " + ctx.windowid);
 	    return ctx.os;
 	},
 
@@ -300,6 +299,34 @@ var System = function (ctx) {
 	    ctx._executeCommandAsync(cbk, cmd, args);
 	}, // getHostname
 
+	/** 
+	 * @method nslookup
+	 * @static
+	 *
+	 * @description call nslookup
+	 *
+	 * @param {function} callback The callback Fathom invokes once the
+	 * call completes. On error contains "error" member.
+	 */
+	nslookup : function(callback, arg) {
+	    var os = ctx.os;
+	    var cmd = "nslookup";
+	    var args = [arg];
+	    
+	    function cbk(info) {
+      		var output = {
+      		    name: "nslookup",
+      		    os: os,
+		    cmd : cmd + " " + args.join(" "),
+      		};
+
+      		var data = libParse2(output, info);
+		callback(data);
+	    }
+	    
+	    ctx._executeCommandAsync(cbk, cmd, args);
+	}, // nslookup
+
 	/**
 	 * @method getActiveInterfaces
 	 * @static
@@ -439,7 +466,7 @@ var System = function (ctx) {
 	    var cmd = undefined;
 	    var args = [];
 
-	    if (os == winnt || os == linux || os == darwin) {
+	    if (os == winnt || os == darwin) {
 		cmd = "arp";
 		if (hostname)
 		    args = [hostname];
@@ -450,7 +477,7 @@ var System = function (ctx) {
 			args = ["-an"]; // add n because otherwise it can take forever..
 		}
 
-	    } else if (os == android) {
+	    } else if (os == android || os == linux) {
 		cmd = "ip";
 		args = ['neigh','show'];
 		if (hostname) {

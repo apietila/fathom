@@ -46,7 +46,7 @@ function parseTraceroute(config, output) {
     case linux:
     case android:
 	for (var i = 1; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
+	    var str = lines[i].replace(/\s+/g,' ').replace(/\sms/g,'');
 	    if (str.trim() == "") 
 		continue;
 
@@ -73,7 +73,7 @@ function parseTraceroute(config, output) {
     case darwin:
         var prevhop = undefined;
 	for (var i = 0; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g,' ').replace(/\sms/g,'');
+	    var str = lines[i].replace(/\s+/g,' ').replace(/\sms/g,'');
 	    str = str.trim();
 	    if (str == "" || str.indexOf('traceroute')>=0) 
 		continue;
@@ -140,7 +140,7 @@ function parseTraceroute(config, output) {
 	break;
     case winnt:
 	for (var i = 3; i < lines.length - 2; i++) {
-	    var str = lines[i].replace(/\s{2,}/g, ' ').replace(/\sms/g, '');
+	    var str = lines[i].replace(/\s+/g, ' ').replace(/\sms/g, '');
 	    if (str.trim() == "") {
 		continue;
 	    }
@@ -259,7 +259,7 @@ function parsePing(config, output) {
 	    if (lines[i].length < 2)
 		continue
 	    
-	    var line = lines[i].trim().replace(/\s{2,}/g, ' ');
+	    var line = lines[i].trim().replace(/\s+/g, ' ');
 	    if (i == 0) {
 		var s = line.split(' ');
 		ping.domain = s[1];
@@ -328,7 +328,7 @@ function parsePing(config, output) {
     case winnt:
 	if (lines.length > 1) {
 	    for (var i = 0; i < lines.length; i++) {
-		var line = lines[i].trim().replace(/\s{2,}/g, ' ');
+		var line = lines[i].trim().replace(/\s+/g, ' ');
 		if (i == 0) {
 		    var s = line.split(' ');
 		    ping.domain = s[1];
@@ -413,6 +413,63 @@ function parsePing(config, output) {
     return ping;
 };
 
+/* nslookup */
+function parseNslookup(config, output) {
+    var res = {
+	server: null,
+	server_addr: null,
+	answers : [], // list of Records
+	__exposedProps__: {
+	    server: "r",
+	    server_addr: "r",
+	    answers: "r"
+	}
+    };
+
+    function Record() {};
+    Record.prototype = {
+	name : null,
+	address : null,
+	__exposedProps__: {
+	    name : 'r',
+	    address : 'r'
+	}
+    };
+
+    var lines = output.trim().split("\n");
+    var r = new Record();
+    for (var i = 0; i < lines.length; i++) {
+	var line = lines[i].trim().replace(/\s+/g,' ');
+
+	if (line.indexOf('*')>=0)
+	    continue
+
+	else if (line.indexOf('Server:')==0)
+	    res.server = line.split(' ')[1];
+
+	else if (line.indexOf('Address:')==0 && i<=2)
+	    res.server_addr = line.split(' ')[1];
+
+	else if (line.indexOf('Name:')==0)
+	    r.name = line.split(' ')[1].trim();
+
+	else if (line.indexOf('Address:')==0 && i>2) {
+	    r.address = line.split(' ')[1];
+	    res.answers.push(r);
+	    r = new Record();
+
+	} else if (line.indexOf('in-addr.arpa')>0) {
+	    var tmp = line.split(' ');
+	    r.name = tmp[3];
+	    r.address = tmp[0];
+	}
+    }
+    if (r.name!=null)
+	res.answers.push(r);
+    return res;
+};
+
+
 /* /etc/resolv.conf or getprop net.dnsX */
 function parseNameServer(config, output) {
     var nameserver = {
@@ -436,7 +493,7 @@ function parseNameServer(config, output) {
 	// cmd: cat /etc/resolf.con
 	var lines = output.trim().split("\n");
 	for (var i = 0; i < lines.length; i++) {
-	    var line = lines[i].trim().replace(/\s{2,}/g, ' ');
+	    var line = lines[i].trim().replace(/\s+/g, ' ');
 	    if (line[0] == "#" || line == "") 
 		continue;
 
@@ -546,7 +603,7 @@ function parseRoutingTable(config,output) {
 	    return addr.join(".");
 	}
 	for (var i = 1; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g, ' ');
+	    var str = lines[i].replace(/\s+/g, ' ');
 	    var ent = str.trim().split('\t');
 	    dest.push(ip4(parseInt(ent[1], 16)));
 	    gate.push(ip4(parseInt(ent[2], 16)));
@@ -565,7 +622,7 @@ function parseRoutingTable(config,output) {
     case linux:
 	var lines = output.trim().split('\n');
 	for (var i = 2; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g, ' ');
+	    var str = lines[i].replace(/\s+/g, ' ');
 	    var ent = str.trim().split(' ');
 	    dest.push(ent[0]);
 	    gate.push(ent[1]);
@@ -589,7 +646,7 @@ function parseRoutingTable(config,output) {
 	// push ipv4 entries into the table
 	var lines = ipv4.trim().split('\n');
 	for (var i = 0; i < lines.length; i++) {
-	    var str = lines[i].replace(/\s{2,}/g, ' ');
+	    var str = lines[i].replace(/\s+/g, ' ');
 	    var ent = str.trim().split(' ');
 	    dest.push(ent[0]);
 	    gate.push(ent[1]);
@@ -609,7 +666,7 @@ function parseRoutingTable(config,output) {
     case winnt:
 	var lines = output.trim().split("Active Routes:")[1].split("Persistent Routes:")[0].trim().split('\n');
 	for (var i = 1; i < lines.length - 1; i++) {
-	    var str = lines[i].replace(/\s{2,}/g, ' ');
+	    var str = lines[i].replace(/\s+/g, ' ');
 	    var ent = str.trim().split(' ');
 	    dest.push(ent[0]);
 	    gate.push(ent[2]);
@@ -683,7 +740,7 @@ function parseInterface(config,output) {
 
     switch (config.os.toLowerCase()) {
     case android:
-	var inter = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+	var inter = output.trim().replace(/\s+/g, ' ').split("\n");
 	var cache = {};
 	for (var i = 0; i < inter.length; i++) {
 	    var w = inter[i].split(" ");
@@ -772,7 +829,7 @@ function parseInterface(config,output) {
     case linux:
 	var inter = output.trim().split("\n\n");
 	for (var i = 0; i < inter.length; i++) {
-	    var str = inter[i].trim().replace(/\s{2,}/g, ' ');
+	    var str = inter[i].trim().replace(/\s+/g, ' ');
 	    if (!str)
 		continue
 
@@ -1075,7 +1132,7 @@ function parseTop(config, output) {
     };
 
 
-    var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+    var lines = output.trim().replace(/\s+/g, ' ').split("\n");
 
     switch (config.os.toLowerCase()) {
     case android:
@@ -1247,7 +1304,7 @@ function parseIfaceStats(config,output) {
 	var x = new RegExp(dIface.trim() + ":(.+)\\s*");
 	var w = x.exec(output);
 	if (w) {
-	    var elems = w[1].trim().replace(/\s{2,}/g, ' ').split(" ");
+	    var elems = w[1].trim().replace(/\s+/g, ' ').split(" ");
 	    rx.bytes = parseInt(elems[0].trim());
 	    rx.packets = parseInt(elems[1].trim());
 	    rx.errs = parseInt(elems[2].trim());
@@ -1267,7 +1324,7 @@ function parseIfaceStats(config,output) {
 	break;
     case darwin:
 	var found = false;
-	var lines = output.trim().replace(/\s{2,}/g, ' ').split("\n");
+	var lines = output.trim().replace(/\s+/g, ' ').split("\n");
 	for (var i = 0; i < lines.length; i++) {
 	    var row = lines[i].trim().split(' ');
 	    if (row[0] === dIface && row[2].indexOf('Link')>=0) {
@@ -1325,12 +1382,12 @@ function parseArpCache(config,output) {
 	host: null,
 	ip: null,
 	mac: null,
-	interface: null,
+	'interface': null,
 	__exposedProps__: {
 	    host: "r",
 	    ip: "r",
 	    mac: "r",
-	    interface: "r"
+	    'interface': "r"
 	}
     };
 
@@ -1346,6 +1403,7 @@ function parseArpCache(config,output) {
     var lines = output.trim().split('\n');
 
     switch (config.os.toLowerCase()) {
+	/* Obsolete : switch to 'ip neigh'
     case linux:
 	if (lines[0].indexOf('Address')>=0 || lines[0].indexOf('no entry')>=0) {
 	    // arp hostname
@@ -1372,9 +1430,10 @@ function parseArpCache(config,output) {
 	    }
 	}
 	break;
+	*/
     case darwin:
 	for(var k = 0; k <lines.length; k++) {
-	    var i = lines[k];
+	    var i = lines[k].trim().replace(/\s+/g,' ');
 	    var x = i.split(' ');
 	    var e = new Elem();
 	    e.host = (x[0].indexOf("\?") >= 0 ? null : x[0]);
@@ -1384,21 +1443,23 @@ function parseArpCache(config,output) {
 	    arpCache.push(e);
 	}
 	break;
+    case linux:
     case android:
 	for(var k = 0; k <lines.length; k++) {
-	    var i = lines[k];
+	    var i = lines[k].trim().replace(/\s+/g,' ');
 	    var x = i.split(' ');
 	    var e = new Elem();
 	    e.host = undefined;
 	    e.ip = x[0];
-	    e.mac = x[4];
 	    e.interface = x[2];
+	    if (x.length>4)
+		e.mac = x[4];
 	    arpCache.push(e);
 	}
 	break;
     case winnt:
 	for(var k = 2; k <lines.length; k++) {
-	    var i = lines[k].trim().replace(/\s{2,}/g,' ');
+	    var i = lines[k].trim().replace(/\s+/g,' ');
 	    var x = i.split(' ');
 	    var e = new Elem();
 	    e.ip = x[0];
@@ -1513,7 +1574,7 @@ function parseWireless(config, output) {
 
 	for(var i = 1; i < tmpCells.length; i++) {
 	    var info = "Cell" + tmpCells[i];
-	    info = info.replace(/\s{2,}/g, ' ');
+	    info = info.replace(/\s+/g, ' ');
 	    info = info.replace(/\n{1,}/g, ' ');
 	    
 	    var x = new RegExp("Cell (.+) - Address: (.+)\\s+Channel:(.+)\\s+Frequency:(.+ GHz).+\\s+Quality=(.+)\\s+Signal level=(.+) dBm\\s+Encryption key:(.+)\\s+ESSID:\"(.+)\"\\s+");
@@ -1571,7 +1632,7 @@ function parseWireless(config, output) {
 	    if (tmpCells[i].indexOf(':')<0) // does not look a valid cell line
 		continue
 
-	    var info = tmpCells[i].trim().replace(/\s{2,}/g,' ');
+	    var info = tmpCells[i].trim().replace(/\s+/g,' ');
 	    var cols = info.split(' ');
 
 	    var cell = new Cell(); 
@@ -1593,7 +1654,7 @@ function parseWireless(config, output) {
 		if (tmpCells[i].indexOf(':')<0) // does not look a valid cell line
 		    continue
 
-		var info = tmpCells[i].trim().replace(/\s{2,}/g,' ');
+		var info = tmpCells[i].trim().replace(/\s+/g,' ');
 		var cols = info.split(' ');
 
 		var cell = new Cell(); 
@@ -1618,7 +1679,7 @@ function parseWireless(config, output) {
 
 	    var info = tmpCells[i].trim().split("\n");
 	    for (var j = 0; j < info.length; j++) {
-		var w = info[j].trim().replace(/\s{2,}/g,' ').split(': ');
+		var w = info[j].trim().replace(/\s+/g,' ').split(': ');
 		if (w.length!==2)
 		    continue;
 
@@ -1714,7 +1775,7 @@ function parseProcNetWireless(config, output) {
 	    if (line.indexOf('|')>=0)
 		continue; // header line
 
-	    var elems = line.trim().replace(/\s{2,}/g, ' ').split(" ");
+	    var elems = line.trim().replace(/\s+/g, ' ').split(" ");
 	    var iface = elems[0].replace(':','');
 
 	    if (config.params && config.params.length === 1) {
@@ -1736,7 +1797,7 @@ function parseProcNetWireless(config, output) {
 	break;
     case darwin:
 	for (var i = 0; i < lines.length; i++) {
-	    var elems = lines[i].trim().replace(/\s{2,}/g, ' ').split(":");
+	    var elems = lines[i].trim().replace(/\s+/g, ' ').split(":");
 	    if (elems[0] == "agrCtlRSSI") 
 	       wifi.signal = parseInt(elems[1].trim());
 	    else if (elems[0] == "agrCtlNoise") 
@@ -1810,7 +1871,7 @@ function parseWifiInterface(config,output) {
     case linux:
 	var i;
 	for (i = 0; i<lines.length; i++) {
-	    var tmp = lines[i].trim().replace(/\s{2,}/g, ' ').split(' ');
+	    var tmp = lines[i].trim().replace(/\s+/g, ' ').split(' ');
 
 	    if (lines[i].indexOf('ESSID')>=0) {
 		// wlan0     IEEE 802.11abgn  ESSID:"BISmark5-testbed"
@@ -2082,6 +2143,9 @@ var libParse2 = function (config, obj) {
 	break;
     case "nameserver":
 	res = parseNameServer(config,out);
+	break;
+    case "nslookup":
+	res = parseNslookup(config,out);
 	break;
     case "hostname":
 	res = {hostname : out.trim(), __exposedProps__ : {hostname : "r" }};

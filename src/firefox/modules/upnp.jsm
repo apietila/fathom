@@ -133,7 +133,7 @@ Upnp.prototype = {
 					 res.error);
 			    self.fathom.socket.tcp.closeSocket(function() {}, s);
 			    self.cleanup[ip] = undefined;
-			    ucb(null,rinfo);
+			    ucb(undefined,rinfo);
 			    return;
 			}		    
 			//Logger.debug(res);
