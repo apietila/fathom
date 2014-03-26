@@ -79,7 +79,7 @@ Upnp.prototype = {
 
 	// cleanup all pending http requests
 	for (var d in self.cleanup) {
-	    if (!self.cleanup[d].pending)
+	    if (self.cleanup[d] && !self.cleanup[d].pending)
 		self.fathom.socket.tcp.closeSocket(
 		    function() {}, self.cleanup[d]);
 	}
