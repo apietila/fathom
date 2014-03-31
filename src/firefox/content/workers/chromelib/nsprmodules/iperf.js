@@ -14,10 +14,6 @@ util.registerAction('iperfStop');
 //importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/long.js');
 importScripts("resource://fathom/Long.jsm");
 
-var debug = function(str) {
-    dump("iperf: " + str + "\n");
-};
-
 const kKilo_to_Unit = 1024;
 const kMega_to_Unit = 1024 * 1024;
 const kGiga_to_Unit = 1024 * 1024 * 1024;
@@ -152,6 +148,10 @@ var settings = {
 
     // chars
 //    mTTL : 1                         // -T
+};
+
+var debug = function(str) {
+    dump("iperf ["+settings.id+"]: " + str + "\n");
 };
 
 var configure = function(args) {
@@ -1437,7 +1437,7 @@ function iperfStop() {
 };
 
 /* Exported method: start iperf client, listener or server worker. */
-function iperf(args) {
+function iperf(sid, args) {
     // NSPR is only available now, re-declare the timestamp func
     gettime = function() { return NSPR.util.PR_Now()/1000.0; };
 
@@ -1456,6 +1456,7 @@ function iperf(args) {
 	    settings.mThreadMode = ThreadMode.kMode_Server;
 	}
     }
+    settings.id = sid;
 
     switch (settings.mThreadMode) {
     case ThreadMode.kMode_Listener:

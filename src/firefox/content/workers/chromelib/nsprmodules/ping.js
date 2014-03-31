@@ -302,7 +302,7 @@ var cli = function() {
 
     // Practical limit for IPv4 TCP/UDP packet data length is 65,507 bytes.
     // (65,535 - 8 byte TCP header - 20 byte IP header)
-    var bufsize = settings.size*2;
+    var bufsize = settings.size*2+1;
     if (bufsize > 65507)
 	bufsize = 65507;
     var buf = new ArrayBuffer(bufsize);
@@ -358,6 +358,7 @@ var cli = function() {
     var recvbuf = newBuffer(bufsize);
     var strbuf = '';
 
+    // FIXME: needs to be a loop really for TCP!
     var d = function(noloop) {
 	if (!settings.socket)
 	    return;
@@ -375,7 +376,7 @@ var cli = function() {
 	}
 
 	// make sure the string terminates at correct place as buffer reused
-	recvbuf[rv] = 0; 
+	recvbuf[(rv < bufsize ? rv : bufsize-1)] = 0; 
 
 	var obj = getobj(recvbuf,strbuf);
 	if (obj && obj.seq!==undefined && obj.seq>=0) {
