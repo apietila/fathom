@@ -1,15 +1,3 @@
-// long.js : added by Anna
-//
-// Original source (licence below):
-//
-// http://docs.closure-library.googlecode.com/git/closure_goog_math_long.js.source.html
-//
-// Naming modified from goog.math.Long -> Long
-//
-// TODO: this is needed by iperf.js (for now), but where should 
-// the source file reside really.. ?
-
-
 // Copyright 2009 The Closure Library Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// goog.math.Long.js from:
+//
+// http://docs.closure-library.googlecode.com/git/closure_goog_math_long.js.source.html
+//
+// Anna: renamed from goog.math.Long -> Long
+//
+var EXPORTED_SYMBOLS = ["Long"];
 
 /**
  * @fileoverview Defines a Long class for representing a 64-bit two's-complement
@@ -53,7 +49,7 @@
  * @param {number} high  The high (signed) 32 bits of the long.
  * @constructor
  */
-Long = function(low, high) {
+var Long = function(low, high) {
   /**
    * @type {number}
    * @private

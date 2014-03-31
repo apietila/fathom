@@ -19,6 +19,7 @@ importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/dns.js');
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/helper.js');
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/upnp.js');
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/netprobe.js');
+
 // Anna: new tools
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/iperf.js');
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/ping.js');

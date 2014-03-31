@@ -14,7 +14,8 @@ var Tools = function(ctx) {
 	 * @method ping
 	 * @static
 	 *
-	 * @description ping (udp/tcp/http) implementation in nspr directly
+	 * @description ping (udp/tcp/http) client/server implementation in 
+	 * using nspr API directly
 	 *
 	 * @param {function} func The callback function to invoke when
 	 * results are available.
@@ -25,14 +26,16 @@ var Tools = function(ctx) {
 	 */
 	ping : function(callback, args) {
 	    // create new multiresponse worker and return the id for stop calls
-	    return ctx._doSocketOpenRequest(callback, 'ping', [args], true);
+	    var id = ctx._doSocketWorkerOpenRequest();
+	    ctx._doSocketUsageRequest(callback, 'ping', [id, args], true);
+	    return id;
 	},
 
 	/**
 	 * @method iperfStop
 	 * @static
 	 *
-	 * @description stop running iperf server
+	 * @description stop running ping server
 	 */
 	pingStop : function(callback, id) {
 	    ctx._doSocketUsageRequest(callback, 'pingStop', [id]);
@@ -42,7 +45,8 @@ var Tools = function(ctx) {
 	 * @method iperf
 	 * @static
 	 *
-	 * @description iperf (client/server) implementation in nspr directly.
+	 * @description iperf (client/server) implementation using nspr API
+	 * directly.
 	 *
 	 * @param {function} func The callback function to invoke when
 	 * results are available.
@@ -53,7 +57,9 @@ var Tools = function(ctx) {
 	 */
 	iperf : function(callback, args) {
 	    // create new multiresponse worker and return the id for stop calls
-	    return ctx._doSocketOpenRequest(callback, 'iperf', [args], true);
+	    var id = ctx._doSocketWorkerOpenRequest();
+	    ctx._doSocketUsageRequest(callback, 'iperf', [id, args], true);
+	    return id;
 	},
 
 	/**

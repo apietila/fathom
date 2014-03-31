@@ -328,12 +328,24 @@ FathomAPI.prototype = {
 	  return;
 	}
 
+	// flags
+	var done = false;
+	var close = false;
+
         if (result) {
+	  // remove flags from user cb
+ 	  if (result.done!==undefined) {
+	    done = result.done;
+	    delete result.done;
+	  }
+ 	  if (result.closed!==undefined) {
+	    close = result.closed;
+	    delete result.closed;
+	  }
+	  
           // TODO: possibly make sure the worker is the one we expect (the one
           // stored in the requestinfo).
           try {
-	    // TODO: call the callback async using setTimeout.
-	    
 	    // Anna: recursively mark everything visible
 	    var recur = function(o) {
 	      var exp = {};
@@ -356,7 +368,9 @@ FathomAPI.prototype = {
 	      o["__exposedProps__"] = exp;
 	    };
 	    recur(result);
+
 	    requestinfo['callback'](result);
+
           } catch (e) {
             // TODO: decide on a good way to send this error back to the document.
             Logger.error("[" + that.windowid + "] Error when calling user-provide callback: " + e);
@@ -368,19 +382,20 @@ FathomAPI.prototype = {
 
 	// one time request or multiresponse is done ?
 	if ((requestinfo && !requestinfo['multiresponse']) || 
-	    (result && result['done'])) {
+	    (result && done)) {
           delete that.requests[requestid];
           Logger.info("[" + that.windowid + "] Request done: " + requestid);
 	}
 
 	// Anna: adding a way to clean things up inside fathom
 	// if the worker closes itself
-	if (result && result['closed']) {
+	if (result && close) {
 	  // the worker has closed itself, remove any references
 	  // so this worker object gets garbage collected
 	  delete that.chromeworkers[workername];
           Logger.info("[" + that.windowid + "] Worker closed: " + workername);
 	}
+
       }; // onmessage
 
       // initialize the worker
@@ -459,6 +474,17 @@ FathomAPI.prototype = {
   },
 
   /*
+   * Create a new socket worker thread.
+   */
+  _doSocketWorkerOpenRequest : function() {
+    var socketid = this.nextsocketid++;
+    var workername = 'socketworker' + socketid;
+    var workerscript = 'chromeworker';
+    var worker = this._initChromeWorker(workername, workerscript);
+    return socketid;
+  },
+
+  /*
    * Each socket gets its own worker (thread). This function will create a new
    * worker and will intercept the callback to the user code in order to
    * provide the socketid (assigned here, not in the chromeworker) back to the
@@ -470,7 +496,6 @@ FathomAPI.prototype = {
     var workername = 'socketworker' + socketid;
     var workerscript = 'chromeworker';
     var worker = this._initChromeWorker(workername, workerscript);
-    var that = this;
 
     function socketRegistrationCallback(result) {
       if (result && !result['error']) {

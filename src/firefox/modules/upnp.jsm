@@ -129,11 +129,14 @@ Upnp.prototype = {
 		var recvloop = function() {
 		    self.fathom.socket.tcp.receive(function(res) {
 			if (!res || res.error) {
-			    Logger.debug("Upnp getxml "+ip+" recv fail: "+
-					 res.error);
 			    self.fathom.socket.tcp.closeSocket(function() {}, s);
 			    self.cleanup[ip] = undefined;
-			    ucb(undefined,rinfo);
+			    var idx = xml.indexOf('</root>');
+			    if (idx>=0) {
+				ucb(xml, rinfo);
+			    } else {
+				ucb(undefined,rinfo);
+			    }
 			    return;
 			}		    
 			//Logger.debug(res);

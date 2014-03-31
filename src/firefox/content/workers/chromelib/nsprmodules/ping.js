@@ -1,20 +1,16 @@
 /*
  * Implementation of udp/tcp ping client/server using NSRP directly.
  */
-
 util.registerAction('ping');
 util.registerAction('pingStop');
 
-var debug = function(str) {
-    dump("ping: " + JSON.stringify(str) + "\n");
-};
-
 // default settings
 var settings = {
+    id : -1,
     client : true,        // flag: are we a client (run server if false)
     proto : 'udp',        // one of UDP, TCP, HTTP
-    port : 21314,         // destination port
-    count : 3,            // number of packets
+    port : 5200,          // destination port
+    count : 5,            // number of packets
     interval : 1.0,       // interval between packets (s)
     timeout : 10.0,       // time to wait for answer (s)
     srciface : undefined, // src IP
@@ -22,6 +18,10 @@ var settings = {
 
     reports : false,      // periodic reports
     socket : undefined,   // active socket
+};
+
+var debug = function(str) {
+    dump("ping [" + settings.id + "] " + JSON.stringify(str) + "\n");
 };
 
 // default implementation - overriden with NSPR.PR_Now below.
@@ -94,13 +94,14 @@ var reporter = function() {
 
 	if (s) {
 	    succ += 1;
-	    r.upd = r.r - r.s; // uplink delay
-	    updv.push(r.upd); 
-
-	    r.downd = r.rr - r.r; // downlink delay
-	    downdv.push(r.downd);
 
 	    times.push(r.time); // rtt
+
+	    r.upd = Math.abs(r.r - r.s); // uplink delay
+	    updv.push(r.upd); 
+
+	    r.downd = Math.abs(r.rr - r.r); // downlink delay
+	    downdv.push(r.downd);
 
 	    // keep track of the smallest uplink delay
 	    if (minupdv === undefined)
@@ -136,28 +137,22 @@ var reporter = function() {
     var stats = function(data) {
 	if (!data || data.length<=0) return {};
 
-	var min = undefined;
-	var max = undefined;
+	data = data.sort();
+	var min = data[0];
+	var max = data[data.length-1];
+	var med = data[data.length >> 1];
 
 	// mean
 	var sum = 0.0;
 	for (var i = 0; i< data.length; i++) { 
-	    var v = data[i];
-	    sum += v;
-	    if (min === undefined)
-		min = v;
-	    min = Math.min(min,v);
-	    if (max === undefined)
-		max = v;
-	    max = Math.max(max,v);
+	    sum += data[i];
 	};
 	var avg = (1.0 * sum) / data.length;
-	
+
 	// variance
 	var v = 0.0;
 	for (var i = 0; i< data.length; i++) { 
-	    var v = data[i];
-	    v += (v-avg)*(v-avg); 
+	    v += (data[i]-avg)*(data[i]-avg); 
 	};
 	v = (1.0 * v) / data.length;
 	
@@ -165,8 +160,9 @@ var reporter = function() {
 	    min : min,
 	    max : max,
 	    avg : avg,
+	    median : med,
 	    variance : v,
-	    mdev : Math.sqrt(v),
+	    mdev : Math.sqrt(v), // std dev
 	};
     };
 
@@ -178,22 +174,20 @@ var reporter = function() {
 	
 	// scale one-way-delays so that min is 0
 	// measures variation with respect to the 
-	// fastest one-way-delay (could think of as buffering!)
-	var tmp = [];
-	for (var v in updv)
-	    tmp.push(v - minupdv);
-	updv = tmp;
+	// fastest one-way-delay
+	var fupdv = [];
+	for (var i = 0; i < updv.length; i++)
+	    fupdv.push(updv[i] - minupdv);
 
-	tmp = [];
-	for (var v in downdv)
-	    tmp.push(v - mindowndv);
-	downdv = tmp;
+	var fdowndv = [];
+	for (var i = 0; i < downdv.length; i++)
+	    fdowndv.push(downdv[i] - mindowndv);
 
 	var res = {
 	    proto : settings.proto,
 	    domain : settings.dst,
-	    ip : settings.dst || undefined,
-	    port : settings.port || 80,
+	    ip : settings.dst,
+	    port : settings.port,
 	    pings : reports,
 	    stats : {
 		packets : {
@@ -206,8 +200,8 @@ var reporter = function() {
 		rtt : stats(times),
 		upjitter : stats(upj),
 		downjitter : stats(downj),
-		updv : stats(updv),
-		downdv : stats(downdv),
+		updv : stats(fupdv),
+		downdv : stats(fdowndv),
 	    },
 	};		
 	return res;
@@ -274,7 +268,8 @@ var setobj = function(obj,buf) {
 var cli = function() {
     if (settings.proto !== 'udp' && settings.proto !== 'tcp') {
 	return {error : "unsupported client protocol: " + settings.proto};
-    }    
+    }
+    
     if (!settings.dst) {
 	return {error : "no destination!"};
     }
@@ -340,11 +335,12 @@ var cli = function() {
 	var prv = NSPR.sockets.PR_Poll(pd.address(), 1, Math.floor(sleep));
 	if (prv < 0) {
 	    // Failure in polling
-	    done();
+	    shutdown({error: 'Poll failed: ' +  + NSPR.errors.PR_GetError()});
 	    return;
 	} else if (prv > 0) {
+	    // incoming data
 	    d(true);
-	} // else timeout
+	} // else timeout - send next
 
 	// schedule next round ?
 	if (sent < settings.count) {
@@ -371,7 +367,7 @@ var cli = function() {
 
 	if (rv == -1) {
 	    // Failure. We should check the reason but for now we assume it was a timeout.
-	    done();
+	    shutdown({error: 'Recv failed: ' +  + NSPR.errors.PR_GetError()});
 	    return;
 	} else if (rv == 0) {
 	    shutdown({error: 'Network connection is closed'});
@@ -419,6 +415,7 @@ var cli = function() {
 			       settings.port, addr.address());
 
     if (NSPR.sockets.PR_Connect(settings.socket, addr.address(), settings.timeout*1000) < 0) {
+	debug("failed to connect: " + NSPR.errors.PR_GetError());
 	shutdown({error : "Error connecting : code = " + NSPR.errors.PR_GetError()});
     } else {
 	setTimeout(f,0); // start sending pings
@@ -506,7 +503,7 @@ var serv = function() {
 };
 
 /* Exported method: stop running ping server. */
-function pingStop() {
+function pingStop(sid) {
     if (!util.data.multiresponse_running) {
 	return {logmsg: 'No ping server is running (nothing to stop).'};
     }
@@ -515,7 +512,7 @@ function pingStop() {
 };
 
 /* Exported method: start ping client/server. */
-function ping(args) {
+function ping(sid, args) {
     // NSPR is only available now, re-declare the timestamp func
     gettime = function() { return NSPR.util.PR_Now()/1000.0; };
 
@@ -525,6 +522,8 @@ function ping(args) {
 	if (args.hasOwnProperty(k))
 	    settings[k] = args[k];
     }
+
+    settings.id = sid;
 
     debug(settings);
 

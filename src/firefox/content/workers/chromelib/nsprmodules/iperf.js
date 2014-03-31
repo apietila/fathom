@@ -11,7 +11,8 @@ util.registerAction('iperf');
 util.registerAction('iperfStop');
 
 // TODO: the path could probably be something else?
-importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/long.js');
+//importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/long.js');
+importScripts("resource://fathom/Long.jsm");
 
 var debug = function(str) {
     dump("iperf: " + str + "\n");
