@@ -43,10 +43,10 @@ Record.prototype = {
     ssdp : null,
     ipv4 : null,
     __exposedProps__: {
-	proto : 'r',
-	ipv4 : 'r',
-	ssdp : 'r',
-	device : 'r'
+        proto : 'r',
+	    ipv4 : 'r',
+	    ssdp : 'r',
+	    device : 'r'
     }
 };
 
@@ -174,13 +174,13 @@ Upnp.prototype = {
 	    var lines = res.data.split('\r\n');
 	    var headers= {};
 	    for (var i = 0; i < lines.length; i++) {
-		var line = lines[i];
-		var idx = line.indexOf(':');
-		if (idx > 0) {
-		    var k = line.substring(0,idx).toLowerCase();
-		    var v = line.substring(idx+2);
-		    headers[k] = v;
-		}
+            var line = lines[i];
+		    var idx = line.indexOf(':');
+		    if (idx > 0) {
+		        var k = line.substring(0,idx).toLowerCase();
+		        var v = line.substring(idx+1).trim();
+		        headers[k] = v;
+		    }
 	    }
 	    
 	    Logger.debug(JSON.stringify(headers,null,4));
