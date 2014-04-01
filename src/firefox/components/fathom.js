@@ -369,7 +369,12 @@ FathomAPI.prototype = {
 	    };
 	    recur(result);
 
-	    requestinfo['callback'](result);
+	    if (requestinfo['callback'] && 
+		typeof requestinfo['callback'] === 'function')
+	      requestinfo['callback'](result);
+	    else
+              Logger.debug("[" + that.windowid + "] No callback found ");
+
 
           } catch (e) {
             // TODO: decide on a good way to send this error back to the document.
@@ -451,7 +456,8 @@ FathomAPI.prototype = {
     var socketid = args[0];
     if (!socketid) {
       Logger.error("[" + this.windowid + 
-		   "] Expected socket as the first argument.");
+		   "] Expected socket as the first argument for action "+
+		   action+".");
       callback({error:"Expected socket as the first argument.", 
 		__exposedProps__: { error: "r" }});
       return;
@@ -492,6 +498,7 @@ FathomAPI.prototype = {
    * same socketid can be invoked on the same chromeworker.
    */
   _doSocketOpenRequest : function(callback, action, args) {
+    var that = this;
     var socketid = this.nextsocketid++;
     var workername = 'socketworker' + socketid;
     var workerscript = 'chromeworker';
@@ -626,7 +633,7 @@ FathomAPI.prototype = {
     if (incrementalCallback == true) {
       var file = FileUtils.getFile("TmpD", [outfile.leafName]);
       var index = 0, timeout = 250, count = 120;
-      Logger.debug("[" + this.windowid + "] sending incremental updates for results every 250ms");
+      Logger.debug("[" + that.windowid + "] sending incremental updates for results every 250ms");
 
       var event = {  
 	observe: function(subject, topic, data) {  
@@ -653,7 +660,7 @@ FathomAPI.prototype = {
 					    stderr: "r" }});
 	    });
 	  } catch(e) {
-	    Logger.error("[" + this.windowid + "] Error executing the NetUtil.asyncFetch callback function: " + e);
+	    Logger.error("[" + that.windowid + "] Error executing the NetUtil.asyncFetch callback function: " + e);
 	  }
 	}  
       }; // event
@@ -754,7 +761,9 @@ FathomAPI.prototype = {
     this.requests = {};	
 
     for (var name in this.chromeworkers) {
-      Logger.info("[" + this.windowid + "] [shutdown] Sending shutdown message to chromeworker: " + name);
+      Logger.info("[" + this.windowid + 
+		  "] [shutdown] Sending shutdown message to chromeworker: " + 
+		  name);
       this.chromeworkers[name].postMessage(jsonobj);
       delete this.chromeworkers[name];
     }
@@ -794,7 +803,7 @@ FathomAPI.prototype = {
     // clicking "back" to go back to the restore session page and again
     // clicking "start new session". Doing this over and over again resulted in
     // init() sometimes being called for the same window id.
-    var self = this;
+    var that = this;
     if (!this.initialized) {
       this.initialized = true;
       Services.obs.addObserver(this, "inner-window-destroyed", false);
@@ -807,12 +816,12 @@ FathomAPI.prototype = {
         try{
           if (aEvent.originalTarget instanceof Ci.nsIDOMHTMLDocument) {
             var doc = aEvent.originalTarget;
-            Logger.info("[" + self.windowid + "] page hidden:" + 
+            Logger.info("[" + that.windowid + "] page hidden:" + 
 			doc.location.href + "\n");
-            self.shutdown("pagehide");
+            that.shutdown("pagehide");
           }
         } catch(e) {
-          Logger.error("[" + self.windowid + "] PAGEHIDE: " + e);
+          Logger.error("[" + that.windowid + "] PAGEHIDE: " + e);
         }
       }
       this.window.addEventListener("pagehide", onPageHide, false);
@@ -827,7 +836,7 @@ FathomAPI.prototype = {
     this.api = {
       build: pref.getCharPref("extensions.fathom.build"),
       version: pref.getCharPref("extensions.fathom.version"),
-      init : self.api_init.bind(self),
+      init : that.api_init.bind(that),
 
       // populated by api_init
       proto: {},

@@ -34,7 +34,7 @@ function multicastOpenSocket(ttl, loopback) {
     }
   }
   
-  // Set the TTL for the send.
+  // Should the data be sent to localhost
   if (loopback!==undefined) {
     var opt = new NSPR.types.PRSocketOptionData();
     opt.option = NSPR.sockets.PR_SockOpt_McastLoopback;
