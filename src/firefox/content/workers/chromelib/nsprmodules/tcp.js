@@ -44,7 +44,8 @@ function tcpOpenReceiveSocket(port) {
   NSPR.sockets.PR_SetSocketOption(fd, opt.address());
   
   var addr = new NSPR.types.PRNetAddr();
-  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, NSPR.sockets.PR_AF_INET, port, addr.address());
+  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, NSPR.sockets.PR_AF_INET,
+			     port, addr.address());
 
   if (NSPR.sockets.PR_Bind(fd, addr.address()) != 0) {
     return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
@@ -69,10 +70,62 @@ function tcpOpenReceiveSocket(port) {
  */
 function tcpSend(socketid, msg) {
   var fd = util.getRegisteredSocket(socketid);
-
+  var timeout = NSPR.sockets.PR_INTERVAL_NO_WAIT;
   var sendBuf = newBufferFromString(msg);
-  NSPR.sockets.PR_Send(fd, sendBuf, msg.length, 0, 250);
+  NSPR.sockets.PR_Send(fd, sendBuf, msg.length, 0, timeout);
 }
+
+/**
+ * @returns The bytes received as an array of integers between 0 and 255.
+ */
+function tcpReceive(socketid, asstring) {
+  var fd = util.getRegisteredSocket(socketid);
+
+  // Practical limit for IPv4 TCP packet data length is 65,507 bytes.
+  // (65,535 - 8 byte TCP header - 20 byte IP header)
+  var bufsize = 65507;
+  var recvbuf = getBuffer(bufsize);
+
+  // TODO: good interval ?
+  var timeout = NSPR.util.PR_MillisecondsToInterval(250);
+
+  var rv = NSPR.sockets.PR_Recv(fd, recvbuf, bufsize, 0, timeout);
+  if (rv == -1) {
+    return {error : "Error receiving, code=" + NSPR.errors.PR_GetError()};
+  } else if (rv == 0) {
+    return {error: 'Network connection is closed'};
+  }
+
+  var out = undefined;
+  if (asstring) {
+    // make sure the string terminates at correct place as buffer reused
+    recvbuf[rv] = 0; 
+    out = recvbuf.readString();
+  } else {
+    out = [];
+    for (var i = 0; i < rv; i++) {
+      out.push(recvbuf[i]);
+    }
+  }
+
+  return out;
+}
+
+function tcpGetHostIP(socketid) {
+  var fd = util.getRegisteredSocket(socketid);
+  var selfAddr = NSPR.types.PRNetAddr();
+  NSPR.sockets.PR_GetSockName(fd, selfAddr.address());
+  return NSPR.util.NetAddrToString(selfAddr) + ":" + NSPR.util.PR_ntohs(selfAddr.port);
+}
+
+function tcpGetPeerIP(socketid) {
+  var fd = util.getRegisteredSocket(socketid);
+  var peerAddr = NSPR.types.PRNetAddr();
+  NSPR.sockets.PR_GetPeerName(fd, peerAddr.address());
+  return NSPR.util.NetAddrToString(peerAddr) + ":" + NSPR.util.PR_ntohs(peerAddr.port);
+}
+
+//******** does not really work... 
 
 function tcpAcceptstart(socketid) {
   util.data.multiresponse_running = true;
@@ -136,53 +189,4 @@ function tcpAcceptstop(socketid) {
   }
   util.data.multiresponse_stop = true;
   return;
-}
-
-/**
- * @returns The bytes received as an array of integers between 0 and 255.
- */
-function tcpReceive(socketid, asstring) {
-  var fd = util.getRegisteredSocket(socketid);
-
-  // Practical limit for IPv4 TCP packet data length is 65,507 bytes.
-  // (65,535 - 8 byte TCP header - 20 byte IP header)
-  var bufsize = 65507;
-  var recvbuf = newBuffer(bufsize);
-  var timeout = 250;
-
-  var rv = NSPR.sockets.PR_Recv(fd, recvbuf, bufsize, 0, timeout);
-  if (rv == -1) {
-    // Failure. We should check the reason but for now we assume it was a timeout.
-    return {error: rv};
-  } else if (rv == 0) {
-    return {error: 'Network connection is closed'};
-  }
-
-  var out = undefined;
-  if (asstring) {
-    // make sure the string terminates at correct place as buffer reused
-    recvbuf[rv] = 0; 
-    out = recvbuf.readString();
-  } else {
-  var bytesreceived = rv;
-  out = [];
-  for (var i = 0; i < bytesreceived; i++) {
-    out.push(recvbuf[i]);
-  }
-  }
-  return out;
-}
-
-function tcpGetHostIP(socketid) {
-  var fd = util.getRegisteredSocket(socketid);
-  var selfAddr = NSPR.types.PRNetAddr();
-  NSPR.sockets.PR_GetSockName(fd, selfAddr.address());
-  return NSPR.util.NetAddrToString(selfAddr) + ":" + NSPR.util.PR_ntohs(selfAddr.port);
-}
-
-function tcpGetPeerIP(socketid) {
-  var fd = util.getRegisteredSocket(socketid);
-  var peerAddr = NSPR.types.PRNetAddr();
-  NSPR.sockets.PR_GetPeerName(fd, peerAddr.address());
-  return NSPR.util.NetAddrToString(peerAddr) + ":" + NSPR.util.PR_ntohs(peerAddr.port);
 }

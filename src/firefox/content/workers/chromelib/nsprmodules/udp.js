@@ -78,7 +78,7 @@ function udpConnect(socketid, addr, port) {
 			     port, netaddr.address());
   
   if (NSPR.sockets.PR_Connect(fd, netaddr.address(), timeout) < 0)
-    return {error : "Error connecting " + NSPR.errors.PR_GetError()};
+    return {error : "Error connecting : code = " + NSPR.errors.PR_GetError()};
   
   return {};
 }
@@ -96,10 +96,11 @@ function udpSend(socketid, data) {
   var timeout = NSPR.sockets.PR_INTERVAL_NO_WAIT;
   var sendBuf = newBufferFromString(data);
 
-  // TODO: check retval.
-  NSPR.sockets.PR_Send(fd, sendBuf, data.length, 0, timeout);
-
-  return {};
+  var rv = NSPR.sockets.PR_Send(fd, sendBuf, data.length, 0, timeout);
+  if (rv < 0) {
+    return {error : "Error sending : code = " + NSPR.errors.PR_GetError()};
+  }
+  return {length : rv};
 }
 
 /**
@@ -117,15 +118,18 @@ function udpSendto(socketid, data, ip, port) {
   //port = NSPR.util.PR_htons(port);
   var addr = new NSPR.types.PRNetAddr();
   addr.ip = NSPR.util.StringToNetAddr(ip);
-  // TODO: check retval;
-  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrNull, NSPR.sockets.PR_AF_INET, port, addr.address());
+  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrNull, 
+			     NSPR.sockets.PR_AF_INET, port, addr.address());
+
   var timeout = NSPR.sockets.PR_INTERVAL_NO_WAIT;
-
   var sendBuf = newBufferFromString(data);
-  // TODO: check retval;
-  NSPR.sockets.PR_SendTo(fd, sendBuf, data.length, 0, addr.address(), timeout);
 
-  return {};
+  var rv = NSPR.sockets.PR_SendTo(fd, sendBuf, data.length, 0, 
+				  addr.address(), timeout);
+  if (rv < 0) {
+    return {error : "Error sending, code=" + NSPR.errors.PR_GetError()};
+  }
+  return {length : rv};
 }
 
 function udpRecv(socketid, length, timeout) {
@@ -133,24 +137,30 @@ function udpRecv(socketid, length, timeout) {
 
   // Practical limit for IPv4 UDP packet data length is 65,507 bytes.
   // (65,535 - 8 byte UDP header - 20 byte IP header)
-  var bufsize = 65507;
+  var bufsize = length || 65507;
   var recvbuf = util.getBuffer(bufsize);
-  //var addr = new NSPR.types.PRNetAddr();
-  var timeout = timeout || NSPR.sockets.PR_INTERVAL_NO_WAIT;
+
+  //var addr = new NSPR.types.PRNetAddr();  
+
+  // default is not to wait
+  var tint = NSPR.sockets.PR_INTERVAL_NO_WAIT;
+  if (timeout && timeout < 0) {
+    tint = NSPR.sockets.PR_NO_TIMEOUT;
+  } else if (timeout && timeout > 0) {
+    // convert to platform dependent interval
+    tint = NSPR.util.PR_MillisecondsToInterval(timeout);
+  }
   
-  var rv = NSPR.sockets.PR_Recv(fd, recvbuf, bufsize, 0, timeout);
+  var rv = NSPR.sockets.PR_Recv(fd, recvbuf, bufsize, 0, tint);
   if (rv == -1) {
-    // Failure. We should check the reason but for now we assume it was a timeout.
-    return {error: rv};
+    return {error : "Error receiving, code=" + NSPR.errors.PR_GetError()};
   } else if (rv == 0) {
     return {error: 'Network connection is closed'};
   }
 
   var bytesreceived = rv;
-  length = length || bytesreceived;
-  length = Math.min(length, bytesreceived);
   var out = [];
-  for (var i = 0; i < length; i++) {
+  for (var i = 0; i < bytesreceived; i++) {
     out.push(recvbuf[i]);
   }
 
@@ -175,10 +185,11 @@ function udpRecvstart_helper(socketid, length, asstring) {
 
   // Practical limit for IPv4 UDP packet data length is 65,507 bytes.
   // (65,535 - 8 byte UDP header - 20 byte IP header)
-  var bufsize = 65507;
+  var bufsize = length || 65507;
   var recvbuf = util.getBuffer(bufsize);
-  // TODO: use a global const
-  var timeout = 100;
+
+  // TODO: good interval ?
+  var timeout = NSPR.util.PR_MillisecondsToInterval(100);
 
   var rv = NSPR.sockets.PR_Recv(fd, recvbuf, bufsize, 0, timeout);
   if (rv == -1) {
@@ -198,10 +209,8 @@ function udpRecvstart_helper(socketid, length, asstring) {
       recvbuf[rv] = 0; 
       out = recvbuf.readString();
     } else {
-      var curlen = length || bytesreceived;
-      curlen = Math.min(curlen, bytesreceived);
       out = [];
-      for (var i = 0; i < curlen; i++) {
+      for (var i = 0; i < bytesreceived; i++) {
 	out.push(recvbuf[i]);
       }
     }
@@ -241,14 +250,22 @@ function udpRecvfrom(socketid, timeout, asstring) {
   // Practical limit for IPv4 UDP packet data length is 65,507 bytes.
   // (65,535 - 8 byte UDP header - 20 byte IP header)
   var bufsize = 65507;
-  var recvbuf = newBuffer(bufsize);
+  var recvbuf = util.getBuffer(bufsize);
   var addr = new NSPR.types.PRNetAddr();
-  var timeout = NSPR.sockets.PR_INTERVAL_NO_WAIT;
 
-  var rv = NSPR.sockets.PR_RecvFrom(fd, recvbuf, bufsize, 0, addr.address(), timeout);
+  // default is not to wait
+  var tint = NSPR.sockets.PR_INTERVAL_NO_WAIT;
+  if (timeout && timeout < 0) {
+    tint = NSPR.sockets.PR_NO_TIMEOUT;
+  } else if (timeout && timeout > 0) {
+    // convert to platform dependent interval
+    tint = NSPR.util.PR_MillisecondsToInterval(timeout);
+  }
+
+  var rv = NSPR.sockets.PR_RecvFrom(fd, recvbuf, bufsize, 0, 
+				    addr.address(), tint);
   if (rv == -1) {
-    // Failure. We should check the reason but for now we assume it was a timeout.
-    return {error: rv};
+    return {error : "Error receiving, code=" + NSPR.errors.PR_GetError()};
   } else if (rv == 0) {
     return {error: 'Network connection is closed'};
   }
@@ -283,12 +300,14 @@ function udpRecvfromstart_helper(socketid, asstring) {
   // Practical limit for IPv4 UDP packet data length is 65,507 bytes.
   // (65,535 - 8 byte UDP header - 20 byte IP header)
   var bufsize = 65507;
-  var recvbuf = newBuffer(bufsize);
+  var recvbuf = util.getBuffer(bufsize);
   var addr = new NSPR.types.PRNetAddr();
-  // TODO: use a global const
-  var timeout = 100;
 
-  var rv = NSPR.sockets.PR_RecvFrom(fd, recvbuf, bufsize, 0, addr.address(), timeout);
+  // TODO: good interval ?
+  var timeout = NSPR.util.PR_MillisecondsToInterval(100);
+
+  var rv = NSPR.sockets.PR_RecvFrom(fd, recvbuf, bufsize, 0, 
+				    addr.address(), timeout);
   if (rv == -1) {
     // We assume for now the failure was a timeout.
   } else if (rv == 0) {

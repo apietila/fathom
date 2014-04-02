@@ -938,6 +938,20 @@ try {
       ctypes.default_abi,
       ctypes.uint32_t),
 
+    PR_TicksPerSecond : lib.declare("PR_TicksPerSecond",
+      ctypes.default_abi,
+      ctypes.uint32_t),
+
+    PR_MillisecondsToInterval : lib.declare("PR_MillisecondsToInterval",
+      ctypes.default_abi,
+      ctypes.uint32_t,
+      ctypes.uint32_t),
+
+    PR_IntervalToMilliseconds : lib.declare("PR_IntervalToMilliseconds",
+      ctypes.default_abi,
+      ctypes.uint32_t,
+      ctypes.uint32_t),
+
     PR_SI_HOSTNAME				: 0,
 	PR_SI_SYSNAME				: 1,
 	PR_SI_RELEASE				: 2,
