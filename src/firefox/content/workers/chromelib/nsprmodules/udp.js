@@ -189,7 +189,7 @@ function udpRecvstart_helper(socketid, length, asstring) {
   var recvbuf = util.getBuffer(bufsize);
 
   // TODO: good interval ?
-  var timeout = NSPR.util.PR_MillisecondsToInterval(100);
+  var timeout = NSPR.util.PR_MillisecondsToInterval(250);
 
   var rv = NSPR.sockets.PR_Recv(fd, recvbuf, bufsize, 0, timeout);
   if (rv == -1) {
@@ -254,7 +254,7 @@ function udpRecvfrom(socketid, timeout, asstring) {
   var addr = new NSPR.types.PRNetAddr();
 
   // default is not to wait
-  var tint = NSPR.sockets.PR_INTERVAL_NO_WAIT;
+  var tint = NSPR.sockets.PR_INTERVAL_NO_WAIT; // 0
   if (timeout && timeout < 0) {
     tint = NSPR.sockets.PR_NO_TIMEOUT;
   } else if (timeout && timeout > 0) {
@@ -304,7 +304,7 @@ function udpRecvfromstart_helper(socketid, asstring) {
   var addr = new NSPR.types.PRNetAddr();
 
   // TODO: good interval ?
-  var timeout = NSPR.util.PR_MillisecondsToInterval(100);
+  var timeout = NSPR.util.PR_MillisecondsToInterval(250);
 
   var rv = NSPR.sockets.PR_RecvFrom(fd, recvbuf, bufsize, 0, 
 				    addr.address(), timeout);
@@ -325,10 +325,10 @@ function udpRecvfromstart_helper(socketid, asstring) {
       recvbuf[rv] = 0; 
       out = recvbuf.readString();
     } else {
-    out = [];
-    for (var i = 0; i < bytesreceived; i++) {
-      out.push(recvbuf[i]);
-    }
+      out = [];
+      for (var i = 0; i < bytesreceived; i++) {
+	out.push(recvbuf[i]);
+      }
     }
     var port = NSPR.util.PR_ntohs(addr.port);
     var ip = NSPR.util.NetAddrToString(addr);

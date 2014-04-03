@@ -50,7 +50,7 @@ var System = function (ctx) {
 	 * @param {string} host The host (name or IP address) to run a
 	 * traceroute to.
 	 */
-	doTraceroute : function(callback, host, incrementaloutput, iface, fast) {
+	doTraceroute : function(callback, host, incrementaloutput, iface, count, waittime) {
 	    var os = ctx.os;
 	    var cmd = undefined;
 	    var args = [];
@@ -64,8 +64,8 @@ var System = function (ctx) {
 
 	    if (os == winnt) {
 		cmd = "tracert";
-		if (fast) {
-		    args.push("-w 1000");
+		if (waittime) {
+		    args.push("-w " + waittime*1000); // ms
 		}
 		args.push(host);
 
@@ -74,12 +74,12 @@ var System = function (ctx) {
 		if (iface!==undefined) {
 		    args.push("-i"+iface);
 		}
-		if (fast) {
-		    args.push("-w1");
-		    args.push("-q1");
-		} else {
-		    args.push("-q3");
-		    args.push("-m30");
+
+		if (waittime) {
+		    args.push("-w " + waittime); // s
+		}
+		if (count) {
+		    args.push("-q " + count);
 		}
 		args.push(host);
 
@@ -671,20 +671,17 @@ var System = function (ctx) {
 	    var args = [];
 
 	    if (os == winnt) {
-		var cmd = "netstat";
-		var args = ["-e"];
-
+		cmd = "netstat";
+		args = ["-e"];
 	    } else if (os == linux || os == android) {
 		cmd = "cat";
 		args = ["/proc/net/dev"];
-
 	    } else if (os == darwin) {
 		cmd = "netstat";
 		args = ["-bi"];
 		if (iface) {
 		    args.push("-I " + iface);
 		}
-
 	    } else {
 		callback({error: "getIfaceStats not available on " + os, 
 			  __exposedProps__: {error: "r"}});

@@ -1305,14 +1305,17 @@ function parseIfaceStats(config,output) {
 	var w = x.exec(output);
 	if (w) {
 	    var elems = w[1].trim().replace(/\s+/g, ' ').split(" ");
+
 	    rx.bytes = parseInt(elems[0].trim());
 	    rx.packets = parseInt(elems[1].trim());
 	    rx.errs = parseInt(elems[2].trim());
 	    rx.drops = parseInt(elems[3].trim());
+
 	    tx.bytes = parseInt(elems[8].trim());
 	    tx.packets = parseInt(elems[9].trim());
 	    tx.errs = parseInt(elems[10].trim());
 	    tx.drops = parseInt(elems[11].trim());
+
 	} else {
 	    stats = {
 		error: 'libParse: no such interface ' +dIface,
@@ -1324,10 +1327,11 @@ function parseIfaceStats(config,output) {
 	break;
     case darwin:
 	var found = false;
-	var lines = output.trim().replace(/\s+/g, ' ').split("\n");
+	var lines = output.trim().split("\n");
 	for (var i = 0; i < lines.length; i++) {
-	    var row = lines[i].trim().split(' ');
-	    if (row[0] === dIface && row[2].indexOf('Link')>=0) {
+	    var row = lines[i].trim().replace(/\s+/g, ' ').split(' ');
+	    if (row[0].trim() === dIface && row[2].indexOf('Link')>=0) {
+		found = true;
 		rx.packets = parseInt(row[4].trim());
 		rx.errs = parseInt(row[5].trim());
 		rx.bytes = parseInt(row[6].trim());
@@ -1336,7 +1340,6 @@ function parseIfaceStats(config,output) {
 		tx.errs = parseInt(row[8].trim());
 		tx.bytes = parseInt(row[9].trim());
 		tx.drops = 0;
-		found = true;
 		break;
 	    }
 	}
