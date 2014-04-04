@@ -46,14 +46,18 @@ var System = function (ctx) {
 	 *
 	 * @param {function} callback The callback Fathom invokes once the
 	 * call completes. On error contains "error" member.
-	 *
 	 * @param {string} host The host (name or IP address) to run a
 	 * traceroute to.
+	 * @param {object} opt  Optional parameters (count, iface, waittime).
 	 */
-	doTraceroute : function(callback, host, incrementaloutput, iface, count, waittime) {
+	doTraceroute : function(callback, host, opt, incrementaloutput) {
 	    var os = ctx.os;
 	    var cmd = undefined;
 	    var args = [];
+	    // use options or traceroute default values
+	    var iface = opt.iface || undefined;
+	    var count = opt.count || undefined;
+	    var waittime = opt.waittime || undefined;
 
 	    // do incremental output? default false
 	    var inc = false;
@@ -114,45 +118,36 @@ var System = function (ctx) {
 	 * call completes. On error contains "error" member.
 	 *
 	 * @param {string} host The host (name or IP address) to ping.
-	 * @param {integer} count The number of pings to attempt.
-	 * @param {number} interval The interval between pings.
-	 * @param {boolean} bcast Ping broadcast address.
+	 * @param {object} opt  Optional parameters (count, iface, interval, bcast).
 	 * @param {boolean} incrementaloutput Send incremental output.
 	 */
-	doPing : function(callback, host, count, iface, interval, bcast, incrementaloutput) {
+	doPing : function(callback, host, opt, incrementaloutput) {
 	    var os = ctx.os;
 	    var cmd = 'ping';
 	    var args = [];
 
+	    var count = opt.count || 5;
+	    var iface = opt.iface || undefined;
+	    var interval = opt.interval || 1;
+	    var bcast = opt.bcast || false;
 	    if (host === undefined) {
 		callback({error: "doPing: missing host argument", 
 			  __exposedProps__: {error: "r"}});
 		return;
 	    }
-
 	    // do incremental output? default false
 	    var inc = false;
 	    if (incrementaloutput !== undefined)
 		inc = incrementaloutput; 
 
 	    if (os == winnt) {
-		if (count) {
-		    args.push("-n " + count);
-		} else {
-		    args.push("-n 5");
-		}
-
+		args.push("-n " + count);
 		if (iface) {
 		    args.push("-S "+iface); // must be IP address ... -I does not work..
 		}
 
 	    } else if (os == linux || os == darwin || os == android) {
-		if (count) {
-		    args.push("-c" + count);
-		} else {
-		    args.push("-c 5");
-		}
-
+		args.push("-c" + count);
 		if (iface) {
 		    if (os == darwin) {
 			args.push("-S"+iface); // must be IP address ... -I does not work..
@@ -165,10 +160,8 @@ var System = function (ctx) {
 		    args.push("-i " + interval);
 		}
 
-		if (bcast !== undefined && bcast==true && 
-		    (os == android || os == linux)) 
-		{
-		    args.push("-b");
+		if (bcast && (os == android || os == linux)) {
+		    args.push("-b"); // broadcast ping
 		}
 	    } else {
 		callback({error: "doPing: not available on " + os,

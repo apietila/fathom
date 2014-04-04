@@ -19,15 +19,15 @@ var Tools = function(ctx) {
 	 *
 	 * @param {function} func The callback function to invoke when
 	 * results are available.
-	 *
+	 * @param {string} dst The destination host IP.
 	 * @param {object} args command line arguments, these match more or less
 	 * the arguments (naming and values) that you can give to commandline
 	 * ping.
 	 */
-	ping : function(callback, args) {
+	ping : function(callback, dst, args) {
 	    // create new multiresponse worker and return the id for stop calls
 	    var id = ctx._doSocketWorkerOpenRequest();
-	    ctx._doSocketUsageRequest(callback, 'ping', [id, args], true);
+	    ctx._doSocketUsageRequest(callback, 'ping', [id, dst, args], true);
 	    return id;
 	},
 

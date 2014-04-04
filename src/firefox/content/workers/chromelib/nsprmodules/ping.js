@@ -137,7 +137,11 @@ var reporter = function() {
     var stats = function(data) {
 	if (!data || data.length<=0) return {};
 
-	data = data.sort();
+	data = data.sort(function(a,b) {
+	    if (a===b)
+		return 0;
+	    return (a < b ? return -1 : 1);
+	});
 	var min = data[0];
 	var max = data[data.length-1];
 	var med = data[data.length >> 1];
@@ -503,8 +507,8 @@ var serv = function() {
     return {ignore : true}; // async results
 };
 
-/* Exported method: stop running ping server. */
-function pingStop(sid) {
+/* API method: stop running ping server. */
+var pingStop = function(sid) {
     if (!util.data.multiresponse_running) {
 	return {logmsg: 'No ping server is running (nothing to stop).'};
     }
@@ -512,8 +516,8 @@ function pingStop(sid) {
     return {ignore : true};
 };
 
-/* Exported method: start ping client/server. */
-function ping(sid, args) {
+/* API method: start ping client/server. */
+var ping = function(sid, dst, args) {
     // NSPR is only available now, re-declare the timestamp func
     gettime = function() { return NSPR.util.PR_Now()/1000.0; };
 
@@ -525,6 +529,7 @@ function ping(sid, args) {
     }
 
     settings.id = sid;
+    settings.dst = dst;
 
     debug(settings);
 

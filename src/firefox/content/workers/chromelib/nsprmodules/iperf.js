@@ -1430,14 +1430,14 @@ var shutdown = function(r) {
     setTimeout(close, 1); // terminates the worker
 };
 
-/* Exported method: stop running the iperf worker. */
-function iperfStop() {
+/* API method: stop running the iperf worker. */
+var iperfStop = function() {
     settings.mStopReq = true;
     return {ignore : true};
 };
 
-/* Exported method: start iperf client, listener or server worker. */
-function iperf(sid, args) {
+/* API method: start iperf client, listener or server worker. */
+var iperf = function(sid, args) {
     // NSPR is only available now, re-declare the timestamp func
     gettime = function() { return NSPR.util.PR_Now()/1000.0; };
 
