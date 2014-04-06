@@ -184,6 +184,84 @@ var System = function (ctx) {
 	}, // doPing
 
 	/** 
+	 * @method doIperf
+	 * @static
+	 *
+	 * @description This function runs iperf client to the given
+	 * destination and, upon completion, returns the textual results.
+	 *
+	 * @param {function} callback The callback Fathom invokes once the
+	 * call completes. On error contains "error" member.
+	 *
+	 * @param {string} host The host (name or IP address) to ping.
+	 * @param {object} opt  Optional parameters (proto, bandwidth, time, num, port, len, window).
+	 * @param {boolean} incrementaloutput Send incremental output.
+	 */
+	doIperf : function(callback, host, opt, incrementaloutput) {
+	    var os = ctx.os;
+	    var cmd = 'iperf';
+	    var args = [];
+
+	    if (host === undefined) {
+    		callback({error: "doIperf: missing host argument", 
+    			  __exposedProps__: {error: "r"}});
+    		return;
+	    }
+        
+	    // do incremental output? default false
+	    var inc = false;
+	    if (incrementaloutput !== undefined)
+            inc = incrementaloutput; 
+
+        var proto = opt.proto || 'udp'; 
+		if (proto==='udp') {
+		    args.push("-u ");
+		}
+
+	    args.push("-c " + host);
+        
+        // server port
+        if (opt.port) {
+            args.push("-p " + opt.port);
+        }
+        // target bandwidth
+        if (proto === 'udp' && opt.bandwidth) {
+		    args.push("-b " + opt.bandwidth);
+		}
+        // num bytes to send
+        if (opt.num) {
+            args.push("-n " + opt.num);
+        }
+        // read/write buf
+        if (opt.len) {
+            args.push("-l " + opt.len);
+        }
+        // time to send
+        if (opt.time) {
+            args.push("-t " + opt.time);
+        }
+        // do bidirectional test individually
+        if (opt.tradeoff) {
+            args.push("-r");
+        }
+        
+        // reports in csv every 1s
+	    args.push("-y C -i 1");
+	    
+	    function cbk(info) {
+      		var output = {
+      		    name: "iperf",
+      		    os: os,
+                cmd : cmd + " " + args.join(" "),
+      		};
+      		var data = libParse2(output, info);
+      		callback(data);
+	    }
+	    
+	    ctx._executeCommandAsync(cbk, cmd, args, inc);
+	}, // doIperf
+
+	/** 
 	 * @method getNameservers
 	 * @static
 	 *

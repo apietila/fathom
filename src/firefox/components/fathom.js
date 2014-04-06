@@ -530,11 +530,12 @@ FathomAPI.prototype = {
 
     if (!args) {
       args = []; 
-    } else {
-      // TODO: make sure args is an array
-      if (args.length > 4) {
-        throw 'At the moment you cannot pass more than 4 arguments to a command';
-      }
+      // Anna: not sure why this limit is imposed ? Remove for now for iperf
+//    } else {
+//      // TODO: make sure args is an array
+//      if (args.length > 4) {
+//        throw 'At the moment you cannot pass more than 4 arguments to a command';
+//      }
     }
 
     var commandid = Math.random().toString();

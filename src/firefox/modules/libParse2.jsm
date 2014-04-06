@@ -14,6 +14,137 @@ const darwin = "darwin";
 
 //------ Parsers ---------//
 
+/* Iperf */
+function parseIperf(config, output) {
+	var res = {
+        client : { 
+            reports : [],         // list of periodic reports
+            total : undefined,    // client side final report
+            __exposedProps__ : {
+                reports : "r",
+                total : "r"
+            }
+        },
+        server : {
+            total : undefined,
+            __exposedProps__ : {
+                total : "r"       // server side final report
+        },
+        __exposedProps__: {
+            client : "r",
+            server : "r"
+        }
+    };
+	
+	var lines = output.split('\n');
+	for (var i = 0; i<lines.length; i++) {	    
+	    var tmp = lines[i].split(',');
+
+	    if (tmp.length == 9) {
+        	var client = tmp;
+        	var obj = {
+        	    timestamp : parseInt(client[0]),
+        	    clientip : client[1],
+        	    clientport : parseInt(client[2]),
+        	    serverip : client[3],
+        	    serverport : parseInt(client[4]),
+        	    transferID : parseInt(client[5]),
+        	    startTime : parseFloat(client[6].split('-')[0]),
+        	    endTime : parseFloat(client[6].split('-')[1]),
+        	    bytes : parseInt(client[7]),
+        	    rate : parseInt(client[8]),
+                __exposedProps__ : {
+                    timestamp : "r",
+                    clientip : "r",
+                    clientport : "r",
+                    serverip : "r",
+                    serverport : "r",
+                    transferID : "r",
+                    startTime : "r",
+                    endTime : "r",
+                    bytes : "r",
+                    rate : "r"
+                }
+        	};
+        	res.client.reports.push(obj); // periodic report
+
+    		// KB
+    		obj.bytesK = obj.bytes / 1024.0;
+    		// MB
+    		obj.bytesM = obj.bytes / 1024.0 / 1024.0;
+
+    		// bytes / s
+    		obj.rate = obj.bytes / obj.endTime;
+    		// bits / s
+    		obj.ratebit = obj.rate * 8.0;
+    		// Kbit / s
+    		obj.rateKbit = obj.ratebit *  (1.0 / 1000 );
+    		// Mbit / s
+    		obj.rateMbit = obj.ratebit *  (1.0 / 1000 / 1000);
+
+    		if (obj.startTime == 0) {
+    		    res.client.total = obj; // final results
+    		}
+
+	   } else if (tmp.length == 14) {
+	       // udp server report
+	       var server = tmp;
+	       var obj = {
+    		   timestamp : parseInt(server[0]),
+    		   serverip : server[1],
+    		   serverport : parseInt(server[2]),
+    		   clientip : server[3],
+    		   clientport : parseInt(server[4]),
+    		   transferID : parseInt(server[5]),
+    		   startTime : parseFloat(server[6].split('-')[0]),
+    		   endTime : parseFloat(server[6].split('-')[1]),
+    		   bytes : parseInt(server[7]),
+    		   rate : parseInt(server[8]),
+    		   jitter : parseFloat(server[9]),
+    		   errorCnt : parseInt(server[10]),
+    		   dgramCnt : parseInt(server[11]),
+    		   errorRate : parseFloat(server[12]),
+    		   outOfOrder : parseFloat(server[13]),
+                __exposedProps__ : {
+                    timestamp : "r",
+                    clientip : "r",
+                    clientport : "r",
+                    serverip : "r",
+                    serverport : "r",
+                    transferID : "r",
+                    startTime : "r",
+                    endTime : "r",
+                    bytes : "r",
+                    rate : "r",
+                    jitter: "r",
+                    errorCnt : "r",
+                    dgramCnt : "r",
+                    errorRate : "r",
+                    outOfOrder : "r"
+                }
+	       };
+
+	       // KB
+	       obj.bytesK = obj.bytes / 1024.0;
+	       // MB
+	       obj.bytesM = obj.bytes / 1024.0 / 1024.0;
+
+	       // bytes / s
+	       obj.rate = obj.bytes / obj.endTime;
+	       // bits / s
+	       obj.ratebit = obj.rate * 8.0;
+	       // Kbit / s
+	       obj.rateKbit = obj.ratebit *  (1.0 / 1000 );
+	       // Mbit / s
+	       obj.rateMbit = obj.ratebit *  (1.0 / 1000 / 1000);
+
+	       res.server = { total : obj };
+           
+	    } // else unknown length.. ignore
+	}
+	return res;    
+}; // parseIperf
+
 /* Traceroute output. */
 function parseTraceroute(config, output) {
     var traceroute = {
@@ -2144,6 +2275,9 @@ var libParse2 = function (config, obj) {
     case "ping":
 	res = parsePing(config,out);
 	break;
+    case "iperf":
+    res = parseIperf(config,out);
+    break;
     case "nameserver":
 	res = parseNameServer(config,out);
 	break;
