@@ -18,7 +18,7 @@
 //
 // Anna: renamed from goog.math.Long -> Long
 //
-var EXPORTED_SYMBOLS = ["Long"];
+//var EXPORTED_SYMBOLS = ["Long"];
 
 /**
  * @fileoverview Defines a Long class for representing a 64-bit two's-complement

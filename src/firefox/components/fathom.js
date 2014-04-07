@@ -292,115 +292,83 @@ FathomAPI.prototype = {
   // Internal utilities
   // /////////////////////////////////////////////////////////////////////////
 
-  _initChromeWorker : function(workername, workerscript) {
+  _initChromeWorker : function(workername) {
     const that = this;
     Cu.import("resource://gre/modules/Services.jsm");
     Cu.import("resource://gre/modules/ctypes.jsm");
 
-    var worker = new ChromeWorker("chrome://fathom/content/workers/" + workerscript + ".js");
+    var worker = new ChromeWorker("chrome://fathom/content/workers/chromeworker.js");
     worker.name = workername;
     Logger.debug("[" + this.windowid + "] Create worker " + worker.name);
 
     try {
+
       worker.onerror = function(event) {
         msg = event.message + ' [' + event.filename + ':' + event.lineno + ']';
         Logger.error("[" + that.windowid + "] Worker error: " + msg);
       };
 
       worker.onmessage = function(event) {
-        var data = JSON.parse(event.data);        
+        var data = JSON.parse(event.data);
 
-        if (typeof(data.logmsg) != "undefined") {
-          Logger.info("[" + that.windowid + "] ChromeWorker: " + data.logmsg);
+        if (data.logmsg !== undefined) {
+          Logger.info("[" + that.windowid + "] Worker log: " + data.logmsg);
           return;
         }
 
         var result = data.result;
         var requestid = data.requestid;
         var requestinfo = that.requests[requestid];
-        Logger.info("[" + that.windowid + "] Received response for requestid: " + requestid);
 
         if (!requestinfo) {
           Logger.warning("[" + that.windowid + "] " + 
 			 "Received response from worker for unknown requestid: "
 			 + requestid);
-	  Logger.warning('Has data? ' + (event.data.length>0));
 	  return;
 	}
 
-	// flags
-	var done = false;
-	var close = false;
+        Logger.info("[" + that.windowid + 
+		    "] Received response for requestid: " + requestid);
 
         if (result) {
-	  // remove flags from user cb
- 	  if (result.done!==undefined) {
-	    done = result.done;
-	    delete result.done;
+	  if (result.error && !result.__exposedProps__) {
+	    // make sure error is visible
+	    result.__exposedProps__ = { error : 'r'};
 	  }
- 	  if (result.closed!==undefined) {
-	    close = result.closed;
-	    delete result.closed;
-	  }
-	  
-          // TODO: possibly make sure the worker is the one we expect (the one
-          // stored in the requestinfo).
-          try {
-	    // Anna: recursively mark everything visible
-	    var recur = function(o) {
-	      var exp = {};
-	      for(var props in o) {
-		if (!o.hasOwnProperty(props))
-		  continue;
-		
-		exp[props] = "r";
-
-		if (o[props] instanceof Array) {
-		  // recurse into array elements
-		  for (var i = 0; i < o[props].length; i++) {
-		    recur(o[props][i]);
-		  }
-		} else if (o[props] instanceof Object) {
-		  // recurse to object
-		  recur(o[props]);
-		}
-	      }
-	      o["__exposedProps__"] = exp;
-	    };
-	    recur(result);
-
+	    
+	  try {
 	    if (requestinfo['callback'] && 
-		typeof requestinfo['callback'] === 'function')
+		typeof requestinfo['callback'] === 'function') {
 	      requestinfo['callback'](result);
-	    else
+	    } else {
               Logger.debug("[" + that.windowid + "] No callback found ");
-
-
+	    }
           } catch (e) {
             // TODO: decide on a good way to send this error back to the document.
             Logger.error("[" + that.windowid + "] Error when calling user-provide callback: " + e);
 	    Logger.error(e.stack);
           }
 	} else {
-          Logger.warning("[" + that.windowid + "] Received empty response for requestid: " + requestid);
+          Logger.warning("[" + that.windowid + 
+			 "] Received empty response for requestid: " + 
+			 requestid);
 	}
 
 	// one time request or multiresponse is done ?
 	if ((requestinfo && !requestinfo['multiresponse']) || 
-	    (result && done)) {
+	    (result && result.done)) {
           delete that.requests[requestid];
           Logger.info("[" + that.windowid + "] Request done: " + requestid);
 	}
 
 	// Anna: adding a way to clean things up inside fathom
 	// if the worker closes itself
-	if (result && close) {
+	if (result && result.closed) {
 	  // the worker has closed itself, remove any references
 	  // so this worker object gets garbage collected
 	  delete that.chromeworkers[workername];
           Logger.info("[" + that.windowid + "] Worker closed: " + workername);
 	}
-
       }; // onmessage
 
       // initialize the worker
@@ -410,8 +378,6 @@ FathomAPI.prototype = {
 		 'arch' : this.arch, 
 		 'os' : this.os,
 		 'windowid' : this.windowid};
-
-      Logger.debug(obj);
       worker.postMessage(JSON.stringify(obj));
 
     } catch (exc) {
@@ -441,13 +407,10 @@ FathomAPI.prototype = {
   _doNonSocketRequest : function(callback, action, args, multiresponse) {
     var multiresponse = multiresponse || false;
     var workername = 'nonsocketworker';
-    var workerscript = 'chromeworker';
-
     var worker = this.chromeworkers[workername];    
     if (!worker) {
-      worker = this._initChromeWorker(workername, workerscript);
+      worker = this._initChromeWorker(workername);
     }
-
     this._performRequest(worker, callback, action, args, multiresponse);
   },
 
@@ -467,7 +430,6 @@ FathomAPI.prototype = {
 		socketid + " for action " + action);
 
     var worker = this.chromeworkers['socketworker'+socketid];
-
     if (!worker) {
       Logger.error("[" + this.windowid + 
 		   "] Could not find the worker for this socket.");
@@ -475,7 +437,6 @@ FathomAPI.prototype = {
 		__exposedProps__: { error: "r" }});
       return;
     }
-
     this._performRequest(worker, callback, action, args, multiresponse);
   },
 
@@ -485,8 +446,7 @@ FathomAPI.prototype = {
   _doSocketWorkerOpenRequest : function() {
     var socketid = this.nextsocketid++;
     var workername = 'socketworker' + socketid;
-    var workerscript = 'chromeworker';
-    var worker = this._initChromeWorker(workername, workerscript);
+    var worker = this._initChromeWorker(workername);
     return socketid;
   },
 
@@ -501,8 +461,7 @@ FathomAPI.prototype = {
     var that = this;
     var socketid = this.nextsocketid++;
     var workername = 'socketworker' + socketid;
-    var workerscript = 'chromeworker';
-    var worker = this._initChromeWorker(workername, workerscript);
+    var worker = this._initChromeWorker(workername);
 
     function socketRegistrationCallback(result) {
       if (result && !result['error']) {
@@ -512,7 +471,8 @@ FathomAPI.prototype = {
       } else {
         Logger.error("[" + that.windowid + "] Socket open request failed: " + 
 		     worker.name);
-        result["__exposedProps__"] = { error: "r" };
+	if (!result.__exposedProps__) // make sure the error is visible
+          result.__exposedProps__ = { error: "r" };
         callback(result);
       }
     }
@@ -628,6 +588,7 @@ FathomAPI.prototype = {
 
     // call the cmd
     Logger.debug("[" + this.windowid + "] make the async command " + commandid + ": " + wrapperargs.join(' '));
+
     process.runAsync(wrapperargs, wrapperargs.length, observer);
 
     /* incremental output for traceroute & ping */
@@ -656,9 +617,10 @@ FathomAPI.prototype = {
 	      callback({exitstatus: null, 
 			stdout: outdata, 
 			stderr: null, 
-			__exposedProps__: { exitstatus: "r", 
-					    stdout: "r", 
-					    stderr: "r" }});
+			__exposedProps__: { 
+			  exitstatus: "r", 
+			  stdout: "r", 
+			  stderr: "r" }});
 	    });
 	  } catch(e) {
 	    Logger.error("[" + that.windowid + "] Error executing the NetUtil.asyncFetch callback function: " + e);

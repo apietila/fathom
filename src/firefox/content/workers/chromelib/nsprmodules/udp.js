@@ -214,7 +214,12 @@ function udpRecvstart_helper(socketid, length, asstring) {
 	out.push(recvbuf[i]);
       }
     }
-    var result = {data: out, length: bytesreceived};
+    var result = {data: out, 
+		  length: bytesreceived, 
+		  __exposedProps__ : {
+		    data : "r",
+		    length : "r"
+		  }};
     util.postResult(result);
   }
 
@@ -332,7 +337,17 @@ function udpRecvfromstart_helper(socketid, asstring) {
     }
     var port = NSPR.util.PR_ntohs(addr.port);
     var ip = NSPR.util.NetAddrToString(addr);
-    var result = {data: out, length: bytesreceived, address: ip, port: port};
+    var result = {
+      data: out, 
+      length: bytesreceived, 
+      address: ip, 
+      port: port,
+      __exposedProps__: {
+	data: "r", 
+	length: "r", 
+	address: "r", 
+	port: "r"
+      }};
     util.postResult(result);
   }
 

@@ -143,7 +143,15 @@ function tcpAcceptstart_helper(socketid) {
   if (!fdin.isNull()) {
     var port = NSPR.util.PR_ntohs(addr.port);
     var ip = NSPR.util.NetAddrToString(addr);
-    var result = {incoming: true, address: ip, port: port};
+    var result = {
+      incoming: true, 
+      address: ip, 
+      port: port,
+      __exposedProps__: {
+	incoming: "r", 
+	address: "r", 
+	port: "r"
+      }};
     
     // close accept socket - user must re-create a new
     // listener worker if he wants to accept more connections

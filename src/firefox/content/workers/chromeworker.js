@@ -15,10 +15,12 @@ importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/broadcast.j
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/multicast.js');
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/tcp.js');
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/udp.js');
-importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/dns.js');
-importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/helper.js');
-importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/upnp.js');
-importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/netprobe.js');
+
+// Anna: not used anywhere ...
+//importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/dns.js');
+//importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/helper.js');
+//importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/upnp.js');
+//importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/netprobe.js');
 
 // Anna: new tools
 importScripts('chrome://fathom/content/workers/chromelib/nsprmodules/iperf.js');

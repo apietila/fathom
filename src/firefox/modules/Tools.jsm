@@ -24,10 +24,11 @@ var Tools = function(ctx) {
 	 * the arguments (naming and values) that you can give to commandline
 	 * ping.
 	 */
-	ping : function(callback, dst, args) {
+	pingStart : function(callback, dst, args) {
 	    // create new multiresponse worker and return the id for stop calls
 	    var id = ctx._doSocketWorkerOpenRequest();
-	    ctx._doSocketUsageRequest(callback, 'ping', [id, dst, args], true);
+	    ctx._doSocketUsageRequest(callback, 'pingStart', 
+				      [id, dst, args], true);
 	    return id;
 	},
 
@@ -50,15 +51,15 @@ var Tools = function(ctx) {
 	 *
 	 * @param {function} func The callback function to invoke when
 	 * results are available.
-	 *
 	 * @param {object} args command line arguments, these match more or less
 	 * the arguments (naming and values) that you can give to commandline
 	 * iperf.
 	 */
-	iperf : function(callback, args) {
+	iperfStart : function(callback, args) {
 	    // create new multiresponse worker and return the id for stop calls
 	    var id = ctx._doSocketWorkerOpenRequest();
-	    ctx._doSocketUsageRequest(callback, 'iperf', [id, args], true);
+	    ctx._doSocketUsageRequest(callback, 'iperfStart', 
+				      [id, args], true);
 	    return id;
 	},
 

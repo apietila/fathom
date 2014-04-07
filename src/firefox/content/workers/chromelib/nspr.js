@@ -11,11 +11,11 @@
 
 var NSPR = {};
 
-function newBuffer(size) {
+var newBuffer = function(size) {
   return ctypes.unsigned_char.array(size)();
 }
 
-function newBufferFromString(str) {
+var newBufferFromString = function(str) {
   return ctypes.unsigned_char.array()(str);
 }
 
@@ -81,7 +81,7 @@ function openLibrary(name, path) {
  * It does not appear to be just a 32-bit vs 64-bit issue as at least 32-bit
  * Windows has 4 bytes of padding.
  */
-function getFirstNetAddrPad() {
+var getFirstNetAddrPad = function() {
   let lib = openLibrary(util.nsprname, util.nsprpath);
 
   try {
@@ -91,23 +91,24 @@ function getFirstNetAddrPad() {
     var PRFileDesc = ctypes.StructType("PRFileDesc");
 
     var PR_OpenUDPSocket = lib.declare("PR_OpenUDPSocket",
-        ctypes.default_abi,
-        PRFileDesc.ptr,
-        ctypes.int32_t);
+				       ctypes.default_abi,
+				       PRFileDesc.ptr,
+				       ctypes.int32_t);
 
     // Assume that the PRSockOption enum is 4 bytes.
     // The largest total size we have seen for the PRSocketOptionData struct is
     // 232 bytes, so using 260 bytes should be enough and lets us populate the
     // bytes field with sequential values from 0 to 255.
-    var SocketOptionData = ctypes.StructType("PRSocketOptionData",
-        [{'option': ctypes.int32_t},
-         {'bytes': ctypes.unsigned_char.array(256)}]);
-
+    var SocketOptionData = 
+	ctypes.StructType("PRSocketOptionData",
+			  [{'option': ctypes.int32_t},
+			   {'bytes': ctypes.unsigned_char.array(256)}]);
+    
     var GetSocketOption = lib.declare("PR_GetSocketOption",
-        ctypes.default_abi,
-          ctypes.int32_t,
-          PRFileDesc.ptr,
-          SocketOptionData.ptr);
+				      ctypes.default_abi,
+				      ctypes.int32_t,
+				      PRFileDesc.ptr,
+				      SocketOptionData.ptr);
 
   } catch (e) {
     throw 'nspr.js getFirstNetAddrPad error in declarations: ' + e;
@@ -117,72 +118,70 @@ function getFirstNetAddrPad() {
   // field and a following PRNetAddr (the value union's mcast_if member for
   // a PR_SockOpt_McastInterface PR_GetSocketOption call).
   try {
-   var fd = PR_OpenUDPSocket(PR_AF_INET);
-   if (fd < 0) {
-     throw 'getFirstNetAddrPad: failed to open udp socket: ' + fd;
-   }
+    var fd = PR_OpenUDPSocket(PR_AF_INET);
+    if (fd < 0) {
+      throw 'getFirstNetAddrPad: failed to open udp socket: ' + fd;
+    }
 
-   var opt = new SocketOptionData();
+    var opt = new SocketOptionData();
 
-   var getOffset = function() {
-     // Initialize the non-option bytes of our PRSocketOptionData so that they
-     // contain byte values corresponding to their position (0 to 255). We'll
-     // check for what has changed after NSPR function calls modify the data.
-     for (var i = 0; i < opt.bytes.length; i++) {
-       opt.bytes[i] = i;
-     }
+    var getOffset = function() {
+      // Initialize the non-option bytes of our PRSocketOptionData so that they
+      // contain byte values corresponding to their position (0 to 255). We'll
+      // check for what has changed after NSPR function calls modify the data.
+      for (var i = 0; i < opt.bytes.length; i++) {
+	opt.bytes[i] = i;
+      }
 
-     opt.option = PR_SockOpt_McastInterface;
+      opt.option = PR_SockOpt_McastInterface;
 
-     GetSocketOption(fd, opt.address());
+      GetSocketOption(fd, opt.address());
 
-     var offset = -1;
-     for (var i = 0; i < opt.bytes.length; i++) {
-       if (opt.bytes[i] != i) {
-         offset = i;
-         break;
-       }
-     }
+      var offset = -1;
+      for (var i = 0; i < opt.bytes.length; i++) {
+	if (opt.bytes[i] != i) {
+          offset = i;
+          break;
+	}
+      }
 
-     // We expect no padding (offset is 4) or 4 bytes of padding (offset is 8).
-     if (offset != 4 && offset != 8) {
-       offset = -1;
-     }
+      // We expect no padding (offset is 4) or 4 bytes of padding (offset is 8).
+      if (offset != 4 && offset != 8) {
+	offset = -1;
+      }
 
-     return offset;
-   }
+      return offset;
+    }
 
-   let offset = getOffset();
-   // If we didn't find the offset, try a few more times to make sure it wasn't
-   // coincidence with uninitialized data matching the values we initialized.
-   // However, we expected zeros to be written, not uninitialized data, so this
-   // is probably not necessary.
-   if (offset == -1) {
-     offset = getOffset();
-   }
-   if (offset == -1) {
-     offset = getOffset();
-   }
-
-   var firstnetaddrpad = -1;
-   if (offset == -1) {
-     throw 'Could not determine firstnetaddrpad';
-   } else {
-     // The 4 bytes immediately preceding the ip address are not struct padding
-     // but rather the inet.family and inet.port fields. Anything else is the
-     // padding between the 4 bytes (we assume the enum will be represented by
-     // 4 bytes) of PRSockOption and the first PRNetAddr of the PRMcastRequest
-     // (PRMcastRequest.mcaddr).
-     firstnetaddrpad = offset - 4;
-     util.log('firstnetaddrpad: ' + firstnetaddrpad);
-     return firstnetaddrpad;
-   }
-
+    let offset = getOffset();
+    // If we didn't find the offset, try a few more times to make sure it wasn't
+    // coincidence with uninitialized data matching the values we initialized.
+    // However, we expected zeros to be written, not uninitialized data, so this
+    // is probably not necessary.
+    if (offset == -1) {
+      offset = getOffset();
+    }
+    if (offset == -1) {
+      offset = getOffset();
+    }
+    
+    var firstnetaddrpad = -1;
+    if (offset == -1) {
+      throw 'Could not determine firstnetaddrpad';
+    } else {
+      // The 4 bytes immediately preceding the ip address are not struct padding
+      // but rather the inet.family and inet.port fields. Anything else is the
+      // padding between the 4 bytes (we assume the enum will be represented by
+      // 4 bytes) of PRSockOption and the first PRNetAddr of the PRMcastRequest
+      // (PRMcastRequest.mcaddr).
+      firstnetaddrpad = offset - 4;
+      util.log('firstnetaddrpad: ' + firstnetaddrpad);
+      return firstnetaddrpad;
+    }
   } catch (e) {
-   throw 'nspr.js error in getFirstNetAddrPad: ' + e;
+    throw 'nspr.js error in getFirstNetAddrPad: ' + e;
   }
-}
-
+}; // getFirstNetAddrPad
 
 try {
   let lib = openLibrary(util.nsprname, util.nsprpath);
@@ -198,62 +197,63 @@ try {
     
     PRProcess : ctypes.StructType("PRProcess"),
     
-	// padding affects structs that have unions like PRNetAddr and PRSocketOptionData
-	// PRSocketOption data has been split into PRSocketOption, PRMulticastSocketOptionData
-	// and other socket option structs that have not been defined, like PRLingerSocketOptionData 
+    // padding affects structs that have unions like PRNetAddr and PRSocketOptionData
+    // PRSocketOption data has been split into PRSocketOption, PRMulticastSocketOptionData
+    // and other socket option structs that have not been defined, like PRLingerSocketOptionData 
     PRNetAddr : ctypes.StructType("PRNetAddr", 
-                    [{'family': ctypes.uint16_t},
-                     {'port': ctypes.uint16_t},
-                     {'ip': ctypes.uint32_t},
-                     {'pad': ctypes.char.array(8)}]),
-                     //{'platform_padding' : ctypes.char.array(padding.inetaddr)}]),
+				  [{'family': ctypes.uint16_t},
+				   {'port': ctypes.uint16_t},
+				   {'ip': ctypes.uint32_t},
+				   {'pad': ctypes.char.array(8)}]),
+    //{'platform_padding' : ctypes.char.array(padding.inetaddr)}]),
 
     // We use this for PRSocketOptionData when the value union's member is a
     // PRUintn, PRBool, or PRSize. Each of these end up being the size of an
     // integer on the current platform. Thus, we use "ctypes.int" which will
     // be the size of an int on the current platform.
-    PRSocketOptionData :
-                    ctypes.StructType("PRSocketOptionData",
-                    [{'option': ctypes.int32_t},
-                     {'value': ctypes.int}]),
-//  						(function() {
-//			if(padding.align == 8) {
-//			return ctypes.StructType("PRSocketOptionData",
-//	             [{'option': ctypes.int32_t},
-//	              {'value': ctypes.int64_t},
-//	              {'platform_padding' : ctypes.char.array(padding.sockopt)}])
-//			} else {
-//			return ctypes.StructType("PRSocketOptionData",
-//	             [{'option': ctypes.int32_t},
-//	              {'value': ctypes.int32_t},
-//	              {'platform_padding' : ctypes.char.array(padding.sockopt)}])
-//			
-//			} })(),
+    PRSocketOptionData : ctypes.StructType("PRSocketOptionData",
+					   [{'option': ctypes.int32_t},
+					    {'value': ctypes.int}]),
+    //  						(function() {
+    //			if(padding.align == 8) {
+    //			return ctypes.StructType("PRSocketOptionData",
+    //	             [{'option': ctypes.int32_t},
+    //	              {'value': ctypes.int64_t},
+    //	              {'platform_padding' : ctypes.char.array(padding.sockopt)}])
+    //			} else {
+    //			return ctypes.StructType("PRSocketOptionData",
+    //	             [{'option': ctypes.int32_t},
+    //	              {'value': ctypes.int32_t},
+    //	              {'platform_padding' : ctypes.char.array(padding.sockopt)}])
+    //			
+    //			} })(),
   
-  	// need to add appropriate padding here
+    // need to add appropriate padding here
     PRLinger : ctypes.StructType("PRLinger",
-                    [{'polarity': ctypes.bool},
-                     {'linger': ctypes.uint32_t}]),
-                     
-	PRFileInfo : ctypes.StructType("PRFileInfo",
-					[{'type' : ctypes.uint32_t},
-					 {'size' : ctypes.uint32_t},
-					 {'creationTime' : ctypes.uint64_t},
-					 {'modifyTime' : ctypes.uint64_t}])
+				 [{'polarity': ctypes.bool},
+				  {'linger': ctypes.uint32_t}]),
+    
+    PRFileInfo : ctypes.StructType("PRFileInfo",
+				   [{'type' : ctypes.uint32_t},
+				    {'size' : ctypes.uint32_t},
+				    {'creationTime' : ctypes.uint64_t},
+				    {'modifyTime' : ctypes.uint64_t}])
 
   };
 
   // We don't know the true size of PRNetAddr but only the IP address field of
   // the ifaddr member is ever used.
-  NSPR.types.PRMcastRequest = ctypes.StructType("PRMcastRequest",
-                     [{'mcaddr': NSPR.types.PRNetAddr},
-                      {'ifaddr_blob': ctypes.unsigned_char.array(1024)}]);
+  NSPR.types.PRMcastRequest = 
+      ctypes.StructType("PRMcastRequest",
+			[{'mcaddr': NSPR.types.PRNetAddr},
+			 {'ifaddr_blob': ctypes.unsigned_char.array(1024)}]);
 
   // I/O poll struct
-  NSPR.types.PRPollDesc = ctypes.StructType("PRPollDesc",
-					    [{'fd': NSPR.types.PRFileDesc.ptr},
-					     {'in_flags': ctypes.int16_t},
-					     {'out_flags': ctypes.int16_t}]);
+  NSPR.types.PRPollDesc = 
+      ctypes.StructType("PRPollDesc",
+			[{'fd': NSPR.types.PRFileDesc.ptr},
+			 {'in_flags': ctypes.int16_t},
+			 {'out_flags': ctypes.int16_t}]);
 
 
   /*
@@ -271,26 +271,26 @@ try {
     var firstnetaddrpad = getFirstNetAddrPad();
     if(firstnetaddrpad)
       return ctypes.StructType("PRSocketOptionData",
-             [{'option': ctypes.int32_t},
-              {'firstnetaddrpad' : ctypes.char.array(firstnetaddrpad)},
-              {'value': NSPR.types.PRMcastRequest}]);
+			       [{'option': ctypes.int32_t},
+				{'firstnetaddrpad' : ctypes.char.array(firstnetaddrpad)},
+				{'value': NSPR.types.PRMcastRequest}]);
     else
       return ctypes.StructType("PRSocketOptionData",
-             [{'option': ctypes.int32_t},
-              {'value': NSPR.types.PRMcastRequest}]); })();
+			       [{'option': ctypes.int32_t},
+				{'value': NSPR.types.PRMcastRequest}]); })();
 
-	// these are NSPR's process handling structs
-	NSPR.types.PRProcessAttr = ctypes.StructType("PRProcessAttr",
-				[{"stdinFd" : NSPR.types.PRFileDesc.ptr},
-				 {"stdoutFd" : NSPR.types.PRFileDesc.ptr},
-				 {"stderrFd" : NSPR.types.PRFileDesc.ptr},
-				 {"currentDirectory" : ctypes.char.ptr},
-				 {"fdInheritBuffer" : ctypes.char.ptr},
-				 {"fdInheritBufferSize" : NSPR.types.PRSize},
-				 {"fdInheritBufferUsed" : NSPR.types.PRSize}]);
-
-  NSPR.sockets = {
+  // these are NSPR's process handling structs
+  NSPR.types.PRProcessAttr = 
+      ctypes.StructType("PRProcessAttr",
+			[{"stdinFd" : NSPR.types.PRFileDesc.ptr},
+			 {"stdoutFd" : NSPR.types.PRFileDesc.ptr},
+			 {"stderrFd" : NSPR.types.PRFileDesc.ptr},
+			 {"currentDirectory" : ctypes.char.ptr},
+			 {"fdInheritBuffer" : ctypes.char.ptr},
+			 {"fdInheritBufferSize" : NSPR.types.PRSize},
+			 {"fdInheritBufferUsed" : NSPR.types.PRSize}]);
   
+  NSPR.sockets = {  
     // PRSockOption
     PR_SockOpt_Nonblocking    : 0,    /* nonblocking io */
     PR_SockOpt_Linger      : 1,    /* linger on close if data present */
@@ -340,176 +340,176 @@ try {
     PR_INTERVAL_MAX        : 100000,
     
     PR_SetNetAddr : lib.declare("PR_SetNetAddr",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                ctypes.int32_t,
-                ctypes.uint16_t,
-                ctypes.uint16_t,
-                NSPR.types.PRNetAddr.ptr),
+				ctypes.default_abi,
+				ctypes.int32_t,
+				ctypes.int32_t,
+				ctypes.uint16_t,
+				ctypes.uint16_t,
+				NSPR.types.PRNetAddr.ptr),
                 
     PR_InitializeNetAddr : lib.declare("PR_InitializeNetAddr",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                ctypes.int32_t,
-                ctypes.uint16_t,
-                NSPR.types.PRNetAddr.ptr),
-                
+				       ctypes.default_abi,
+				       ctypes.int32_t,
+				       ctypes.int32_t,
+				       ctypes.uint16_t,
+				       NSPR.types.PRNetAddr.ptr),
+    
     PR_NewTCPSocket : lib.declare("PR_NewTCPSocket",
-                ctypes.default_abi,
-                NSPR.types.PRFileDesc.ptr),
-                              
+				  ctypes.default_abi,
+				  NSPR.types.PRFileDesc.ptr),
+    
     PR_NewUDPSocket : lib.declare("PR_NewUDPSocket",
-                ctypes.default_abi,
-                NSPR.types.PRFileDesc.ptr),
-  
+				  ctypes.default_abi,
+				  NSPR.types.PRFileDesc.ptr),
+    
     PR_OpenTCPSocket : lib.declare("PR_OpenTCPSocket",
-                          ctypes.default_abi,
-                          NSPR.types.PRFileDesc.ptr,
-                          ctypes.int32_t),
+				   ctypes.default_abi,
+				   NSPR.types.PRFileDesc.ptr,
+				   ctypes.int32_t),
                           
     PR_OpenUDPSocket : lib.declare("PR_OpenUDPSocket",
-                          ctypes.default_abi,
-                          NSPR.types.PRFileDesc.ptr,
-                          ctypes.int32_t),
-                          
-  
+				   ctypes.default_abi,
+				   NSPR.types.PRFileDesc.ptr,
+				   ctypes.int32_t),
+    
+    
     PR_GetSocketOption : lib.declare("PR_GetSocketOption",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRSocketOptionData.ptr),
-  
+				     ctypes.default_abi,
+				     ctypes.int32_t,
+				     NSPR.types.PRFileDesc.ptr,
+				     NSPR.types.PRSocketOptionData.ptr),
+    
     PR_GetMulticastSocketOption : lib.declare("PR_GetSocketOption",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRMulticastSocketOptionData.ptr),                        
-                      
+					      ctypes.default_abi,
+					      ctypes.int32_t,
+					      NSPR.types.PRFileDesc.ptr,
+					      NSPR.types.PRMulticastSocketOptionData.ptr),                        
+    
     PR_SetSocketOption : lib.declare("PR_SetSocketOption",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRSocketOptionData.ptr),
-                
+				     ctypes.default_abi,
+				     ctypes.int32_t,
+				     NSPR.types.PRFileDesc.ptr,
+				     NSPR.types.PRSocketOptionData.ptr),
+    
     PR_SetMulticastSocketOption : lib.declare("PR_SetSocketOption",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRMulticastSocketOptionData.ptr),              
+					      ctypes.default_abi,
+					      ctypes.int32_t,
+					      NSPR.types.PRFileDesc.ptr,
+					      NSPR.types.PRMulticastSocketOptionData.ptr),              
   
     PR_Bind : lib.declare("PR_Bind",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRNetAddr.ptr),
-                      
+			  ctypes.default_abi,
+			  ctypes.int32_t,
+			  NSPR.types.PRFileDesc.ptr,
+			  NSPR.types.PRNetAddr.ptr),
+    
     PR_Listen : lib.declare("PR_Listen",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.int32_t),
-                        
+			    ctypes.default_abi,
+			    ctypes.int32_t,
+			    NSPR.types.PRFileDesc.ptr,
+			    ctypes.int32_t),
+    
     PR_Accept : lib.declare("PR_Accept",
-                ctypes.default_abi,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRNetAddr.ptr,
-                ctypes.uint32_t),
+			    ctypes.default_abi,
+			    NSPR.types.PRFileDesc.ptr,
+			    NSPR.types.PRFileDesc.ptr,
+			    NSPR.types.PRNetAddr.ptr,
+			    ctypes.uint32_t),
                 
     PR_Connect : lib.declare("PR_Connect",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRNetAddr.ptr,
-                ctypes.uint32_t),          
-  
+			     ctypes.default_abi,
+			     ctypes.int32_t,
+			     NSPR.types.PRFileDesc.ptr,
+			     NSPR.types.PRNetAddr.ptr,
+			     ctypes.uint32_t),          
+    
     PR_ConnectContinue : lib.declare("PR_ConnectContinue",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.uint16_t),
-                       
+				     ctypes.default_abi,
+				     ctypes.int32_t,
+				     NSPR.types.PRFileDesc.ptr,
+				     ctypes.uint16_t),
+    
     PR_Close : lib.declare("PR_Close",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr),
-        
+			   ctypes.default_abi,
+			   ctypes.int32_t,
+			   NSPR.types.PRFileDesc.ptr),
+    
     PR_Shutdown : lib.declare("PR_Shutdown",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.uint8_t),
-                       
+			      ctypes.default_abi,
+			      ctypes.int32_t,
+			      NSPR.types.PRFileDesc.ptr,
+			      ctypes.uint8_t),
+    
     PR_Recv : lib.declare("PR_Recv",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.voidptr_t,
-                ctypes.int32_t,
-                ctypes.int32_t,
-                ctypes.uint32_t),
-                
+			  ctypes.default_abi,
+			  ctypes.int32_t,
+			  NSPR.types.PRFileDesc.ptr,
+			  ctypes.voidptr_t,
+			  ctypes.int32_t,
+			  ctypes.int32_t,
+			  ctypes.uint32_t),
+    
     PR_Send : lib.declare("PR_Send",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.voidptr_t,
-                ctypes.int32_t,
-                ctypes.int32_t,
-                ctypes.uint32_t),
+			  ctypes.default_abi,
+			  ctypes.int32_t,
+			  NSPR.types.PRFileDesc.ptr,
+			  ctypes.voidptr_t,
+			  ctypes.int32_t,
+			  ctypes.int32_t,
+			  ctypes.uint32_t),
                       
     PR_RecvFrom : lib.declare("PR_RecvFrom",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.voidptr_t,
-                ctypes.int32_t,
-                ctypes.int32_t,
-                NSPR.types.PRNetAddr.ptr,
-                ctypes.uint32_t),
-  
+			      ctypes.default_abi,
+			      ctypes.int32_t,
+			      NSPR.types.PRFileDesc.ptr,
+			      ctypes.voidptr_t,
+			      ctypes.int32_t,
+			      ctypes.int32_t,
+			      NSPR.types.PRNetAddr.ptr,
+			      ctypes.uint32_t),
+    
     PR_SendTo : lib.declare("PR_SendTo",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.voidptr_t,
-                ctypes.int32_t,
-                ctypes.int32_t,
-                NSPR.types.PRNetAddr.ptr,
-                ctypes.uint32_t),
-                
+			    ctypes.default_abi,
+			    ctypes.int32_t,
+			    NSPR.types.PRFileDesc.ptr,
+			    ctypes.voidptr_t,
+			    ctypes.int32_t,
+			    ctypes.int32_t,
+			    NSPR.types.PRNetAddr.ptr,
+			    ctypes.uint32_t),
+    
     PR_GetSockName : lib.declare("PR_GetSockName",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRNetAddr.ptr),
-                
+				 ctypes.default_abi,
+				 ctypes.int32_t,
+				 NSPR.types.PRFileDesc.ptr,
+				 NSPR.types.PRNetAddr.ptr),
+    
     PR_GetPeerName : lib.declare("PR_GetPeerName",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRNetAddr.ptr),
-                
+				 ctypes.default_abi,
+				 ctypes.int32_t,
+				 NSPR.types.PRFileDesc.ptr,
+				 NSPR.types.PRNetAddr.ptr),
+    
     PR_StringToNetAddr : lib.declare("PR_StringToNetAddr",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                ctypes.char.ptr,
-                NSPR.types.PRNetAddr.ptr),
-                
+				     ctypes.default_abi,
+				     ctypes.int32_t,
+				     ctypes.char.ptr,
+				     NSPR.types.PRNetAddr.ptr),
+    
     PR_NetAddrToString : lib.declare("PR_NetAddrToString",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRNetAddr.ptr,
-                ctypes.voidptr_t,
-   	        ctypes.uint32_t),
+				     ctypes.default_abi,
+				     ctypes.int32_t,
+				     NSPR.types.PRNetAddr.ptr,
+				     ctypes.voidptr_t,
+   				     ctypes.uint32_t),
 
     // Anna: adding polling support
     PR_Poll : lib.declare("PR_Poll",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRPollDesc.ptr,
-                ctypes.int32_t,
-		ctypes.uint32_t),
+			  ctypes.default_abi,
+			  ctypes.int32_t,
+			  NSPR.types.PRPollDesc.ptr,
+			  ctypes.int32_t,
+			  ctypes.uint32_t),
 
     PR_POLL_READ   : 0x01,
     PR_POLL_WRITE  : 0x02,
@@ -519,159 +519,158 @@ try {
     PR_POLL_HUP    : 0x20        /* only in out_flags */
   };
   
-  NSPR.process = {
-  
-  	PR_CreateProcess : lib.declare("PR_CreateProcess",
-                ctypes.default_abi,
-                NSPR.types.PRProcess.ptr,
-                ctypes.char.ptr,		// path
-                ctypes.char.ptr,		// argv
-                ctypes.char.ptr,		// envp
-                NSPR.types.PRProcessAttr.ptr),
+  NSPR.process = {  
+    PR_CreateProcess : lib.declare("PR_CreateProcess",
+				   ctypes.default_abi,
+				   NSPR.types.PRProcess.ptr,
+				   ctypes.char.ptr,		// path
+				   ctypes.char.ptr,		// argv
+				   ctypes.char.ptr,		// envp
+				   NSPR.types.PRProcessAttr.ptr),
     
     PR_DetachProcess : lib.declare("PR_DetachProcess",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRProcess.ptr),
-                
-	PR_WaitProcess : lib.declare("PR_WaitProcess",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRProcess.ptr,
-                ctypes.uint32_t.ptr),
+				   ctypes.default_abi,
+				   ctypes.int32_t,
+				   NSPR.types.PRProcess.ptr),
+    
+    PR_WaitProcess : lib.declare("PR_WaitProcess",
+				 ctypes.default_abi,
+				 ctypes.int32_t,
+				 NSPR.types.PRProcess.ptr,
+				 ctypes.uint32_t.ptr),
     
     PR_KillProcess : lib.declare("PR_KillProcess",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                NSPR.types.PRProcess.ptr),
-                
-	PR_NewProcessAttr : lib.declare("PR_NewProcessAttr",
-                ctypes.default_abi,
-                NSPR.types.PRProcessAttr.ptr),
+				 ctypes.default_abi,
+				 ctypes.int32_t,
+				 NSPR.types.PRProcess.ptr),
+    
+    PR_NewProcessAttr : lib.declare("PR_NewProcessAttr",
+				    ctypes.default_abi,
+				    NSPR.types.PRProcessAttr.ptr),
 
-	PR_ResetProcessAttr : lib.declare("PR_ResetProcessAttr",
-                ctypes.default_abi,
-                ctypes.void_t,
-                NSPR.types.PRProcessAttr.ptr),
-                
+    PR_ResetProcessAttr : lib.declare("PR_ResetProcessAttr",
+				      ctypes.default_abi,
+				      ctypes.void_t,
+				      NSPR.types.PRProcessAttr.ptr),
+    
     PR_DestroyProcessAttr : lib.declare("PR_DestroyProcessAttr",
-                ctypes.default_abi,
-                ctypes.void_t,
-                NSPR.types.PRProcessAttr.ptr),
-                
-	PR_ProcessAttrSetStdioRedirect : lib.declare("PR_ProcessAttrSetStdioRedirect",
-                ctypes.default_abi,
-                ctypes.void_t,
-                NSPR.types.PRProcessAttr.ptr,
-                ctypes.uint32_t,
-                NSPR.types.PRFileDesc.ptr),
+					ctypes.default_abi,
+					ctypes.void_t,
+					NSPR.types.PRProcessAttr.ptr),
+    
+    PR_ProcessAttrSetStdioRedirect : lib.declare("PR_ProcessAttrSetStdioRedirect",
+						 ctypes.default_abi,
+						 ctypes.void_t,
+						 NSPR.types.PRProcessAttr.ptr,
+						 ctypes.uint32_t,
+						 NSPR.types.PRFileDesc.ptr),
 
-	PR_ProcessAttrSetCurrentDirectory : lib.declare("PR_ProcessAttrSetCurrentDirectory",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                NSPR.types.PRProcess.ptr,
-                ctypes.char.ptr),
+    PR_ProcessAttrSetCurrentDirectory : lib.declare("PR_ProcessAttrSetCurrentDirectory",
+						    ctypes.default_abi,
+						    ctypes.uint32_t,
+						    NSPR.types.PRProcess.ptr,
+						    ctypes.char.ptr),
 
-	PR_ProcessAttrSetInheritableFD : lib.declare("PR_ProcessAttrSetInheritableFD",
-                ctypes.default_abi,
-                ctypes.void_t,
-                NSPR.types.PRProcess.ptr,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.char.ptr)
+    PR_ProcessAttrSetInheritableFD : lib.declare("PR_ProcessAttrSetInheritableFD",
+						 ctypes.default_abi,
+						 ctypes.void_t,
+						 NSPR.types.PRProcess.ptr,
+						 NSPR.types.PRFileDesc.ptr,
+						 ctypes.char.ptr)
   };
   
   NSPR.file = {
 
-  	// enum for PRAccessHow
-	PR_ACCESS_EXISTS : 1,
-	PR_ACCESS_WRITE_OK : 2,
-	PR_ACCESS_READ_OK : 3,
+    // enum for PRAccessHow
+    PR_ACCESS_EXISTS : 1,
+    PR_ACCESS_WRITE_OK : 2,
+    PR_ACCESS_READ_OK : 3,
 
-	/* Open flags */
-	PR_RDONLY : 0x01,
-	PR_WRONLY : 0x02,
-	PR_RDWR : 0x04,
-	PR_CREATE_FILE : 0x08,
-	PR_APPEND : 0x10,
-	PR_TRUNCATE : 0x20,
-	PR_SYNC : 0x40,
-	PR_EXCL : 0x80,
+    /* Open flags */
+    PR_RDONLY : 0x01,
+    PR_WRONLY : 0x02,
+    PR_RDWR : 0x04,
+    PR_CREATE_FILE : 0x08,
+    PR_APPEND : 0x10,
+    PR_TRUNCATE : 0x20,
+    PR_SYNC : 0x40,
+    PR_EXCL : 0x80,
 
-	/*
-	** File modes : http://mxr.mozilla.org/mozilla-central/source/nsprpub/pr/include/prio.h#626
-	**
-	** CAVEAT: 'mode' is currently only applicable on UNIX platforms.
-	** The 'mode' argument may be ignored by PR_Open on other platforms.
-	**
-	**   00400   Read by owner.
-	**   00200   Write by owner.
-	**   00100   Execute (search if a directory) by owner.
-	**   00040   Read by group.
-	**   00020   Write by group.
-	**   00010   Execute by group.
-	**   00004   Read by others.
-	**   00002   Write by others
-	**   00001   Execute by others.
-	*/
-	
-	PR_SEEK_SET : 0,
-	PR_SEEK_CUR : 1,
-	PR_SEEK_END : 2,
-	
-  	PR_Open : lib.declare("PR_Open",
-                ctypes.default_abi,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.char.ptr,
-                ctypes.size_t,	// instead of PRIntn we use size_t; this should be platform dependent ?
-                ctypes.size_t),
-                
-	PR_Delete : lib.declare("PR_Delete",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                ctypes.char.ptr),
-	
-	PR_GetFileInfo : lib.declare("PR_GetFileInfo",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                ctypes.char.ptr,
-                NSPR.types.PRFileInfo.ptr),
-                
-	PR_Rename : lib.declare("PR_Rename",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                ctypes.char.ptr,
-                ctypes.char.ptr),
+    /*
+    ** File modes : http://mxr.mozilla.org/mozilla-central/source/nsprpub/pr/include/prio.h#626
+    **
+    ** CAVEAT: 'mode' is currently only applicable on UNIX platforms.
+    ** The 'mode' argument may be ignored by PR_Open on other platforms.
+    **
+    **   00400   Read by owner.
+    **   00200   Write by owner.
+    **   00100   Execute (search if a directory) by owner.
+    **   00040   Read by group.
+    **   00020   Write by group.
+    **   00010   Execute by group.
+    **   00004   Read by others.
+    **   00002   Write by others
+    **   00001   Execute by others.
+    */
+    
+    PR_SEEK_SET : 0,
+    PR_SEEK_CUR : 1,
+    PR_SEEK_END : 2,
+    
+    PR_Open : lib.declare("PR_Open",
+			  ctypes.default_abi,
+			  NSPR.types.PRFileDesc.ptr,
+			  ctypes.char.ptr,
+			  ctypes.size_t,	// instead of PRIntn we use size_t; this should be platform dependent ?
+			  ctypes.size_t),
+    
+    PR_Delete : lib.declare("PR_Delete",
+			    ctypes.default_abi,
+			    ctypes.uint32_t,
+			    ctypes.char.ptr),
+    
+    PR_GetFileInfo : lib.declare("PR_GetFileInfo",
+				 ctypes.default_abi,
+				 ctypes.uint32_t,
+				 ctypes.char.ptr,
+				 NSPR.types.PRFileInfo.ptr),
+    
+    PR_Rename : lib.declare("PR_Rename",
+			    ctypes.default_abi,
+			    ctypes.uint32_t,
+			    ctypes.char.ptr,
+			    ctypes.char.ptr),
 
-	PR_Access : lib.declare("PR_Access",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                ctypes.char.ptr,
-                ctypes.uint32_t),
-                
-	PR_Close : lib.declare("PR_Close",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                NSPR.types.PRFileDesc.ptr),
+    PR_Access : lib.declare("PR_Access",
+			    ctypes.default_abi,
+			    ctypes.uint32_t,
+			    ctypes.char.ptr,
+			    ctypes.uint32_t),
+    
+    PR_Close : lib.declare("PR_Close",
+			   ctypes.default_abi,
+			   ctypes.uint32_t,
+			   NSPR.types.PRFileDesc.ptr),
 
-	PR_Read : lib.declare("PR_Read",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.voidptr_t,
-                ctypes.uint32_t),
-                
-	PR_Write : lib.declare("PR_Write",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                NSPR.types.PRFileDesc.ptr,
-                ctypes.voidptr_t,
-                ctypes.uint32_t),
+    PR_Read : lib.declare("PR_Read",
+			  ctypes.default_abi,
+			  ctypes.uint32_t,
+			  NSPR.types.PRFileDesc.ptr,
+			  ctypes.voidptr_t,
+			  ctypes.uint32_t),
+    
+    PR_Write : lib.declare("PR_Write",
+			   ctypes.default_abi,
+			   ctypes.uint32_t,
+			   NSPR.types.PRFileDesc.ptr,
+			   ctypes.voidptr_t,
+			   ctypes.uint32_t),
 
-	PR_GetOpenFileInfo : lib.declare("PR_GetOpenFileInfo",
-                ctypes.default_abi,
-                ctypes.uint32_t,
-                NSPR.types.PRFileDesc.ptr,
-                NSPR.types.PRFileInfo.ptr)
+    PR_GetOpenFileInfo : lib.declare("PR_GetOpenFileInfo",
+				     ctypes.default_abi,
+				     ctypes.uint32_t,
+				     NSPR.types.PRFileDesc.ptr,
+				     NSPR.types.PRFileInfo.ptr)
   };
 
   NSPR.errors = {
@@ -909,76 +908,76 @@ try {
   
     ERROR_TABLE_BASE_nspr          : -6000,
   
-                
+    
     PR_GetError : lib.declare("PR_GetError",
-                ctypes.default_abi,
-                ctypes.int32_t),
-                
+			      ctypes.default_abi,
+			      ctypes.int32_t),
+    
     PR_GetOSError : lib.declare("PR_GetOSError",
-                ctypes.default_abi,
-                ctypes.int32_t),
-  
+				ctypes.default_abi,
+				ctypes.int32_t),
+    
     PR_GetErrorTextLength : lib.declare("PR_GetErrorTextLength",
-                ctypes.default_abi,
-                ctypes.int32_t),
-                
+					ctypes.default_abi,
+					ctypes.int32_t),
+    
     PR_GetErrorText : lib.declare("PR_GetErrorText",
-                ctypes.default_abi,
-                ctypes.int32_t,
-                ctypes.char.ptr)            
+				  ctypes.default_abi,
+				  ctypes.int32_t,
+				  ctypes.char.ptr)            
   };
 
   NSPR.util = {
-  
+    
     PR_Now : lib.declare("PR_Now",
-      ctypes.default_abi,
-      ctypes.uint64_t),
+			 ctypes.default_abi,
+			 ctypes.uint64_t),
 
     PR_IntervalNow : lib.declare("PR_IntervalNow",
-      ctypes.default_abi,
-      ctypes.uint32_t),
+				 ctypes.default_abi,
+				 ctypes.uint32_t),
 
     PR_TicksPerSecond : lib.declare("PR_TicksPerSecond",
-      ctypes.default_abi,
-      ctypes.uint32_t),
+				    ctypes.default_abi,
+				    ctypes.uint32_t),
 
     PR_MillisecondsToInterval : lib.declare("PR_MillisecondsToInterval",
-      ctypes.default_abi,
-      ctypes.uint32_t,
-      ctypes.uint32_t),
+					    ctypes.default_abi,
+					    ctypes.uint32_t,
+					    ctypes.uint32_t),
 
     PR_IntervalToMilliseconds : lib.declare("PR_IntervalToMilliseconds",
-      ctypes.default_abi,
-      ctypes.uint32_t,
-      ctypes.uint32_t),
+					    ctypes.default_abi,
+					    ctypes.uint32_t,
+					    ctypes.uint32_t),
 
     PR_SI_HOSTNAME				: 0,
-	PR_SI_SYSNAME				: 1,
-	PR_SI_RELEASE				: 2,
-	PR_SI_ARCHITECTURE			: 3,
-	PR_SI_HOSTNAME_UNTRUNCATED	: 4,
+    PR_SI_SYSNAME				: 1,
+    PR_SI_RELEASE				: 2,
+    PR_SI_ARCHITECTURE			: 3,
+    PR_SI_HOSTNAME_UNTRUNCATED	: 4,
 	
-	PR_GetSystemInfo : lib.declare("PR_GetSystemInfo",
-						ctypes.default_abi,
-						ctypes.int32_t,
-						ctypes.int32_t,
-						ctypes.voidptr_t,
-						ctypes.int32_t),
+    PR_GetSystemInfo : lib.declare("PR_GetSystemInfo",
+				   ctypes.default_abi,
+				   ctypes.int32_t,
+				   ctypes.int32_t,
+				   ctypes.voidptr_t,
+				   ctypes.int32_t),
 						
-	GetHostIP : function() {
-		return "Not yet implemented."
-	},
+//    GetHostIP : function() {
+//      return "Not yet implemented."
+//    },
 
     PR_htons : lib.declare("PR_htons",
-      ctypes.default_abi,
-      ctypes.uint16_t,
-      ctypes.uint16_t),
+			   ctypes.default_abi,
+			   ctypes.uint16_t,
+			   ctypes.uint16_t),
 
     PR_ntohs : lib.declare("PR_ntohs",
-      ctypes.default_abi,
-      ctypes.uint16_t,
-      ctypes.uint16_t),
-
+			   ctypes.default_abi,
+			   ctypes.uint16_t,
+			   ctypes.uint16_t),
+    
     StringToNetAddr : function StringToNetAddr(str) {
       var tmp = new NSPR.types.PRNetAddr();
       NSPR.sockets.PR_StringToNetAddr(str, tmp.address());
@@ -989,7 +988,7 @@ try {
       var buffer = newBuffer(256);
       NSPR.sockets.PR_NetAddrToString(addr.address(), buffer, 256);
       for(var ip = "", i = 0; i < buffer[i] != '0'; i++)
-		ip += String.fromCharCode(buffer[i]);
+	ip += String.fromCharCode(buffer[i]);
       return ip;
     }
   };
