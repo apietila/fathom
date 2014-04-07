@@ -214,7 +214,14 @@ var System = function (ctx) {
 	    // client or server
 	    if (opt.client) {
 		args.push("-c " + opt.client);
+	    } else {
+		// FIXME: need a way to stop the asyn backgroun process
+		// in order to be able to run iperf server ..
+		callback({error: "doIperf: server mode not support, consider tradeoff test", 
+			  __exposedProps__: {error: "r"}});
+		return;		
 	    }
+
             // server port
             if (opt.port) {
 		args.push("-p " + opt.port);
