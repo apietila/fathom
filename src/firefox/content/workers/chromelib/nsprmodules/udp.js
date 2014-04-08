@@ -69,7 +69,7 @@ function udpBind(socketid, addr, port, reuse) {
 
 function udpConnect(socketid, addr, port) {
   var fd = util.getRegisteredSocket(socketid);
-  var timeout = 1000;
+  var timeout = NSPR.util.PR_MillisecondsToInterval(1000);
   
   var netaddr = new NSPR.types.PRNetAddr();
   netaddr.ip = NSPR.util.StringToNetAddr(addr);

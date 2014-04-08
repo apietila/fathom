@@ -16,37 +16,19 @@ const darwin = "darwin";
 
 /* Iperf */
 function parseIperf(config, output) {
-    var res = {
-	// side running -c
-        client : { 
-            snd_reports : [],     // uplink periodic reports (cli sends)
-            snd_total : undefined,// uplink client report (cli sends)
-            rcv_reports : [],     // downlink periodic reports (recv)
-            rcv_total : undefined,// downlink client report (recv)
-            __exposedProps__ : {
-                snd_reports : "r",
-                snd_total : "r",
-                rcv_reports : "r",
-                rcv_total : "r"
-            }
-        },
-	// side running -s
-        server : {
-            rcv_reports : [],     // periodic reports (cli send)
-            rcv_total : undefined,// report (cli send)
-            snd_reports : [],     // periodic reports (cli recv)
-            snd_total : undefined,// report (cli recv)
-            __exposedProps__ : {
-                snd_reports : "r",
-                snd_total : "r",
-                rcv_reports : "r",
-                rcv_total : "r"
-            }
-	},
-        __exposedProps__: {
-	    client : "r",
-	    server : "r"
-        }
+    var res = {	
+        snd_reports : [],  
+        snd_total : undefined,
+	snd_rcv_total : undefined,
+        rcv_reports : [],     
+        rcv_total : undefined,
+	__exposedProps__ : {
+            snd_reports : "r",
+            snd_total : "r",
+            snd_rcv_total : "r",
+            rcv_reports : "r",
+            rcv_total : "r",
+	}
     };
 
     var splitts = function(s) {
@@ -175,16 +157,16 @@ function parseIperf(config, output) {
 	    if (config.client) { // data comes from iperf client
     		if (obj.startTime === 0) {
 		    // client side send totals
-    		    res.client.snd_total = obj; // final results
+    		    res.snd_total = obj; // final results
 		}
-		res.client.snd_reports.push(obj); // periodic report
+		res.snd_reports.push(obj); // periodic report
 	    } else { // data comes from iperf server
 		reverse = true;
     		if (obj.startTime === 0) {
 		    // server side send totals
-    		    res.server.snd_total = obj; // final results
+    		    res.snd_total = obj; // final results
 		}
-		res.server.snd_reports.push(obj); // periodic report
+		res.snd_reports.push(obj); // periodic report
 	    }
 	} else if (tmp.length == 14) {
 	    var obj = recvreport(tmp);
@@ -194,25 +176,25 @@ function parseIperf(config, output) {
 		    // tradeoff testing recv side
     		    if (obj.startTime === 0) {
 			// client side recv totals
-    			res.client.rcv_total = obj; // final results
+    			res.rcv_total = obj; // final results
 		    }
-		    res.client.rcv_reports.push(obj); // periodic report
+		    res.rcv_reports.push(obj); // periodic report
 		} else {
 		    // client recved server report
-    		    res.server.rcv_total = obj;
+    		    res.snd_rcv_total = obj;
 		    reverse = true;
 		}
 	    } else { // data comes from iperf server
 		if (reverse) {
 		    // server recved cliside server report for tradeoff
-    		    res.client.rcv_total = obj;
+    		    res.rcv_total = obj;
 		} else {
 		    // normal server side report
     		    if (obj.startTime === 0) {
 			// server side send totals
-    			res.server.rcv_total = obj; // final results
+    			res.rcv_total = obj; // final results
 		    }
-		    res.server.rcv_reports.push(obj); // periodic report
+		    res.rcv_reports.push(obj); // periodic report
 		}
 	    }
 	    

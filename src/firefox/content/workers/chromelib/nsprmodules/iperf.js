@@ -49,36 +49,18 @@ var iperf = (function() {
     // in server mode after a client is served
     var initres = function() {
 	return {
-	    // reports by side running -c (as client)
-            client : { 
-		snd_reports : [],     // periodic reports (cli sends)
-		snd_total : undefined,// client report (cli sends)
-		rcv_reports : [],     // periodic reports (cli tradeoff recv)
-		rcv_total : undefined,// client report (cli tradeoff recv)
-		__exposedProps__ : {
-                    snd_reports : "r",
-                    snd_total : "r",
-                    rcv_reports : "r",
-                    rcv_total : "r"
-		}
-            },
-	    // reports by side running -s (as server)
-            server : {
-		rcv_reports : [],     // periodic reports (cli send)
-		rcv_total : undefined,// report (cli send)
-		snd_reports : [],     // periodic reports (cli recv)
-		snd_total : undefined,// report (cli recv)
-		__exposedProps__ : {
-                    snd_reports : "r",
-                    snd_total : "r",
-                    rcv_reports : "r",
-                    rcv_total : "r"
-		}
-	    },
-            __exposedProps__: {
-		client : "r",
-		server : "r"
-            }
+            snd_reports : [],  
+            snd_total : undefined,
+	    snd_rcv_total : undefined,
+            rcv_reports : [],     
+            rcv_total : undefined,
+	    __exposedProps__ : {
+		snd_reports : "r",
+		snd_total : "r",
+		snd_rcv_total : "r",
+		rcv_reports : "r",
+		rcv_total : "r",
+	    }
 	};
     };
 
@@ -150,6 +132,8 @@ var iperf = (function() {
     //
     // Initialized with iperf default settings, overriden by user args
     var settings = {
+	mBuf : undefined, 
+
 	mHost : undefined,              // -c
 	mLocalhost : undefined,         // -B
 
@@ -198,16 +182,12 @@ var iperf = (function() {
 	    settings.mThreadMode = ThreadMode.kMode_Listener;
 	    if (args.proto==='udp') {
 		settings.mUDP = true;
-		settings.mSingleUDP = true;
-		settings.mBufLen = kDefault_UDPBufLen;
-	    }
-	    if (args.proto==='udp' && args.multi) {
-		settings.mUDP = true;
-		settings.mSingleUDP = false;
+		// serve single client only?
+		settings.mSingleUDP = (args.multi ? false : true);
 		settings.mBufLen = kDefault_UDPBufLen;
 	    }
 	} else {
-	    throw "Must define client or server!";
+	    throw "Must be client or server!";
 	}
 
 	// common options of clients and servers
@@ -284,6 +264,9 @@ var iperf = (function() {
 	    }
 	}
 
+	// single shared send/recv buffer
+	settings.mBuf = new ArrayBuffer(settings.mBufLen, 0, settings.mBufLen);
+
 	debug("TestMode="+settings.mMode);
 	debug("ThreadMode="+settings.mThreadMode);
 
@@ -324,19 +307,19 @@ var iperf = (function() {
 	    offset = 3; // comes after the packet header
 
 	// dual test mode
-	if (settings.mMode == TestMode.kTest_DualTest) {
+	if (settings.mMode === TestMode.kTest_DualTest) {
 	    // parallel bidirectional test
 	    var a = Long.fromBits(0x00000000, HEADER_VERSION1);
 	    var b = Long.fromBits(0x00000000, RUN_NOW);
 	    message.setInt32((offset + 0)*4, a.or(b).getHighBits(), false);
 
-	} else if (settings.mMode == TestMode.kTest_ServeClient) {
+	} else if (settings.mMode === TestMode.kTest_ServeClient) {
 	    // reverse client/server roles
 	    var a = Long.fromBits(0x00000000, HEADER_VERSION1);
 	    var b = Long.fromBits(0x00000000, RUN_CLIENT);
 	    message.setInt32((offset + 0)*4, a.or(b).getHighBits(), false);
 
-	} else if (settings.mMode == TestMode.kTest_TradeOff) {
+	} else if (settings.mMode === TestMode.kTest_TradeOff) {
 	    // sequential bidirectional test
 	    message.setInt32((offset + 0)*4, HEADER_VERSION1, false);	
 
@@ -515,6 +498,7 @@ var iperf = (function() {
 	return 0;
     };
 
+    // client/server pkt report
     var reportPkt = function(report, bytes, ts) {
 	report.totalLen += bytes;
 	if (report.nextReportTime && report.nextReportTime>0)
@@ -555,7 +539,11 @@ var iperf = (function() {
 		    rate : "r",
 		    ratebit : "r",
 		    rateKbit : "r",
-		    rateMbit : "r"
+		    rateMbit : "r",
+		    jitter: "r",
+		    errorCnt : "r",
+		    errorRate : "r",
+		    outOfOrder : "r"
 		}
             };
 
@@ -569,13 +557,22 @@ var iperf = (function() {
 	    obj.bytesK = numtoformat(obj.bytes, 'K');  // KB
 	    obj.bytesM = numtoformat(obj.bytes, 'M');  // MB
 
-	    // store to the res object
-	    if (report.client) {
-		// normal client send reports
-		report.finalrep.client.snd_reports.push(obj);
+	    if (settings.mThreadMode === ThreadMode.kMode_Client) {
+		// client always sends
+		report.finalres.snd_reports.push(obj);
 	    } else {
-		// tradeoff mode
-		report.finalrep.server.snd_reports.push(obj);
+		// server recvs
+		obj.errorCnt = report.currErrorCnt;
+		obj.jitter = report.jitter;
+		obj.outOfOrder = report.currOutOfOrder;
+		if (report.currDgrams>0) {
+		    obj.errorRate = 
+			100.0 * (report.currErrorCnt/report.currDgrams);
+		} else {
+		    obj.errorRate = 100.0;
+		}
+		
+		report.finalres.rcv_reports.push(obj);
 	    }
 
 	    // reset
@@ -583,10 +580,67 @@ var iperf = (function() {
 	    report.nextReportTime += settings.mInterval;
 	    report.currLen = 0;
 	    report.currDgrams = 0;
+	    report.currErrorCnt = 0;
+	    report.currOutOfOrder = 0;
 	}
     };
 
+    // client received summary report from the server
+    var addServerReport = function(report, sobj) {
+	var obj = {
+	    timestamp : (new Date()).getTime(),
+	    sendip : report.clientIP,
+	    sendport : report.clientPort,
+	    recvip : report.serverIP,
+	    recvport : report.serverPort,
+	    socketBufferSize : report.socketBufferSize,
+	    startTime : sobj.startTime/1000.0,
+	    endTime : sobj.endTime/1000.0,
+	    dgramCnt : sobj.dgramCnt,
+	    bytes : sobj.bytes,
+	    errorCnt : sobj.errorCnt,
+	    errorRate : sobj.errorRate,
+	    jitter : sobj.jitter,
+	    outOfOrder : sobj.outOfOrder,	
+	    __exposedProps__ : {
+		timestamp : "r",
+		sendip : "r",
+		sendport : "r",
+		recvip : "r",
+		recvport : "r",
+		startTime : "r",
+		endTime : "r",
+		dgramCnt : "r",
+		bytes : "r",
+		bytesK : "r",
+		bytesM : "r",
+		rate : "r",
+		ratebit : "r",
+		rateKbit : "r",
+		rateMbit : "r",
+		socketBufferSize : "r",
+		jitter: "r",
+		errorCnt : "r",
+		errorRate : "r",
+		outOfOrder : "r"
+	    }
+	};
+
+	// bytes / s
+	obj.rate = obj.bytes / (obj.endTime - obj.startTime); 
+	obj.ratebit = (obj.bytes * 8.0) / (obj.endTime - obj.startTime); 
+	obj.ratekbit = numtoformat(obj.rate, 'k'); // kbit
+	obj.rateMbit = numtoformat(obj.rate, 'm'); // Mbit
+
+	obj.bytesK = numtoformat(obj.bytes, 'K');  // KB
+	obj.bytesM = numtoformat(obj.bytes, 'M');  // MB
+
+	report.finalres.snd_rcv_total = obj;
+    };
+
+    // client/server final report
     var closeReport = function(report, ts) {
+	debug("close " + (report.client ? "client" : "server") + " report");
 	var obj = {
 	    timestamp : (new Date()).getTime(),
 	    sendip : report.clientIP,
@@ -614,7 +668,11 @@ var iperf = (function() {
 		ratebit : "r",
 		rateKbit : "r",
 		rateMbit : "r",
-		socketBufferSize : "r"
+		socketBufferSize : "r",
+		jitter: "r",
+		errorCnt : "r",
+		errorRate : "r",
+		outOfOrder : "r"
 	    }
 	};
 
@@ -627,89 +685,14 @@ var iperf = (function() {
 	obj.bytesK = numtoformat(obj.bytes, 'K');  // KB
 	obj.bytesM = numtoformat(obj.bytes, 'M');  // MB
 
-	if (report.client) {
-	    // client side send totals
-    	    report.finalrep.client.snd_total = obj;
-	} else {
-	    // tradeoff/dual mode send totals
-    	    report.finalrep.server.snd_total = obj;
-	}
-    };	    
-
-    // recev side report
-    var recvReport = function(report, obj) {
-        var resobj = {
-	    timestamp : (new Date()).getTime(),
-	    sendip : report.clientIP,
-	    sendport : report.clientPort,
-	    recvip :  report.serverIP,
-	    recvport :  report.serverPort,
-	    startTime : obj.startTime/1000.0,
-	    endTime : obj.endTime/1000.0,
-	    bytes : obj.bytes,
-	    dgramCnt : obj.dgramCnt,	
-	    errorCnt : obj.errorCnt,
-	    errorRate : obj.errorRate,
-	    jitter : obj.jitter,
-	    outOfOrder : obj.outOfOrder,
-	    __exposedProps__ : {
-		timestamp : "r",
-		sendip : "r",
-		sendport : "r",
-		recvip : "r",
-		recvport : "r",
-		startTime : "r",
-		endTime : "r",
-		bytes : "r",
-		bytesK : "r",
-		bytesM : "r",
-		rate : "r",
-		ratebit : "r",
-		rateKbit : "r",
-		rateMbit : "r",
-		jitter: "r",
-		errorCnt : "r",
-		dgramCnt : "r",
-		errorRate : "r",
-		outOfOrder : "r"
-	    }
-        };
-
-	// bits / s
-	resobj.rate = resobj.bytes / (resobj.endTime - resobj.startTime);
-	resobj.ratebit = (resobj.bytes * 8.0) / (resobj.endTime - resobj.startTime); 
-
-	// human readable report values
-	resobj.rateKbit = numtoformat(resobj.rate, 'k'); // Kbit
-	resobj.rateMbit = numtoformat(resobj.rate, 'm'); // Mbit
-	resobj.bytesK = numtoformat(resobj.bytes, 'K');  // KB
-	resobj.bytesM = numtoformat(resobj.bytes, 'M');  // MB
-	
-	if (report.client) {
-	    if (settings.mThreadMode === ThreadMode.kMode_Client) {
-		// final server report recvd at client
-		report.finalrep.server.rcv_total = resobj;
-	    } else {
-		// tradeoff testing recv side
-    		if (obj.lastReport) {
-		    // client side recv totals
-    		    report.finalrep.client.rcv_total = resobj;
-		} else {
-		    report.finalrep.client.rcv_reports.push(resobj);
-		}
-	    }
-	} else {
-	    if (settings.mThreadMode === ThreadMode.kMode_Server) {
-		// normal server side report
-    		if (obj.lastReport) {
-    		    report.finalrep.server.rcv_total = resobj;
-		} else {
-		    report.finalrep.server.rcv_reports.push(resobj);
-		}
-	    } else {
-		// tradeoff testing cli report
-		res.client.rcv_total = resobj;
-	    }
+	if (settings.mThreadMode === ThreadMode.kMode_Client) {
+    	    report.finalres.snd_total = obj;
+	} else { // kMode_Server
+	    obj.errorCnt = report.errorCnt;
+	    obj.errorRate = report.errorRate;
+	    obj.jitter = report.jitter;
+	    obj.outOfOrder = report.outOfOrder;		
+    	    report.finalres.rcv_total = obj;
 	}
     };
 
@@ -719,7 +702,7 @@ var iperf = (function() {
 
 	// initialize send buffer
 	var inBytes = settings.mBufLen;
-	var mBuf = new ArrayBuffer(settings.mBufLen, 0, settings.mBufLen);
+	var mBuf = settings.mBuf;
 	var message = new DataView(mBuf);
 	while ( inBytes > 0 ) {
 	    inBytes -= 1;
@@ -843,7 +826,7 @@ var iperf = (function() {
 	    startTime : undefined,
 	    lastPacketTime : undefined,
 	    client : true,       
-	    finalrep : initres() // object we report back to the UI
+	    finalres : initres() // object we report back to the UI
 	}
 	if (settings.mInterval > 0) {
 	    // periodic reporting
@@ -853,8 +836,28 @@ var iperf = (function() {
 	report.socketBufferSize = 
 	    getSocketOption(NSPR.sockets.PR_SockOpt_SendBufferSize);
 
-	// end udp test
-	var udp_fin = function(ts) {
+	// end test
+	var fin = function(ts) {
+	    // done sending - last progress report and final report
+	    reportPkt(report, 0, ts);
+	    closeReport(report, ts);
+
+	    if (!settings.mUDP) {
+		if (settings.mMode === TestMode.kTest_TradeOff) {
+		    debug("-- switching to tradeoff server mode --");
+		    // cleanup the client socket
+		    util.unregisterSocket();
+		    NSPR.sockets.PR_Close(settings.mSock);
+		    settings.mSock = undefined;
+		    // start listening for incoming test
+		    listener(undefined, report);
+		} else {
+		    // report and stop
+		    shutdown(report.finalres);
+		}		
+		return;
+	    }
+
 	    var to = NSPR.util.PR_MillisecondsToInterval(50);
 	    var retryc = ACK_WAIT;
 
@@ -865,13 +868,13 @@ var iperf = (function() {
 
 	    var finloop = function() {
 		if (retryc == 0) {
-		    debug("No server report after 10 retries");
-		    shutdown(report.finalrep);
+		    debug("no server report after 10 retries");
+		    shutdown(report.finalres);
 		    return;
 		}
 
 		if (!settings.mSock || settings.mStopReq) {
-		    debug("Client terminated, did not receive server report");
+		    debug("client terminated, did not receive server report");
 		    shutdown({interrupted : true});
 		    return;
 		}
@@ -894,10 +897,22 @@ var iperf = (function() {
 		    // parse report and report
 		    var msg = new DataView((new Uint8Array(recvbuf)).buffer);
 		    var recvrep = read_server_header(msg);
-		    recvReport(report, recvrep);
-		    shutdown(report.finalrep);
+		    addServerReport(report, recvrep);
+
+		    if (settings.mMode === TestMode.kTest_TradeOff) {
+			debug("-- switching to tradeoff server mode --");
+			// cleanup the client socket
+			util.unregisterSocket();
+			NSPR.sockets.PR_Close(settings.mSock);
+			settings.mSock = undefined;
+			// start listening for incoming test		    
+			listener(undefined, report);
+		    } else {
+			// report and stop
+			shutdown(report.finalres);
+		    }
 		    return;
-		} 
+		}
 
 		// else assume timeout and continue sending
 		setTimeout(finloop,0);
@@ -921,15 +936,9 @@ var iperf = (function() {
 		}
 
 		if ((settings.mMode_Time && ts >= endTime) || 
-		    (!settings.mMode_Time && settings.mAmount <= 0)) {
-		    // done sending - last progress report and final report
-		    reportPkt(report, 0, ts);
-		    closeReport(report, ts);
-		    if (settings.mUDP) {
-			udp_fin(ts);
-		    } else {
-			shutdown(report.finalrep);
-		    }
+		    (!settings.mMode_Time && settings.mAmount <= 0)) 
+		{
+		    fin(ts);
 		    return; // exit loop
 		}
 		
@@ -956,27 +965,18 @@ var iperf = (function() {
 		
 		if (l<0) {
 		    // error writing... stop here
-		    reportPkt(report, 0, ts);
-		    closeReport(report, ts);
-		    if (settings.mUDP) {
-			udp_fin(ts);
-		    } else {
-			shutdown(report.finalrep);
-		    }
+		    fin(ts);
 		    return; // exit loop
-		} else if (settings.mMode == TestMode.kTest_ServeClient) {
+
+		} else if (settings.mMode === TestMode.kTest_ServeClient) {
 		    // first packet is sent - switch to server mode
 		    debug("-- switching to server mode --");
 		    if (settings.mUDP) {
-			udp_single_server(function() {
-			    shutdown({});
-			});
+			udp_single_server(undefined, report);
 		    } else {
 			// reuse the current socket for receiving data
 			settings.mSockIn = settings.mSock;
-			tcp_single_server(function() {
-			    shutdown({});
-			});
+			tcp_single_server(undefined, report);
 		    }
 		    return; // exit loop
 		}
@@ -1002,34 +1002,42 @@ var iperf = (function() {
 	return {ignore : true};
     }; // client
 
-    // start a server worker
-    var server = function(ts) {
+    // start a single server worker
+    var server = function() {
 	if (settings.mUDP) {
-	    return udp_single_server(ts);
+	    return udp_single_server();
 	} else {
-	    return tcp_single_server(ts);
+	    return tcp_single_server();
 	}
     }
 
-    // single threaded udp worker
-    var udp_single_server = function(donecb) {
-	const RECV_TO = 250; // ms
-	const ACK_RECV_TO = 1000; // ms
+    // single threaded udp worker, receives data from a single
+    // client and then calls shutdown with the final report
+    // if donecb is given, sends final report and calls donecb
+    var udp_single_server = function(donecb, clireport) {
+	const RECV_TO = NSPR.util.PR_MillisecondsToInterval(250);
+	const ACK_RECV_TO = NSPR.util.PR_MillisecondsToInterval(1000);
 	const ACK_RETRY = 10;
+	var mBuf = settings.mBuf;
 
-	var mBuf = new ArrayBuffer(settings.mBufLen);
+	settings.mThreadMode = ThreadMode.kMode_Server;
 
-	var report = {
-	    serverIP : settings.local.ip,
-	    serverPort : settings.local.port,
-	    client : false,
-	    server : true,
-	};
+	// continue to fill existing report or create a new
+	var report = clireport;
+	if (!report) {
+	    debug("udp_single_server init report");
+	    report = {
+		server : true,
+		finalres : initres(), // report for the UI
+	    };
+	}
 	report.socketBufferSize = 
 	    getSocketOption(NSPR.sockets.PR_SockOpt_RecvBufferSize);
 
 	var reset = function(ts) {
 	    report.transferID = settings.mTransferID;
+	    report.serverIP = settings.local.ip;
+	    report.serverPort = settings.local.port;
 	    report.clientIP = settings.peer.ip;
 	    report.clientPort = settings.peer.port;
 
@@ -1048,6 +1056,8 @@ var iperf = (function() {
 		report.currLen = 0;
 		report.currDgrams = 0;
 		report.currStartTime = ts;
+		report.currErrorCnt = 0;
+		report.currOutOfOrderCnt = 0;
 		report.nextReportTime = ts + settings.mInterval;
 	    }
 	};
@@ -1116,7 +1126,7 @@ var iperf = (function() {
 	var lastreloop = undefined;
 
 	var loop = function() {
-	    if (!settings.mSock || settings.mStopReq) {
+	    if (!settings.mSock || settings.mStopReq) {		
 		shutdown({interrupted : true});
 		return;
 	    }
@@ -1150,8 +1160,8 @@ var iperf = (function() {
 			curr_peeraddr = peeraddr;
 			reset(ts);
 			
-			debug("["+settings.mTransferID+"] UDP "+ 
-			      " connection from " + settings.peer.ip + ":" + 
+			debug("UDP connection from " + 
+			      settings.peer.ip + ":" + 
 			      settings.peer.port);
 		    }
 
@@ -1165,14 +1175,16 @@ var iperf = (function() {
 		    
 		    if (obj.packetID < 0) {
 			// this was the last packet
-			curr_peeraddr = undefined;
 			done = true; // quit while
-
-			if (donecb && typeof donecb === 'function') 
-			    // get back to listener
-			    udp_fin(donecb, ts, peeraddr);
-			else
-			    udp_fin(loop, ts, peeraddr);
+			udp_fin(function() {
+			    curr_peeraddr = undefined;
+			    if (donecb && typeof donecb === 'function') {
+				util.postResult(report.finalres);
+				setTimeout(donecb,0);
+			    } else {
+				shutdown(report.finalres);
+			    }
+			}, ts, curr_peeraddr);
 			
 		    } else if (obj.packetID != 0) {
 			// from RFC 1889, Real Time Protocol (RTP) 
@@ -1193,8 +1205,10 @@ var iperf = (function() {
 			if (obj.packetID != report.lastPacketID + 1 ) {
 			    if (obj.packetID < report.lastPacketID + 1 ) {
 				report.outOfOrderCnt += 1;
+				report.currOutOfOrderCnt += 1;
 			    } else {
 				report.errorCnt += ((obj.packetID - report.lastPacketID) - 1);
+				report.currErrorCnt += ((obj.packetID - report.lastPacketID) - 1);
 			    }
 			}
 			
@@ -1214,7 +1228,13 @@ var iperf = (function() {
 			    closeReport(report, ts);
 			}
 			done = true; // quit while
-			shutdown({error : "Error in recvfrom: code="+err});
+			if (donecb && typeof donecb === 'function') {
+			    setTimeout(donecb,
+				       0,
+				       {error : "Error in recvfrom: code="+err});
+			} else {
+			    shutdown({error : "Error in recvfrom: code="+err});
+			}
 		    } else {
 			// there was recv timeout, loop back by the event loop
 			done = true; // quit while
@@ -1226,7 +1246,13 @@ var iperf = (function() {
 			closeReport(report, ts);
 		    }
 		    done = true; // quit while
-		    shutdown({error : "Error in recvfrom: closed"});
+		    if (donecb && typeof donecb === 'function') {
+			setTimeout(donecb,
+				   0,
+				   {error : "Error in recvfrom: code="+err});
+		    } else {
+			shutdown({error : "Error in recvfrom: code="+err});
+		    }
 		}
 
 		// TODO: this is a hack to keep the server worker responsive
@@ -1237,46 +1263,56 @@ var iperf = (function() {
 		    setTimeout(loop, 0); // this will incure 15-20ms delay
 		}
 		// else stay in the tight while loop
-
 	    } // end while
 	}; // end loop
-
 	setTimeout(loop, 0);
-	return {noerror : true}; // just to signal that the server is up
+	return {started : true, __exposedProps__ : {started : "r"}};
     }; // udp_single_server
 
     // tcp server worker
-    var tcp_single_server = function(cb) {
-	const RECV_TO = 250; // ms
-
-	var mBuf = new ArrayBuffer(settings.mBufLen);
+    // receives data from a single client and then calls shutdown with 
+    // the final report 
+    // if donecb is given, sends final report and calls donecb
+    var tcp_single_server = function(donecb, clireport) {
+	const RECV_TO = NSPR.util.PR_MillisecondsToInterval(250);
+	var mBuf = settings.mBuf;
 	var ts = gettime(); // TODO: report start from first byte?
 
-	var report = {
-	    serverIP : settings.local.ip,
-	    serverPort : settings.local.port,
-	    client : false,
-	    server : true,
-	    transferID : settings.mTransferID,
-	    clientIP : settings.peer.ip,
-	    clientPort : settings.peer.port,
+	settings.mThreadMode = ThreadMode.kMode_Server;
 
-	    totalLen : 0,
-	    totalDgrams : 0,
-	    jitter : 0,
-	    errorCnt : 0,
-	    outOfOrderCnt : 0,
-	    packetID : 0,
-	    lastPacketID : 0,
-	    startTime : ts,
-	    lastTransit : 0,
-	};
+	var report = clireport;
+	if (!report) {
+	    debug("tcp_single_server init report");
+	    report = {
+		server : true,
+		finalres : initres()
+	    };
+	}
+
+	// init all fields
+	report.serverIP = settings.local.ip;
+	report.serverPort = settings.local.port;
+	report.transferID = settings.mTransferID;
+	report.clientIP = settings.peer.ip;
+	report.clientPort = settings.peer.port;
+
+	report.totalLen = 0;
+	report.totalDgrams = 0;
+	report.jitter = 0;
+	report.errorCnt = 0;
+	report.outOfOrderCnt = 0;
+	report.packetID = 0;
+	report.lastPacketID = 0;
+	report.startTime = ts;
+	report.lastTransit = 0;
 
 	if (settings.mInterval > 0) {
 	    // periodic reporting
 	    report.currLen = 0;
 	    report.currDgrams = 0;
 	    report.currStartTime = ts;
+	    report.currErrorCnt = 0;
+	    report.currOutOfOrderCnt = 0;
 	    report.nextReportTime = ts + settings.mInterval;
 	}
 
@@ -1317,8 +1353,12 @@ var iperf = (function() {
 			    closeReport(report, ts);
 			}
 			done = true; // quit while
-			if (cb && typeof cb === 'function')
-			    setTimeout(cb,0);		    
+			if (donecb && typeof donecb === 'function') {
+			    util.postResult(report.finalres);
+			    setTimeout(donecb,0);		    
+			} else {
+			    shutdown(report.finalres);
+			}
 		    } else {
 			// there was recv timeout, loop back by the event loop
 			done = true; // quit while
@@ -1329,8 +1369,12 @@ var iperf = (function() {
 		    reportPkt(report, 0, ts);
 		    closeReport(report, ts);
 		    done = true; // quit while
-		    if (cb && typeof cb === 'function')
-			setTimeout(cb,0);
+		    if (donecb && typeof donecb === 'function') {
+			util.postResult(report.finalres);
+			setTimeout(donecb,0);		    
+		    } else {
+			shutdown(report.finalres);
+		    }
 		}
 
 		// TODO: this is a hack to keep the server worker responsive
@@ -1350,14 +1394,21 @@ var iperf = (function() {
     };
 
     // start in listener mode
-    var listener = function() {
-	const LIST_TO = 100;
+    var listener = function(donecb, clireport) {
+	const LIST_TO = NSPR.util.PR_MillisecondsToInterval(250);
+	settings.mThreadMode = ThreadMode.kMode_Listener;
+
+	debug("listener has report? " + clireport + 
+	      " testmode="+settings.mMode);
 
 	// create listening socket
-	if (settings.mUDP) 
-	    settings.mSock = NSPR.sockets.PR_OpenUDPSocket(NSPR.sockets.PR_AF_INET);
-	else
-	    settings.mSock = NSPR.sockets.PR_OpenTCPSocket(NSPR.sockets.PR_AF_INET);
+	if (settings.mUDP) {
+	    settings.mSock = 
+		NSPR.sockets.PR_OpenUDPSocket(NSPR.sockets.PR_AF_INET);
+	} else {
+	    settings.mSock = 
+		NSPR.sockets.PR_OpenTCPSocket(NSPR.sockets.PR_AF_INET);
+	}
 
 	if (settings.mSock == null) {
 	    shutdown({error : "Failed to create socket : code = " + 
@@ -1371,6 +1422,13 @@ var iperf = (function() {
 
 	// set local address and port
 	var localaddr = new NSPR.types.PRNetAddr();
+	var localport = settings.mPort;
+	if (settings.mMode === TestMode.kTest_TradeOff && 
+	    settings.mListenPort!=0) {
+	    // use different port for incoming test
+	    localport = settings.mListenPort;
+	}
+
 	if (settings.mLocalhost) {
 	    // bind to a given local address
 	    if (NSPR.sockets.PR_StringToNetAddr(settings.mLocalhost, localaddr.address())<0) {
@@ -1380,11 +1438,14 @@ var iperf = (function() {
 	    }
 	    NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrNull, 
 				       NSPR.sockets.PR_AF_INET, 
-				       settings.mPort, localaddr.address());
+				       localport, 
+				       localaddr.address());
 	} else {
+	    // bind to a given port
 	    NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, 
 				       NSPR.sockets.PR_AF_INET, 
-				       settings.mPort, localaddr.address());
+				       localport, 
+				       localaddr.address());
 	}
 
 	if (NSPR.sockets.PR_Bind(settings.mSock, localaddr.address()) < 0) {
@@ -1412,15 +1473,6 @@ var iperf = (function() {
 	      settings.local.port+" proto="+
 	      (settings.mUDP ? "UDP":"TCP"));
 
-	if (settings.mUDP && settings.mSingleUDP) {
-	    debug("single threaded UDP server");
-	    settings.mThreadMode = ThreadMode.kMode_Server;
-	    return udp_single_server();
-	}
-
-	// else start receiving new clients
-	debug("multi-threaded listener");
-
 	// main listener loop
 	var loop = function() {
 	    if (!settings.mSock || settings.mStopReq) {
@@ -1431,7 +1483,7 @@ var iperf = (function() {
 	    if (settings.mUDP) {
 		// wait for new connection
 		var peeraddr = new NSPR.types.PRNetAddr();
-		var mBuf = new ArrayBuffer(settings.mBufLen);
+		var mBuf = settings.mBuf;
 		var rv = NSPR.sockets.PR_RecvFrom(settings.mSock, 
 						  mBuf, 
 						  settings.mBufLen, 
@@ -1444,39 +1496,42 @@ var iperf = (function() {
 		    // new client !
 		    settings.peer = {};
 		    settings.peer.ip = NSPR.util.NetAddrToString(peeraddr);
-		    settings.peer.port = NSPR.util.PR_ntohs(peeraddr.port);		
+		    settings.peer.port = NSPR.util.PR_ntohs(peeraddr.port);
 		    settings.mTransferID += 1;
 
-		    debug("["+settings.mTransferID+"] UDP "+ 
-			  " connection from " + settings.peer.ip + ":" + 
+		    debug("UDP connection from " + settings.peer.ip + ":" + 
 			  settings.peer.port);
 
-		    // connect to the peer so we can use recv/send directly
-		    if (NSPR.sockets.PR_Connect(
-			settings.mSock, 
-			peeraddr.address(),
-			NSPR.sockets.PR_INTERVAL_NO_TIMEOUT) < 0) 
-		    {
-			shutdown({error: "Error connecting : code = " + 
-				  NSPR.errors.PR_GetError()});
-			return;
-		    }
-		    
 		    // TODO: implement multi-threading
 		    debug("UDP processing incoming test in the listener worker!");
 
-		    // handle the client
-		    udp_single_server(function() {
-			// continue receiving clients, pass through the main event
-			// loop in case somebody wants to shut us down...
-			setTimeout(loop, 0);
-		    });
+		    if (settings.mMode === TestMode.kTest_TradeOff) {
+			// single server run for tradeoff client
+			udp_single_server(undefined, clireport);
+		    } else {
+			// handle this client
+			udp_single_server(function() {
+			    debug("back in listener");
+			    if (!settings.mSingleUDP) {
+				// continue receiving clients, pass through 
+				// the main event loop in case somebody wants 
+				// to shut us down...
+				setTimeout(loop, 0);
+			    } else {
+				// single connection done
+				shutdown();
+				return;
+			    }
+			});
+		    };
 
 		} else if (rv < 0) {
 		    var err = NSPR.errors.PR_GetError();
 		    if (err !== NSPR.errors.PR_IO_TIMEOUT_ERROR) {
 			shutdown({error: "Error recvfrom : code="+err });
 			return;
+		    } else {
+			setTimeout(loop, 0); // re-loop
 		    }
 		} else {
 		    shutdown({error: "Error recvfrom : conn closed"});	 
@@ -1493,11 +1548,10 @@ var iperf = (function() {
 		    // new client !
 		    settings.peer = {};
 		    settings.peer.ip = NSPR.util.NetAddrToString(peeraddr);
-		    settings.peer.port = NSPR.util.PR_ntohs(peeraddr.port);		
+		    settings.peer.port = NSPR.util.PR_ntohs(peeraddr.port);	
 		    settings.mTransferID += 1;
 
-		    debug("["+settings.mTransferID+"] TCP "+ 
-			  " connection from " + settings.peer.ip + ":" + 
+		    debug("TCP connection from " + settings.peer.ip + ":" + 
 			  settings.peer.port);
 
 		    // TODO: implement multi-threading
@@ -1505,31 +1559,36 @@ var iperf = (function() {
 
 		    // handle the client
 		    settings.mSockIn = socketIn;
-		    tcp_single_server(function() {
-			NSPR.sockets.PR_Close(settings.mSockIn);
-			settings.mSockIn = undefined;
-
-			// continue receiving clients, pass through the main event
-			// loop in case somebody wants to shut us down...
-			setTimeout(loop, 0);
-		    });
-
+		    if (settings.mMode === TestMode.kTest_TradeOff) {
+			// single server run for tradeoff client
+			tcp_single_server(undefined,clireport);
+		    } else {
+			tcp_single_server(function() {
+			    debug("back in listener");
+			    NSPR.sockets.PR_Close(settings.mSockIn);
+			    settings.mSockIn = undefined;
+			    // continue receiving clients, pass through 
+			    // the main event loop in case somebody wants 
+			    // to shut us down...
+			    setTimeout(loop, 0);
+			});
+		    }
 		} else {
 		    var err = NSPR.errors.PR_GetError();
 		    if (err !== NSPR.errors.PR_IO_TIMEOUT_ERROR) {
 			shutdown({error: "Error accept : code="+err });
 			return;
+		    } else {
+			// continue receiving clients, pass through 
+			// the main event loop in case somebody wants 
+			// to shut us down...
+			setTimeout(loop, 0);
 		    }
-
-		    // continue receiving clients, pass through the main event
-		    // loop in case somebody wants to shut us down...
-		    setTimeout(loop, 0);
 		}
 	    }
 	}; // end loop
-
 	setTimeout(loop, 0);
-	return {noerror : true}; // just to signal that the server is up
+	return {started : true, __exposedProps__ : {started : "r"}};
     };
 
     // cleanup and terminate this worker
