@@ -197,8 +197,8 @@ function udpRecvstart_helper(socketid, length, asstring) {
   } else if (rv == 0) {
     util.data.multiresponse_running = false;
     util.data.multiresponse_stop = false;
-    var result = {done: true, error: 'Network connection is closed'};
-    util.postResult(result);
+    var result = {error: 'Network connection is closed'};
+    util.postResult(result, true);
     return;
 
   } else {
@@ -226,11 +226,7 @@ function udpRecvstart_helper(socketid, length, asstring) {
   if (util.data.multiresponse_stop) {
     util.data.multiresponse_running = false;
     util.data.multiresponse_stop = false;
-
-    // Including "done : true" in the result indicates to fathom.js that this
-    // multiresponse request is finished and can be cleaned up.
-    var result = {done: true};
-    util.postResult(result);
+    util.postResult(undefined, true);
     return;
   }
 
@@ -318,8 +314,8 @@ function udpRecvfromstart_helper(socketid, asstring) {
   } else if (rv == 0) {
     util.data.multiresponse_running = false;
     util.data.multiresponse_stop = false;
-    var result = {done: true, error: 'Network connection is closed'};
-    util.postResult(result);
+    var result = {error: 'Network connection is closed'};
+    util.postResult(result, true);
     return;
 
   } else {
@@ -354,10 +350,7 @@ function udpRecvfromstart_helper(socketid, asstring) {
   if (util.data.multiresponse_stop) {
     util.data.multiresponse_running = false;
     util.data.multiresponse_stop = false;
-    // Including "done : true" in the result indicates to fathom.js that this
-    // multiresponse request is finished and its callback can be cleaned up.
-    var result = {done: true};
-    util.postResult(result);
+    util.postResult(undefined, true);
   } else {
     // Rather than use a loop, we schedule this same function to be called 
     // again. This enables calls to udprecvstop (and potentially other 

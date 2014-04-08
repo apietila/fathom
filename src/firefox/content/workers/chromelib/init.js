@@ -136,10 +136,19 @@ var util = {
       throw 'Unknown action: ' + actionname;
   },
 
-  postResult : function(result) {
+  postResult : function(result, done, close) {
     var requestid = util.data.lastrequestid;
-    var obj = {requestid: requestid, result: result};
+    var obj = {
+      requestid: requestid, 
+      result: result, 
+      done : done,  // request ready flag
+      close : close // worker close flag
+    };
     postMessage(JSON.stringify(obj));    
+    if (close) {
+      util.cleanup();
+      setTimeout(close, 0); // terminates the worker thread
+    }
   },
 
   log : function log(msg) {

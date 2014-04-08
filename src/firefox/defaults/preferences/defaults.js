@@ -16,7 +16,7 @@ pref("extensions.fathom.log", true);
 pref("extensions.fathom.log.level", 0);
 pref("extensions.fathom.status", true);
 pref("extensions.fathom.version", "0.8");
-pref("extensions.fathom.build", "4eefdbd3e66442c9bb3de9e612bde76e5900551d");
+pref("extensions.fathom.build", "421659222cdc73847134a857c0acbeff36c826e1");
 
 pref("extensions.fathom.installationID", "");
 

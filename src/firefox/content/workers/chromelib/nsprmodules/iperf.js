@@ -41,39 +41,45 @@ var iperf = (function() {
 	kTest_Unknown : 4,
     };
 
+    var debug = function(str) {
+	dump("iperf ["+settings.id+"]: " + str + "\n");
+    };
+
     // the final result object, posted upon client ready or
     // in server mode after a client is served
-    var res = {
-	// reports by side running -c (as client)
-        client : { 
-            snd_reports : [],     // periodic reports (cli sends)
-            snd_total : undefined,// client report (cli sends)
-            rcv_reports : [],     // periodic reports (cli tradeoff recv)
-            rcv_total : undefined,// client report (cli tradeoff recv)
-            __exposedProps__ : {
-                snd_reports : "r",
-                snd_total : "r",
-                rcv_reports : "r",
-                rcv_total : "r"
+    var initres = function() {
+	return {
+	    // reports by side running -c (as client)
+            client : { 
+		snd_reports : [],     // periodic reports (cli sends)
+		snd_total : undefined,// client report (cli sends)
+		rcv_reports : [],     // periodic reports (cli tradeoff recv)
+		rcv_total : undefined,// client report (cli tradeoff recv)
+		__exposedProps__ : {
+                    snd_reports : "r",
+                    snd_total : "r",
+                    rcv_reports : "r",
+                    rcv_total : "r"
+		}
+            },
+	    // reports by side running -s (as server)
+            server : {
+		rcv_reports : [],     // periodic reports (cli send)
+		rcv_total : undefined,// report (cli send)
+		snd_reports : [],     // periodic reports (cli recv)
+		snd_total : undefined,// report (cli recv)
+		__exposedProps__ : {
+                    snd_reports : "r",
+                    snd_total : "r",
+                    rcv_reports : "r",
+                    rcv_total : "r"
+		}
+	    },
+            __exposedProps__: {
+		client : "r",
+		server : "r"
             }
-        },
-	// reports by side running -s (as server)
-        server : {
-            rcv_reports : [],     // periodic reports (cli send)
-            rcv_total : undefined,// report (cli send)
-            snd_reports : [],     // periodic reports (cli recv)
-            snd_total : undefined,// report (cli recv)
-            __exposedProps__ : {
-                snd_reports : "r",
-                snd_total : "r",
-                rcv_reports : "r",
-                rcv_total : "r"
-            }
-	},
-        __exposedProps__: {
-	    client : "r",
-	    server : "r"
-        }
+	};
     };
 
     // convert input string to bytes based on suffix [GMKgmk]
@@ -171,7 +177,7 @@ var iperf = (function() {
 	mAmount : 10000,                 // -n or -t
 
 	// doubles
-	mInterval : 0,                   // -i
+	mInterval : 1000,                // -i
 
 	// shorts
 	mListenPort : 0,                 // -L
@@ -179,10 +185,6 @@ var iperf = (function() {
 
 	// chars
 	//    mTTL : 1                         // -T
-    };
-
-    var debug = function(str) {
-	dump("iperf ["+settings.id+"]: " + str + "\n");
     };
 
     var configure = function(args) {
@@ -271,8 +273,8 @@ var iperf = (function() {
 	    // test modes
 	    if (args.tradeoff) {
 		settings.mMode = TestMode.kTest_TradeOff;
-	    } else if (args.dualtest) {
-		settings.mMode = TestMode.kTest_DualTest;
+//	    } else if (args.dualtest) {
+//		settings.mMode = TestMode.kTest_DualTest;
 	    } else if (args.serveclient) {
 		settings.mMode = TestMode.kTest_ServeClient;
 	    }
@@ -323,26 +325,34 @@ var iperf = (function() {
 
 	// dual test mode
 	if (settings.mMode == TestMode.kTest_DualTest) {
+	    // parallel bidirectional test
 	    var a = Long.fromBits(0x00000000, HEADER_VERSION1);
 	    var b = Long.fromBits(0x00000000, RUN_NOW);
 	    message.setInt32((offset + 0)*4, a.or(b).getHighBits(), false);
+
 	} else if (settings.mMode == TestMode.kTest_ServeClient) {
+	    // reverse client/server roles
 	    var a = Long.fromBits(0x00000000, HEADER_VERSION1);
 	    var b = Long.fromBits(0x00000000, RUN_CLIENT);
 	    message.setInt32((offset + 0)*4, a.or(b).getHighBits(), false);
+
 	} else if (settings.mMode == TestMode.kTest_TradeOff) {
+	    // sequential bidirectional test
 	    message.setInt32((offset + 0)*4, HEADER_VERSION1, false);	
+
 	} else {
 	    message.setInt32((offset + 0)*4, 0, false);
+
 	}
 
-	// threads
+	// num threads
 	message.setInt32((offset + 1)*4, 1, false);
 
 	// dual test return port
 	if (settings.mListenPort != 0 ) {
 	    message.setInt32((offset + 2)*4, settings.mListenPort, false);
 	} else {
+	    // use same as for the server
 	    message.setInt32((offset + 2)*4, settings.mPort, false);
 	}
 
@@ -353,7 +363,7 @@ var iperf = (function() {
 	    message.setInt32((offset + 3)*4, 0, false);
 	}
 
-	// rate or window
+	// UDP rate or TCP window
 	if (settings.mUDP) {
 	    message.setInt32((offset + 4)*4, settings.mUDPRate, false);
 	} else {
@@ -370,6 +380,7 @@ var iperf = (function() {
 	}
     };
 
+    // reverse of above for server mode ...
     var read_client_header = function(message) {
 	var offset = 3; // first cli header word
 
@@ -406,7 +417,7 @@ var iperf = (function() {
     };
 
     // the inverse operation
-    var read_server_header = function(message, obj) {
+    var read_server_header = function(message) {
 	var offset = 3; // first word
 
 	var flags = message.getInt32((offset+0)*4, true); 
@@ -424,28 +435,17 @@ var iperf = (function() {
 	var jitter2 = message.getInt32((offset+9)*4, false); 
 
 	// fill result object
-
+	var obj = {};
 	obj.startTime = 0;
-	obj.endTime = (stop_sec + stop_usec/1000000.0);
+	obj.endTime = 1000.0 * (stop_sec + stop_usec/1000000.0);
 	obj.bytes = Long.fromBits(total_len2, total_len1).toNumber();
 	obj.jitter = (jitter1 + jitter2/1000000.0)*1000.0;
 	obj.errorCnt = error_cnt;
 	obj.dgramCnt = datagrams;
 	obj.outOfOrder = outorder_cnt;
-
 	// %
 	obj.errorRate = obj.errorCnt * 100.0 / obj.dgramCnt;
-
-	// bytes / s
-	obj.rate = obj.bytes / obj.endTime; 
-	// bits / s
-	obj.ratebit = (obj.bytes * 8.0) / obj.endTime ; 
-
-	// human readable report values
-	obj.ratekbit = numtoformat(obj.rate, 'k'); // kbit
-	obj.rateMbit = numtoformat(obj.rate, 'm'); // Mbit
-	obj.bytesK = numtoformat(obj.bytes, 'K');  // KB
-	obj.bytesM = numtoformat(obj.bytes, 'M');  // MB
+	return obj;
     };
 
     var getSocketOption = function(option) {
@@ -536,11 +536,10 @@ var iperf = (function() {
 		sendport : report.clientPort,
 		recvip :  report.serverIP,
 		recvport :  report.serverPort,
-		startTime : (report.currStartTime-report.startTime),
-		endTime : (report.nextReportTime-report.startTime),
+		startTime : (report.currStartTime-report.startTime)/1000.0,
+		endTime : (report.nextReportTime-report.startTime)/1000.0,
+		dgramCnt : report.currDgrams,
 		bytes : report.currLen,
-		packets : report.currDgrams,
-		socketBufferSize : report.socketBufferSize,
 		__exposedProps__ : {
 		    timestamp : "r",
 		    sendip : "r",
@@ -549,21 +548,20 @@ var iperf = (function() {
 		    recvport : "r",
 		    startTime : "r",
 		    endTime : "r",
-		    packets : "r",
+		    dgramCnt : "r",
 		    bytes : "r",
 		    bytesK : "r",
 		    bytesM : "r",
 		    rate : "r",
 		    ratebit : "r",
 		    rateKbit : "r",
-		    rateMbit : "r",
-		    socketBufferSize : "r"
+		    rateMbit : "r"
 		}
             };
 
 	    // bits / s
-	    obj.rate = obj.bytes / ((obj.endTime - obj.startTime) / 1000.0);
-	    obj.ratebit = (obj.bytes * 8.0) / ((obj.endTime - obj.startTime) / 1000.0); 
+	    obj.rate = obj.bytes / (obj.endTime - obj.startTime);
+	    obj.ratebit = (obj.bytes * 8.0) / (obj.endTime - obj.startTime); 
 
 	    // human readable report values
 	    obj.rateKbit = numtoformat(obj.rate, 'k'); // Kbit
@@ -571,16 +569,15 @@ var iperf = (function() {
 	    obj.bytesK = numtoformat(obj.bytes, 'K');  // KB
 	    obj.bytesM = numtoformat(obj.bytes, 'M');  // MB
 
+	    // store to the res object
 	    if (report.client) {
-    		if (obj.startTime === 0) {
-		    // client side send totals
-    		    res.client.snd_total = obj; // final results
-		}
-		res.client.snd_reports.push(obj); // periodic report
-	    } else if (report.server) {
-		// TODO
+		// normal client send reports
+		report.finalrep.client.snd_reports.push(obj);
+	    } else {
+		// tradeoff mode
+		report.finalrep.server.snd_reports.push(obj);
 	    }
-	    
+
 	    // reset
 	    report.currStartTime = report.nextReportTime;
 	    report.nextReportTime += settings.mInterval;
@@ -591,34 +588,130 @@ var iperf = (function() {
 
     var closeReport = function(report, ts) {
 	var obj = {
-	    clientIP : report.clientIP,
-	    clientPort : report.clientPort,
-	    serverIP : report.serverIP,
-	    serverPort : report.serverPort,
-	    transferID : report.transferID,
 	    timestamp : (new Date()).getTime(),
+	    sendip : report.clientIP,
+	    sendport : report.clientPort,
+	    recvip : report.serverIP,
+	    recvport : report.serverPort,
 	    startTime : 0,
-	    endTime : (ts-report.startTime),
+	    endTime : (ts-report.startTime)/1000.0,
+	    dgramCnt : report.totalDgrams,
 	    bytes : report.totalLen,
-	    packets : report.totalDgrams,
-	    inprogress : false,
-	    client : report.client || false,	
-	    server : report.server || false,	
 	    socketBufferSize : report.socketBufferSize,
+	    __exposedProps__ : {
+		timestamp : "r",
+		sendip : "r",
+		sendport : "r",
+		recvip : "r",
+		recvport : "r",
+		startTime : "r",
+		endTime : "r",
+		dgramCnt : "r",
+		bytes : "r",
+		bytesK : "r",
+		bytesM : "r",
+		rate : "r",
+		ratebit : "r",
+		rateKbit : "r",
+		rateMbit : "r",
+		socketBufferSize : "r"
+	    }
 	};
 
 	// bytes / s
-	obj.rate = obj.bytes / (obj.endTime / 1000.0); 
-	obj.ratebit = (obj.bytes * 8.0) / (obj.endTime / 1000.0); 
-
-	// human readable report values
+	obj.rate = obj.bytes / obj.endTime; 
+	obj.ratebit = (obj.bytes * 8.0) / obj.endTime; 
 	obj.ratekbit = numtoformat(obj.rate, 'k'); // kbit
 	obj.rateMbit = numtoformat(obj.rate, 'm'); // Mbit
+
 	obj.bytesK = numtoformat(obj.bytes, 'K');  // KB
 	obj.bytesM = numtoformat(obj.bytes, 'M');  // MB
 
-	util.postResult(exp(obj));
+	if (report.client) {
+	    // client side send totals
+    	    report.finalrep.client.snd_total = obj;
+	} else {
+	    // tradeoff/dual mode send totals
+    	    report.finalrep.server.snd_total = obj;
+	}
     };	    
+
+    // recev side report
+    var recvReport = function(report, obj) {
+        var resobj = {
+	    timestamp : (new Date()).getTime(),
+	    sendip : report.clientIP,
+	    sendport : report.clientPort,
+	    recvip :  report.serverIP,
+	    recvport :  report.serverPort,
+	    startTime : obj.startTime/1000.0,
+	    endTime : obj.endTime/1000.0,
+	    bytes : obj.bytes,
+	    dgramCnt : obj.dgramCnt,	
+	    errorCnt : obj.errorCnt,
+	    errorRate : obj.errorRate,
+	    jitter : obj.jitter,
+	    outOfOrder : obj.outOfOrder,
+	    __exposedProps__ : {
+		timestamp : "r",
+		sendip : "r",
+		sendport : "r",
+		recvip : "r",
+		recvport : "r",
+		startTime : "r",
+		endTime : "r",
+		bytes : "r",
+		bytesK : "r",
+		bytesM : "r",
+		rate : "r",
+		ratebit : "r",
+		rateKbit : "r",
+		rateMbit : "r",
+		jitter: "r",
+		errorCnt : "r",
+		dgramCnt : "r",
+		errorRate : "r",
+		outOfOrder : "r"
+	    }
+        };
+
+	// bits / s
+	resobj.rate = resobj.bytes / (resobj.endTime - resobj.startTime);
+	resobj.ratebit = (resobj.bytes * 8.0) / (resobj.endTime - resobj.startTime); 
+
+	// human readable report values
+	resobj.rateKbit = numtoformat(resobj.rate, 'k'); // Kbit
+	resobj.rateMbit = numtoformat(resobj.rate, 'm'); // Mbit
+	resobj.bytesK = numtoformat(resobj.bytes, 'K');  // KB
+	resobj.bytesM = numtoformat(resobj.bytes, 'M');  // MB
+	
+	if (report.client) {
+	    if (settings.mThreadMode === ThreadMode.kMode_Client) {
+		// final server report recvd at client
+		report.finalrep.server.rcv_total = resobj;
+	    } else {
+		// tradeoff testing recv side
+    		if (obj.lastReport) {
+		    // client side recv totals
+    		    report.finalrep.client.rcv_total = resobj;
+		} else {
+		    report.finalrep.client.rcv_reports.push(resobj);
+		}
+	    }
+	} else {
+	    if (settings.mThreadMode === ThreadMode.kMode_Server) {
+		// normal server side report
+    		if (obj.lastReport) {
+    		    report.finalrep.server.rcv_total = resobj;
+		} else {
+		    report.finalrep.server.rcv_reports.push(resobj);
+		}
+	    } else {
+		// tradeoff testing cli report
+		res.client.rcv_total = resobj;
+	    }
+	}
+    };
 
     // start in client mode
     var client = function() {    
@@ -701,7 +794,7 @@ var iperf = (function() {
 	settings.local = {};
 	settings.local.ip = NSPR.util.NetAddrToString(local);
 	settings.local.port = NSPR.util.PR_ntohs(local.port);
-	debug("client "+settings.local.ip + ":"+settings.local.port+" proto="+(settings.mUDP ? "udp":"tcp")+"\n");
+	debug("client "+settings.local.ip + ":"+settings.local.port+" proto="+(settings.mUDP ? "udp":"tcp"));
 
 	var peer = NSPR.types.PRNetAddr();
 	NSPR.sockets.PR_GetPeerName(settings.mSock, peer.address());
@@ -718,8 +811,7 @@ var iperf = (function() {
 	    delay_target = settings.mBufLen * ((1000 * 8.0) / settings.mUDPRate);
 	}
 	var delay = 0; 
-	var adjust = 0; 
-
+	var adjust = 0;
 	var endTime = undefined;
 	var startTime = undefined;
 	var init = function(ts) {
@@ -734,11 +826,11 @@ var iperf = (function() {
 	    if (settings.mMode_Time) {
 		endTime = ts + settings.mAmount;
 	    }
-
 	    // write info about dualtest config to the message
 	    write_client_header(message);
 	};
 
+	// reporting state
 	var report = {
 	    clientIP : settings.local.ip,
 	    clientPort : settings.local.port,
@@ -750,20 +842,20 @@ var iperf = (function() {
 	    totalDgrams : 0,
 	    startTime : undefined,
 	    lastPacketTime : undefined,
-	    client : true,
-	    server : false,
+	    client : true,       
+	    finalrep : initres() // object we report back to the UI
 	}
 	if (settings.mInterval > 0) {
 	    // periodic reporting
 	    report.currLen = 0;
 	    report.currDgrams = 0;
 	}
-
 	report.socketBufferSize = 
 	    getSocketOption(NSPR.sockets.PR_SockOpt_SendBufferSize);
 
+	// end udp test
 	var udp_fin = function(ts) {
-	    var to = NSPR.util.PR_MillisecondsToInterval(250);
+	    var to = NSPR.util.PR_MillisecondsToInterval(50);
 	    var retryc = ACK_WAIT;
 
 	    write_UDP_header(message, -1*report.packetID, ts);
@@ -773,56 +865,37 @@ var iperf = (function() {
 
 	    var finloop = function() {
 		if (retryc == 0) {
-		    var obj = {
-			clientIP : report.clientIP,
-			clientPort : report.clientPort,
-			serverIP : report.serverIP,
-			serverPort : report.serverPort,
-			transferID : report.transferID,
-			server : true,
-			timestamp : (new Date()).getTime(),
-			noreport : true,
-			retries : ACK_WAIT,
-		    }
-		    //		shutdown({error : "No server report after 10 retries"});
-		    shutdown(obj);
+		    debug("No server report after 10 retries");
+		    shutdown(report.finalrep);
 		    return;
 		}
 
 		if (!settings.mSock || settings.mStopReq) {
+		    debug("Client terminated, did not receive server report");
 		    shutdown({interrupted : true});
 		    return;
 		}
 
 		retryc -= 1;
-
 		NSPR.sockets.PR_Send(settings.mSock, 
 				     mBuf, 
 				     settings.mBufLen, 
 				     0, 
-				     NSPR.sockets.PR_INTERVAL_NO_WAIT);
+				     NSPR.sockets.PR_INTERVAL_NO_TIMEOUT);
 
 		// block in waiting for response
 		var rv = NSPR.sockets.PR_Recv(settings.mSock, 
 					      recvbuf, 
 					      recvbufsize, 
 					      0, 
-					      to);
+					      5*to);
 
 		if (rv > 0) {
 		    // parse report and report
 		    var msg = new DataView((new Uint8Array(recvbuf)).buffer);
-		    var obj = {
-			clientIP : report.clientIP,
-			clientPort : report.clientPort,
-			serverIP : report.serverIP,
-			serverPort : report.serverPort,
-			transferID : report.transferID,
-			server : true,
-			timestamp : (new Date()).getTime()
-		    }
-		    read_server_header(msg, obj);
-		    shutdown(obj);
+		    var recvrep = read_server_header(msg);
+		    recvReport(report, recvrep);
+		    shutdown(report.finalrep);
 		    return;
 		} 
 
@@ -855,7 +928,7 @@ var iperf = (function() {
 		    if (settings.mUDP) {
 			udp_fin(ts);
 		    } else {
-			shutdown({});
+			shutdown(report.finalrep);
 		    }
 		    return; // exit loop
 		}
@@ -888,7 +961,7 @@ var iperf = (function() {
 		    if (settings.mUDP) {
 			udp_fin(ts);
 		    } else {
-			shutdown({});
+			shutdown(report.finalrep);
 		    }
 		    return; // exit loop
 		} else if (settings.mMode == TestMode.kTest_ServeClient) {
@@ -1471,17 +1544,8 @@ var iperf = (function() {
 	}
 	settings.mSockIn = undefined;
 
-	// expose result data
-	if (r)
-	    r = exp(r)
-	else
-	    r = {}
-
 	// post final results and indicate to fathom we're done
-	r.done = true; // flag multiresponse done
-	r.closed = true; // flag for cleanup inside fathom
-	util.postResult(r);
-	setTimeout(close, 1); // terminates the worker
+	util.postResult(r, true, true);
     };
     
     /* API method: stop running the iperf worker. */

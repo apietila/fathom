@@ -316,7 +316,9 @@ FathomAPI.prototype = {
           return;
         }
 
-        var result = data.result;
+	var done = data.done || false;
+	var close = data.close || false;
+        var result = data.result || undefined;
         var requestid = data.requestid;
         var requestinfo = that.requests[requestid];
 
@@ -344,26 +346,20 @@ FathomAPI.prototype = {
               Logger.debug("[" + that.windowid + "] No callback found ");
 	    }
           } catch (e) {
-            // TODO: decide on a good way to send this error back to the document.
             Logger.error("[" + that.windowid + "] Error when calling user-provide callback: " + e);
-	    Logger.error(e.stack);
+	    Logger.error(e.stack);	    
           }
-	} else {
-          Logger.warning("[" + that.windowid + 
-			 "] Received empty response for requestid: " + 
-			 requestid);
 	}
 
 	// one time request or multiresponse is done ?
-	if ((requestinfo && !requestinfo['multiresponse']) || 
-	    (result && result.done)) {
+	if ((requestinfo && !requestinfo['multiresponse']) || done) {
           delete that.requests[requestid];
           Logger.info("[" + that.windowid + "] Request done: " + requestid);
 	}
 
 	// Anna: adding a way to clean things up inside fathom
 	// if the worker closes itself
-	if (result && result.closed) {
+	if (close) {
 	  // the worker has closed itself, remove any references
 	  // so this worker object gets garbage collected
 	  delete that.chromeworkers[workername];

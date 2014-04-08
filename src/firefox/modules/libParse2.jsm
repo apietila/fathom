@@ -50,16 +50,18 @@ function parseIperf(config, output) {
     };
 
     var splitts = function(s) {
-	if (s.length<14)
-	    return parseInt(s);
-	else
-	    return [parseInt(s.substring(0,4)), // year
-		    parseInt(s.substring(4,6)), // month
-		    parseInt(s.substring(6,8)), // date
-		    parseInt(s.substring(8,10)), // hour
-		    parseInt(s.substring(10,12)), // minute
-		    parseInt(s.substring(12,14)), // second
-		   ];
+	if (s.length<14) {
+	    return parseInt(s); // should not happen ... 
+	} else {
+	    var d = new Date(parseInt(s.substring(0,4)), // year
+			     parseInt(s.substring(4,6)), // month
+			     parseInt(s.substring(6,8)), // date
+			     parseInt(s.substring(8,10)), // hour
+			     parseInt(s.substring(10,12)), // minute
+			     parseInt(s.substring(12,14)), // second
+			     0); // ms
+	}
+	return d.getTime(); // in millis
     };
 
     var sendreport = function(tmp) {
@@ -69,7 +71,6 @@ function parseIperf(config, output) {
             sendport : parseInt(tmp[2]),
             recvip : tmp[3],
             recvport : parseInt(tmp[4]),
-//            transferID : parseInt(tmp[5]),
             startTime : parseFloat(tmp[6].split('-')[0]),
             endTime : parseFloat(tmp[6].split('-')[1]),
             bytes : parseFloat(tmp[7]),
@@ -80,7 +81,6 @@ function parseIperf(config, output) {
 		sendport : "r",
 		recvip : "r",
 		recvport : "r",
-//		transferID : "r",
 		startTime : "r",
 		endTime : "r",
 		bytes : "r",
@@ -116,7 +116,6 @@ function parseIperf(config, output) {
     	    recvport : parseInt(tmp[2]),
     	    sendip : tmp[3],
     	    sendport : parseInt(tmp[4]),
-//    	    transferID : parseInt(tmp[5]),
     	    startTime : parseFloat(tmp[6].split('-')[0]),
     	    endTime : parseFloat(tmp[6].split('-')[1]),
     	    bytes : parseInt(tmp[7]),
@@ -132,7 +131,6 @@ function parseIperf(config, output) {
 		sendport : "r",
 		recvip : "r",
 		recvport : "r",
-//		transferID : "r",
 		startTime : "r",
 		endTime : "r",
 		bytes : "r",

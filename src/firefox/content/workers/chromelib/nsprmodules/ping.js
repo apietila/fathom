@@ -1,7 +1,6 @@
 /*
  * Implementation of udp/tcp ping client/server using NSRP directly.
  */
-
 var ping = (function() { // using closure to hide the internal helpers
     // default settings
     var settings = {
@@ -55,20 +54,13 @@ var ping = (function() { // using closure to hide the internal helpers
     // cleanup and terminate this worker
     var shutdown = function(r) {
 	if (settings.socket) {
+	    // cleanup
 	    NSPR.sockets.PR_Close(settings.socket);
 	    settings.socket = undefined;
 	    util.unregisterSocket();
 	}
-
-	if (!r)
-	    r = {};
-
 	// post final results and indicate to fathom we're done
-	r.done = true; // flag multiresponse done
-	r.closed = true; // flag for cleanup inside fathom
-	util.postResult(r);
-
-	setTimeout(close, 1); // terminates the worker
+	util.postResult(r, true, true);
     };
 
     // Results reporter
