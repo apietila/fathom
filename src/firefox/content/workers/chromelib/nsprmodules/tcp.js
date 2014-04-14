@@ -11,13 +11,15 @@
 
 util.registerAction('tcpOpenSendSocket');
 util.registerAction('tcpSend');
-util.registerAction('tcpOpenReceiveSocket');
-util.registerAction('tcpAcceptstart');
-util.registerAction('tcpAcceptstop');
 util.registerAction('tcpReceive');
 util.registerAction('tcpGetHostIP');
 util.registerAction('tcpGetPeerIP');
+// Anna: do not work ...
+//util.registerAction('tcpOpenReceiveSocket');
+//util.registerAction('tcpAcceptstart');
+//util.registerAction('tcpAcceptstop');
 
+// Connect
 function tcpOpenSendSocket(ip, port) {
   var fd = NSPR.sockets.PR_OpenTCPSocket(NSPR.sockets.PR_AF_INET);
 
@@ -29,31 +31,6 @@ function tcpOpenSendSocket(ip, port) {
 
   if(NSPR.sockets.PR_Connect(fd, addr.address(), timeout) < 0)
     return {error : "Error connecting : code = " + NSPR.errors.PR_GetError()};
-
-  util.registerSocket(fd);
-  return {};
-}
-
-function tcpOpenReceiveSocket(port) {
-  var fd = NSPR.sockets.PR_OpenTCPSocket(NSPR.sockets.PR_AF_INET);
-
-  // Allow binding unless unless the port is actively being listened on.
-  var opt = new NSPR.types.PRSocketOptionData();
-  opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
-  opt.value = NSPR.sockets.PR_TRUE;
-  NSPR.sockets.PR_SetSocketOption(fd, opt.address());
-  
-  var addr = new NSPR.types.PRNetAddr();
-  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, NSPR.sockets.PR_AF_INET,
-			     port, addr.address());
-
-  if (NSPR.sockets.PR_Bind(fd, addr.address()) != 0) {
-    return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
-  }
-
-  if (NSPR.sockets.PR_Listen(fd, 1) != 0) {
-    return {error: "Error listening : code = " + NSPR.errors.PR_GetError()};
-  }
 
   util.registerSocket(fd);
   return {};
@@ -72,7 +49,14 @@ function tcpSend(socketid, msg) {
   var fd = util.getRegisteredSocket(socketid);
   var timeout = NSPR.sockets.PR_INTERVAL_NO_WAIT;
   var sendBuf = newBufferFromString(msg);
-  NSPR.sockets.PR_Send(fd, sendBuf, msg.length, 0, timeout);
+  var rv = NSPR.sockets.PR_Send(fd, sendBuf, msg.length, 0, timeout);
+  if (rv == -1) {
+    return {error : "Error sending, code=" + NSPR.errors.PR_GetError()};
+  } else if (rv == 0) {
+    return {error: 'Network connection is closed'};
+  } else {
+    return {length: rv, __exposedProps__ : { length : "r"}};
+  }
 }
 
 /**
@@ -125,7 +109,33 @@ function tcpGetPeerIP(socketid) {
   return NSPR.util.NetAddrToString(peerAddr) + ":" + NSPR.util.PR_ntohs(peerAddr.port);
 }
 
-//******** does not really work... 
+//******** Anna: do not really work... 
+
+// Bind to local port and listen
+function tcpOpenReceiveSocket(port) {
+  var fd = NSPR.sockets.PR_OpenTCPSocket(NSPR.sockets.PR_AF_INET);
+
+  // Allow binding unless unless the port is actively being listened on.
+  var opt = new NSPR.types.PRSocketOptionData();
+  opt.option = NSPR.sockets.PR_SockOpt_Reuseaddr;
+  opt.value = NSPR.sockets.PR_TRUE;
+  NSPR.sockets.PR_SetSocketOption(fd, opt.address());
+  
+  var addr = new NSPR.types.PRNetAddr();
+  NSPR.sockets.PR_SetNetAddr(NSPR.sockets.PR_IpAddrAny, NSPR.sockets.PR_AF_INET,
+			     port, addr.address());
+
+  if (NSPR.sockets.PR_Bind(fd, addr.address()) != 0) {
+    return {error: "Error binding : code = " + NSPR.errors.PR_GetError()};
+  }
+
+  if (NSPR.sockets.PR_Listen(fd, 1) != 0) {
+    return {error: "Error listening : code = " + NSPR.errors.PR_GetError()};
+  }
+
+  util.registerSocket(fd);
+  return {};
+}
 
 function tcpAcceptstart(socketid) {
   util.data.multiresponse_running = true;
@@ -143,7 +153,15 @@ function tcpAcceptstart_helper(socketid) {
   if (!fdin.isNull()) {
     var port = NSPR.util.PR_ntohs(addr.port);
     var ip = NSPR.util.NetAddrToString(addr);
-    var result = {incoming: true, address: ip, port: port};
+    var result = {
+      incoming: true, 
+      address: ip, 
+      port: port,
+      __exposedProps__: {
+	incoming: "r", 
+	address: "r", 
+	port: "r"
+      }};
     
     // close accept socket - user must re-create a new
     // listener worker if he wants to accept more connections
@@ -167,8 +185,7 @@ function tcpAcceptstart_helper(socketid) {
 
     // Including "done : true" in the result indicates to fathom.js that this
     // multiresponse request is finished and can be cleaned up.
-    var result = {done: true};
-    util.postResult(result);
+    util.postResult(undefined, true);
     return;
   }
 

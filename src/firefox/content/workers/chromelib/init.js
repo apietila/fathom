@@ -107,36 +107,48 @@ var util = {
 
   actionHandler : function actionHandler(event) {
     var data = JSON.parse(event.data);
-
     var actionname = util.getArgument(data, 'action');
+
     if (actionname == 'shutdown') {
+      // close this worker
       util.cleanup();
-      close();
-      return; // probably unreachable
+      setTimeout(close,0);
+
     } else if (util.actions[actionname]) {
       var requestid = util.getArgument(data, 'requestid');
+      var args = util.getArgument(data, 'args');
+
       // TODO: storing the requestid globally and relying upon it from recvstart
       // and recvfromstart results in race conditions when calling recvstop.
       util.data.lastrequestid = requestid;
-      var args = util.getArgument(data, 'args');
+
       // Call the function in this worker's scope whose name is the same as the
       // value of actionname.
       var result = self[actionname].apply(null, args);
+
       // The only return values we want to ignore are objects with the key
       // "ignore" whose value is true;
       if (!result || !result['ignore']) {
         // Send the result back via postMessage().
 	util.postResult(result);
       }
-      return;
-    }
-    throw 'Unknown action: ' + actionname;
+    } else
+      throw 'Unknown action: ' + actionname;
   },
 
-  postResult : function(result) {
+  postResult : function(result, done, close) {
     var requestid = util.data.lastrequestid;
-    var obj = {requestid: requestid, result: result};
+    var obj = {
+      requestid: requestid, 
+      result: result, 
+      done : done,  // request ready flag
+      close : close // worker close flag
+    };
     postMessage(JSON.stringify(obj));    
+    if (close) {
+      util.cleanup();
+      setTimeout(close, 0); // terminates the worker thread
+    }
   },
 
   log : function log(msg) {
@@ -151,10 +163,13 @@ onmessage = function(event) {
   util.getArgument(data, 'init', 'The worker did not receive an init message.');
 
   util.nsprpath = util.getArgument(data, 'nsprpath');
+
   // Anna: add name arg as Firefox 22 folds nspr inside other libs
-  util.nsprname = (data.hasOwnProperty('nsprname') ? util.getArgument(data, 'nsprname') : "nspr4");
+  util.nsprname = (data.hasOwnProperty('nsprname') ? 
+		   util.getArgument(data, 'nsprname') : "nspr4");
   util.arch = util.getArgument(data, 'arch');
   util.os = util.getArgument(data, 'os');
+
   importScripts('chrome://fathom/content/workers/chromelib/nspr.js');
 
   // Now replace the onmessage handler with the one that does the real work.

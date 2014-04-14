@@ -182,67 +182,75 @@ var System = function (ctx) {
 	 *
 	 * @param {function} callback - The callback Fathom invokes once the
 	 * call completes. On error contains "error" member.
-	 *
-	 * @param {string} host - The host (name or IP address) to ping.
-	 * @param {object} opt - Optional parameters (proto, bandwidth, time, num, port, len, window).
-	 * @param {boolean} incrementaloutput - Send incremental output.
+	 * @param {object} opt  Optional parameters (client, proto, bandwidth,
+	 *                      time, num, port, len, window).
+	 * @param {boolean} incrementaloutput Send incremental output.
 	 */
-	sys.doIperf = function(callback, host, opt, incrementaloutput) {
+	doIperf : function(callback, opt, incrementaloutput) {
 	    var os = ctx.os;
 	    var cmd = 'iperf';
 	    var args = [];
-
-	    if (host === undefined) {
-    		callback({error: "doIperf: missing host argument", 
-    			  __exposedProps__: {error: "r"}});
-    		return;
-	    }
         
 	    // do incremental output? default false
 	    var inc = false;
-	    if (incrementaloutput !== undefined)
-            inc = incrementaloutput; 
+	    if (incrementaloutput !== undefined) {
+		inc = incrementaloutput; 
+	    }
 
-        var proto = opt.proto || 'udp'; 
-		if (proto==='udp') {
-		    args.push("-u ");
-		}
+	    // udp or tcp
+	    if (opt.proto==='udp') {
+		args.push("-u");
+	    }
+	    // client or server
+	    if (opt.client) {
+		args.push("-c " + opt.client);
+	    } else {
+		// FIXME: need a way to stop the asyn backgroun process
+		// in order to be able to run iperf server ..
+		callback({error: "doIperf: server mode not support, consider tradeoff test", 
+			  __exposedProps__: {error: "r"}});
+		return;		
+	    }
 
-	    args.push("-c " + host);
-        
-        // server port
-        if (opt.port) {
-            args.push("-p " + opt.port);
-        }
-        // target bandwidth
-        if (proto === 'udp' && opt.bandwidth) {
+            // server port
+            if (opt.port) {
+		args.push("-p " + opt.port);
+            }
+
+	    // client specific
+	    if (opt.client) {
+		// target bandwidth
+		if (opt.proto === 'udp' && opt.bandwidth) {
 		    args.push("-b " + opt.bandwidth);
 		}
-        // num bytes to send
-        if (opt.num) {
-            args.push("-n " + opt.num);
-        }
-        // read/write buf
-        if (opt.len) {
-            args.push("-l " + opt.len);
-        }
-        // time to send
-        if (opt.time) {
-            args.push("-t " + opt.time);
-        }
-        // do bidirectional test individually
-        if (opt.tradeoff) {
-            args.push("-r");
-        }
+		// num bytes to send
+		if (opt.num) {
+		    args.push("-n " + opt.num);
+		}
+		// read/write buf
+		if (opt.len) {
+		    args.push("-l " + opt.len);
+		}
+		// time to send
+		if (opt.time) {
+		    args.push("-t " + opt.time);
+		}
+		// do bidirectional test individually
+		if (opt.tradeoff) {
+		    args.push("-r");
+		}
+	    }
         
-        // reports in csv every 1s
+            // reports in csv every 1s
 	    args.push("-y C -i 1");
 	    
 	    function cbk(info) {
       		var output = {
       		    name: "iperf",
       		    os: os,
-                cmd : cmd + " " + args.join(" "),
+                    cmd : cmd + " " + args.join(" "),
+		    tradeoff : (opt.tradeoff !== undefined), // parser flag
+		    client : (opt.client !== undefined) // parser flag
       		};
       		var data = libParse2(output, info);
       		callback(data);

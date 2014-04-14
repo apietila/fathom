@@ -16,133 +16,191 @@ const darwin = "darwin";
 
 /* Iperf */
 function parseIperf(config, output) {
-	var res = {
-        client : { 
-            reports : [],         // list of periodic reports
-            total : undefined,    // client side final report
+    var res = {	
+        snd_reports : [],  
+        snd_total : undefined,
+	snd_rcv_total : undefined,
+        rcv_reports : [],     
+        rcv_total : undefined,
+	__exposedProps__ : {
+            snd_reports : "r",
+            snd_total : "r",
+            snd_rcv_total : "r",
+            rcv_reports : "r",
+            rcv_total : "r",
+	}
+    };
+
+    var splitts = function(s) {
+	if (s.length<14) {
+	    return parseInt(s); // should not happen ... 
+	} else {
+	    var d = new Date(parseInt(s.substring(0,4)), // year
+			     parseInt(s.substring(4,6)), // month
+			     parseInt(s.substring(6,8)), // date
+			     parseInt(s.substring(8,10)), // hour
+			     parseInt(s.substring(10,12)), // minute
+			     parseInt(s.substring(12,14)), // second
+			     0); // ms
+	}
+	return d.getTime(); // in millis
+    };
+
+    var sendreport = function(tmp) {
+        var obj = {
+            timestamp : splitts(tmp[0]),
+            sendip : tmp[1],
+            sendport : parseInt(tmp[2]),
+            recvip : tmp[3],
+            recvport : parseInt(tmp[4]),
+            startTime : parseFloat(tmp[6].split('-')[0]),
+            endTime : parseFloat(tmp[6].split('-')[1]),
+            bytes : parseFloat(tmp[7]),
+            rate : parseFloat(tmp[8]),
             __exposedProps__ : {
-                reports : "r",
-                total : "r"
+		timestamp : "r",
+		sendip : "r",
+		sendport : "r",
+		recvip : "r",
+		recvport : "r",
+		startTime : "r",
+		endTime : "r",
+		bytes : "r",
+		bytesK : "r",
+		bytesM : "r",
+		rate : "r",
+		ratebit : "r",
+		rateKbit : "r",
+		rateMbit : "r"
             }
-        },
-        server : {
-            total : undefined,
-            __exposedProps__ : {
-                total : "r"       // server side final report
-        },
-        __exposedProps__: {
-            client : "r",
-            server : "r"
-        }
+        };
+	    
+    	// KB
+    	obj.bytesK = obj.bytes / 1024.0;
+    	// MB
+    	obj.bytesM = obj.bytes / 1024.0 / 1024.0;
+	
+    	// bytes / s
+    	obj.rate = obj.bytes / (obj.endTime - obj.startTime);
+    	// bits / s
+    	obj.ratebit = obj.rate * 8.0;
+    	// Kbit / s
+    	obj.rateKbit = obj.ratebit *  (1.0 / 1000 );
+    	// Mbit / s
+    	obj.rateMbit = obj.ratebit *  (1.0 / 1000 / 1000);
+	return obj;
     };
 	
-	var lines = output.split('\n');
-	for (var i = 0; i<lines.length; i++) {	    
-	    var tmp = lines[i].split(',');
+    var recvreport = function(tmp) {
+	var obj = {
+            timestamp : splitts(tmp[0]),
+    	    recvip : tmp[1],
+    	    recvport : parseInt(tmp[2]),
+    	    sendip : tmp[3],
+    	    sendport : parseInt(tmp[4]),
+    	    startTime : parseFloat(tmp[6].split('-')[0]),
+    	    endTime : parseFloat(tmp[6].split('-')[1]),
+    	    bytes : parseInt(tmp[7]),
+    	    rate : parseInt(tmp[8]),
+    	    jitter : parseFloat(tmp[9]),
+    	    errorCnt : parseInt(tmp[10]),
+    	    dgramCnt : parseInt(tmp[11]),
+    	    errorRate : parseFloat(tmp[12]),
+    	    outOfOrder : parseFloat(tmp[13]),
+            __exposedProps__ : {
+		timestamp : "r",
+		sendip : "r",
+		sendport : "r",
+		recvip : "r",
+		recvport : "r",
+		startTime : "r",
+		endTime : "r",
+		bytes : "r",
+		bytesK : "r",
+		bytesM : "r",
+		rate : "r",
+		ratebit : "r",
+		rateKbit : "r",
+		rateMbit : "r",
+		jitter: "r",
+		errorCnt : "r",
+		dgramCnt : "r",
+		errorRate : "r",
+		outOfOrder : "r"
+            }
+	};
+	    
+	// KB
+	obj.bytesK = obj.bytes / 1024.0;
+	// MB
+	obj.bytesM = obj.bytes / 1024.0 / 1024.0;
+	
+	// bytes / s
+	obj.rate = obj.bytes / (obj.endTime - obj.startTime);
+	// bits / s
+	obj.ratebit = obj.rate * 8.0;
+	// Kbit / s
+	obj.rateKbit = obj.ratebit *  (1.0 / 1000 );
+	// Mbit / s
+	obj.rateMbit = obj.ratebit *  (1.0 / 1000 / 1000);
 
-	    if (tmp.length == 9) {
-        	var client = tmp;
-        	var obj = {
-        	    timestamp : parseInt(client[0]),
-        	    clientip : client[1],
-        	    clientport : parseInt(client[2]),
-        	    serverip : client[3],
-        	    serverport : parseInt(client[4]),
-        	    transferID : parseInt(client[5]),
-        	    startTime : parseFloat(client[6].split('-')[0]),
-        	    endTime : parseFloat(client[6].split('-')[1]),
-        	    bytes : parseInt(client[7]),
-        	    rate : parseInt(client[8]),
-                __exposedProps__ : {
-                    timestamp : "r",
-                    clientip : "r",
-                    clientport : "r",
-                    serverip : "r",
-                    serverport : "r",
-                    transferID : "r",
-                    startTime : "r",
-                    endTime : "r",
-                    bytes : "r",
-                    rate : "r"
-                }
-        	};
-        	res.client.reports.push(obj); // periodic report
+	return obj;
+    };
 
-    		// KB
-    		obj.bytesK = obj.bytes / 1024.0;
-    		// MB
-    		obj.bytesM = obj.bytes / 1024.0 / 1024.0;
-
-    		// bytes / s
-    		obj.rate = obj.bytes / obj.endTime;
-    		// bits / s
-    		obj.ratebit = obj.rate * 8.0;
-    		// Kbit / s
-    		obj.rateKbit = obj.ratebit *  (1.0 / 1000 );
-    		// Mbit / s
-    		obj.rateMbit = obj.ratebit *  (1.0 / 1000 / 1000);
-
-    		if (obj.startTime == 0) {
-    		    res.client.total = obj; // final results
-    		}
-
-	   } else if (tmp.length == 14) {
-	       // udp server report
-	       var server = tmp;
-	       var obj = {
-    		   timestamp : parseInt(server[0]),
-    		   serverip : server[1],
-    		   serverport : parseInt(server[2]),
-    		   clientip : server[3],
-    		   clientport : parseInt(server[4]),
-    		   transferID : parseInt(server[5]),
-    		   startTime : parseFloat(server[6].split('-')[0]),
-    		   endTime : parseFloat(server[6].split('-')[1]),
-    		   bytes : parseInt(server[7]),
-    		   rate : parseInt(server[8]),
-    		   jitter : parseFloat(server[9]),
-    		   errorCnt : parseInt(server[10]),
-    		   dgramCnt : parseInt(server[11]),
-    		   errorRate : parseFloat(server[12]),
-    		   outOfOrder : parseFloat(server[13]),
-                __exposedProps__ : {
-                    timestamp : "r",
-                    clientip : "r",
-                    clientport : "r",
-                    serverip : "r",
-                    serverport : "r",
-                    transferID : "r",
-                    startTime : "r",
-                    endTime : "r",
-                    bytes : "r",
-                    rate : "r",
-                    jitter: "r",
-                    errorCnt : "r",
-                    dgramCnt : "r",
-                    errorRate : "r",
-                    outOfOrder : "r"
-                }
-	       };
-
-	       // KB
-	       obj.bytesK = obj.bytes / 1024.0;
-	       // MB
-	       obj.bytesM = obj.bytes / 1024.0 / 1024.0;
-
-	       // bytes / s
-	       obj.rate = obj.bytes / obj.endTime;
-	       // bits / s
-	       obj.ratebit = obj.rate * 8.0;
-	       // Kbit / s
-	       obj.rateKbit = obj.ratebit *  (1.0 / 1000 );
-	       // Mbit / s
-	       obj.rateMbit = obj.ratebit *  (1.0 / 1000 / 1000);
-
-	       res.server = { total : obj };
-           
-	    } // else unknown length.. ignore
-	}
-	return res;    
+    var reverse = false;
+    var lines = output.split('\n');
+    for (var i = 0; i<lines.length; i++) {	
+	var tmp = lines[i].split(',');
+	if (tmp.length == 9) {
+	    var obj = sendreport(tmp);
+	    // figure out which report this was
+	    if (config.client) { // data comes from iperf client
+    		if (obj.startTime === 0) {
+		    // client side send totals
+    		    res.snd_total = obj; // final results
+		}
+		res.snd_reports.push(obj); // periodic report
+	    } else { // data comes from iperf server
+		reverse = true;
+    		if (obj.startTime === 0) {
+		    // server side send totals
+    		    res.snd_total = obj; // final results
+		}
+		res.snd_reports.push(obj); // periodic report
+	    }
+	} else if (tmp.length == 14) {
+	    var obj = recvreport(tmp);
+	    // figure out which report this was
+	    if (config.client) { // data comes from iperf client
+		if (reverse) {
+		    // tradeoff testing recv side
+    		    if (obj.startTime === 0) {
+			// client side recv totals
+    			res.rcv_total = obj; // final results
+		    }
+		    res.rcv_reports.push(obj); // periodic report
+		} else {
+		    // client recved server report
+    		    res.snd_rcv_total = obj;
+		    reverse = true;
+		}
+	    } else { // data comes from iperf server
+		if (reverse) {
+		    // server recved cliside server report for tradeoff
+    		    res.rcv_total = obj;
+		} else {
+		    // normal server side report
+    		    if (obj.startTime === 0) {
+			// server side send totals
+    			res.rcv_total = obj; // final results
+		    }
+		    res.rcv_reports.push(obj); // periodic report
+		}
+	    }
+	    
+	} // else unknown length.. ignore
+    }
+    return res;    
 }; // parseIperf
 
 /* Traceroute output. */
@@ -2276,8 +2334,8 @@ var libParse2 = function (config, obj) {
 	res = parsePing(config,out);
 	break;
     case "iperf":
-    res = parseIperf(config,out);
-    break;
+	res = parseIperf(config,out);
+	break;
     case "nameserver":
 	res = parseNameServer(config,out);
 	break;

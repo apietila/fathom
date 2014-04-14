@@ -20,6 +20,5 @@ function closeSocket(socketid) {
   util.unregisterSocket(socketid);
 
   // Anna: sending flags to fathom to clean up this worker
-  util.postResult({closed : true});
-  setTimeout(close, 1);
+  util.postResult(undefined, true, true);
 }
